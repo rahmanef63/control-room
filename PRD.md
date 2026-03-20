@@ -536,24 +536,32 @@ Result minimal:
 
 ## 11. Convex Data Model
 
-Berikut tabel minimum:
+Berikut tabel minimum. Semua tabel harus mendefinisikan index di `schema.ts`.
+
+Package manager: **npm** (konsisten di seluruh monorepo).
 
 ### `events`
 
 Tujuan:
 
 - timeline live
-- TTL 30 hari
+- TTL 30 hari (dibersihkan oleh scheduled function Convex, lihat section 11.1)
 
 Kolom:
 
-- `timestamp`
-- `type`
-- `message`
-- `severity`
-- `source`
-- `target`
-- `metadata`
+- `timestamp` (number, epoch ms)
+- `type` (string)
+- `message` (string)
+- `severity` (string: `info` | `warning` | `error` | `critical`)
+- `source` (string)
+- `target` (string, optional)
+- `metadata` (object, optional)
+
+Index:
+
+- `by_timestamp`: [`timestamp`]
+- `by_type`: [`type`, `timestamp`]
+- `by_severity`: [`severity`, `timestamp`]
 
 ### `audit_log`
 
@@ -563,13 +571,20 @@ Tujuan:
 
 Kolom:
 
-- `timestamp`
-- `action`
-- `target`
-- `result`
-- `triggered_by`
-- `request_id`
-- `metadata`
+- `timestamp` (number, epoch ms)
+- `action` (string)
+- `target` (string)
+- `result` (string: `success` | `failed` | `cancelled`)
+- `severity` (string: `info` | `warning` | `critical`)
+- `triggered_by` (string: `manual-dashboard` | `system-agent` | `scheduled-check`)
+- `request_id` (string)
+- `metadata` (object, optional)
+
+Index:
+
+- `by_timestamp`: [`timestamp`]
+- `by_target`: [`target`, `timestamp`]
+- `by_action`: [`action`, `timestamp`]
 
 ### `agent_status`
 
@@ -579,32 +594,45 @@ Tujuan:
 
 Kolom:
 
-- `name`
-- `pid`
-- `status`
-- `cpu`
-- `memory`
-- `uptime_seconds`
-- `last_seen`
-- `metadata`
+- `name` (string)
+- `pid` (number, optional — null jika tidak ditemukan)
+- `status` (string: `running` | `stopped` | `unknown`)
+- `cpu` (number, persentase)
+- `memory` (number, bytes)
+- `uptime_seconds` (number)
+- `last_seen` (number, epoch ms)
+- `detection_source` (string: `process` | `container` | `systemd` | `pidfile`)
+- `available_actions` (array of string: action yang bisa dilakukan terhadap agent ini)
+- `metadata` (object, optional)
+
+Index:
+
+- `by_name`: [`name`]
+- `by_status`: [`status`]
 
 ### `system_snapshot`
 
 Tujuan:
 
 - snapshot berkala host
-- TTL 7 hari
+- TTL 7 hari (dibersihkan oleh scheduled function Convex, lihat section 11.1)
 
 Kolom:
 
-- `timestamp`
-- `cpu_total`
-- `cpu_cores`
-- `ram_total`
-- `ram_used`
-- `ram_available`
-- `disk`
-- `network`
+- `timestamp` (number, epoch ms)
+- `cpu_total` (number, persentase)
+- `cpu_cores` (array of number)
+- `ram_total` (number, bytes)
+- `ram_used` (number, bytes)
+- `ram_available` (number, bytes)
+- `disk` (array of object: `{ mount: string, total: number, used: number, available: number }`)
+- `network` (object: `{ rx_bytes: number, tx_bytes: number, rx_rate: number, tx_rate: number }`)
+- `uptime_seconds` (number)
+- `load_average` (array of number: 1m, 5m, 15m)
+
+Index:
+
+- `by_timestamp`: [`timestamp`]
 
 ### `alerts`
 
@@ -614,13 +642,18 @@ Tujuan:
 
 Kolom:
 
-- `type`
-- `message`
-- `severity`
-- `status`
-- `created_at`
-- `resolved_at`
-- `metadata`
+- `type` (string)
+- `message` (string)
+- `severity` (string: `warning` | `error` | `critical`)
+- `status` (string: `active` | `resolved` | `acknowledged`)
+- `created_at` (number, epoch ms)
+- `resolved_at` (number, epoch ms, optional)
+- `metadata` (object, optional)
+
+Index:
+
+- `by_status`: [`status`, `created_at`]
+- `by_severity`: [`severity`, `created_at`]
 
 ### `commands`
 
@@ -630,18 +663,23 @@ Tujuan:
 
 Kolom:
 
-- `request_id`
-- `action`
-- `target_type`
-- `target_id`
-- `payload`
-- `status`
-- `requested_by`
-- `requested_at`
-- `started_at`
-- `finished_at`
-- `result`
-- `error`
+- `request_id` (string, UUID)
+- `action` (string)
+- `target_type` (string: `container` | `service` | `agent` | `dokploy-app` | `fail2ban`)
+- `target_id` (string)
+- `payload` (object, optional)
+- `status` (string: `queued` | `running` | `success` | `failed` | `cancelled` | `timeout`)
+- `requested_by` (string)
+- `requested_at` (number, epoch ms)
+- `started_at` (number, epoch ms, optional)
+- `finished_at` (number, epoch ms, optional)
+- `result` (string, optional)
+- `error` (string, optional)
+
+Index:
+
+- `by_status`: [`status`, `requested_at`]
+- `by_request_id`: [`request_id`]
 
 ### `app_status`
 
@@ -651,14 +689,32 @@ Tujuan:
 
 Kolom:
 
-- `name`
-- `source`
-- `runtime_status`
-- `health_status`
-- `ports`
-- `domain`
-- `last_seen`
-- `metadata`
+- `name` (string)
+- `source` (string: `dokploy` | `docker` | `systemd`)
+- `runtime_status` (string: `running` | `stopped` | `restarting` | `error` | `unknown`)
+- `health_status` (string: `healthy` | `unhealthy` | `none` | `unknown`)
+- `ports` (array of object: `{ internal: number, published: number | null, protocol: string }`)
+- `domain` (string, optional)
+- `last_seen` (number, epoch ms)
+- `restart_count` (number, optional)
+- `last_deploy_time` (number, epoch ms, optional)
+- `last_known_error` (string, optional)
+- `metadata` (object, optional)
+
+Index:
+
+- `by_name`: [`name`]
+- `by_source`: [`source`]
+- `by_runtime_status`: [`runtime_status`]
+
+## 11.1 TTL Cleanup
+
+Implementasi TTL menggunakan Convex scheduled function (cron):
+
+- Setiap **1 jam**, jalankan function yang menghapus dokumen `events` yang lebih tua dari 30 hari.
+- Setiap **1 jam**, jalankan function yang menghapus dokumen `system_snapshot` yang lebih tua dari 7 hari.
+- Function cleanup harus batch delete (maks 100 dokumen per eksekusi) untuk menghindari timeout.
+- Buat file `convex/crons.ts` untuk mendefinisikan jadwal ini.
 
 ## 12. UI / Route Structure
 
@@ -670,7 +726,8 @@ Struktur minimal:
 frontend/
 ├── app/
 │   ├── (dashboard)/
-│   │   ├── page.tsx
+│   │   ├── layout.tsx            # dashboard layout dengan sidebar
+│   │   ├── page.tsx              # overview
 │   │   ├── apps/page.tsx
 │   │   ├── agents/page.tsx
 │   │   ├── security/page.tsx
@@ -679,11 +736,25 @@ frontend/
 │   │   └── audit/page.tsx
 │   ├── login/page.tsx
 │   └── api/
-│       ├── auth/route.ts
-│       ├── health/route.ts
-│       └── logs/[target]/route.ts
+│       ├── auth/login/route.ts   # POST login
+│       ├── auth/logout/route.ts  # POST logout
+│       └── health/route.ts       # GET health check
 ├── components/
+│   ├── ui/                       # shadcn/ui components
+│   ├── MetricCard.tsx
+│   ├── StatusBadge.tsx
+│   ├── AppTable.tsx
+│   ├── AgentTable.tsx
+│   ├── SecurityPanel.tsx
+│   ├── EventTimeline.tsx
+│   ├── AuditTable.tsx
+│   ├── ConfirmActionDialog.tsx
+│   └── ConnectionStatus.tsx      # indicator koneksi Convex
 ├── lib/
+│   ├── auth.ts                   # session cookie sign/verify helpers
+│   ├── convex.ts                 # Convex client provider
+│   └── types.ts                  # shared UI types
+├── middleware.ts                  # auth guard — redirect ke /login jika cookie invalid
 └── package.json
 ```
 
@@ -691,6 +762,9 @@ Catatan:
 
 - Route action utama tidak perlu mengeksekusi host command langsung.
 - Frontend menulis command ke Convex atau memanggil endpoint internal tipis yang meneruskan request ke Convex.
+- Log streaming **tidak lewat Next.js route handler**. Agent menulis log tail ke Convex on-demand, dan frontend subscribe ke data tersebut. Jika perlu streaming panjang di masa depan, tambahkan SSE endpoint terpisah.
+- Setiap page dashboard harus punya **error boundary** (`error.tsx`) supaya crash satu panel tidak menghancurkan seluruh dashboard.
+- **`ConnectionStatus` component** wajib ada di layout untuk menunjukkan status koneksi ke Convex (connected/reconnecting/disconnected).
 
 ## 13. Repo Structure
 
@@ -700,8 +774,50 @@ Struktur repo final:
 /home/rahman/projects/vps-rahmanef/
 ├── frontend/
 │   ├── app/
+│   │   ├── (dashboard)/
+│   │   │   ├── layout.tsx
+│   │   │   ├── page.tsx
+│   │   │   ├── error.tsx          # error boundary dashboard
+│   │   │   ├── apps/
+│   │   │   │   ├── page.tsx
+│   │   │   │   └── error.tsx
+│   │   │   ├── agents/
+│   │   │   │   ├── page.tsx
+│   │   │   │   └── error.tsx
+│   │   │   ├── security/
+│   │   │   │   ├── page.tsx
+│   │   │   │   └── error.tsx
+│   │   │   ├── events/
+│   │   │   │   ├── page.tsx
+│   │   │   │   └── error.tsx
+│   │   │   ├── actions/
+│   │   │   │   ├── page.tsx
+│   │   │   │   └── error.tsx
+│   │   │   └── audit/
+│   │   │       ├── page.tsx
+│   │   │       └── error.tsx
+│   │   ├── login/page.tsx
+│   │   ├── api/
+│   │   │   ├── auth/login/route.ts
+│   │   │   ├── auth/logout/route.ts
+│   │   │   └── health/route.ts
+│   │   └── layout.tsx             # root layout
 │   ├── components/
+│   │   ├── ui/                    # shadcn/ui
+│   │   ├── MetricCard.tsx
+│   │   ├── StatusBadge.tsx
+│   │   ├── AppTable.tsx
+│   │   ├── AgentTable.tsx
+│   │   ├── SecurityPanel.tsx
+│   │   ├── EventTimeline.tsx
+│   │   ├── AuditTable.tsx
+│   │   ├── ConfirmActionDialog.tsx
+│   │   └── ConnectionStatus.tsx
 │   ├── lib/
+│   │   ├── auth.ts
+│   │   ├── convex.ts
+│   │   └── types.ts
+│   ├── middleware.ts
 │   ├── public/
 │   ├── package.json
 │   └── next.config.ts
@@ -717,23 +833,29 @@ Struktur repo final:
 │   │   │   ├── index.ts
 │   │   │   ├── allowlist.ts
 │   │   │   └── validators.ts
-│   │   ├── convex/
-│   │   │   └── client.ts
+│   │   ├── convex-client.ts       # Convex client setup dan auth
+│   │   ├── health.ts              # HTTP health endpoint agent
+│   │   ├── logger.ts              # structured logging
 │   │   ├── config.ts
-│   │   └── index.ts
+│   │   └── index.ts               # entry point dengan graceful shutdown
 │   ├── package.json
 │   └── tsconfig.json
 ├── convex/
+│   ├── _generated/                # auto-generated oleh Convex CLI
 │   ├── schema.ts
 │   ├── events.ts
 │   ├── commands.ts
 │   ├── audit.ts
 │   ├── snapshots.ts
-│   └── alerts.ts
+│   ├── alerts.ts
+│   ├── appStatus.ts
+│   ├── agentStatus.ts
+│   └── crons.ts                   # TTL cleanup scheduler
 ├── docs/
 │   └── runbook.md
 ├── scripts/
-│   └── install-systemd.sh
+│   ├── install-systemd.sh
+│   └── deploy.sh                  # pull, build, restart services
 ├── .env.example
 ├── README.md
 └── PRD.md
@@ -744,14 +866,26 @@ Struktur repo final:
 Root env yang perlu didokumentasikan:
 
 ```env
+# Auth
 CONTROL_ROOM_SECRET=replace_me
+CONTROL_ROOM_SESSION_SECRET=replace_me_different_from_above
+SESSION_EXPIRY_HOURS=24
+
+# Frontend
 CONTROL_ROOM_PORT=4000
 CONTROL_ROOM_HOST=100.100.63.13
+
+# Agent
+AGENT_HEALTH_PORT=4001
+AGENT_COMMAND_POLL_INTERVAL_MS=2000
+AGENT_COMMAND_TIMEOUT_MS=30000
+AGENT_MAX_CONCURRENT_COMMANDS=3
 
 # Convex self-hosted
 CONVEX_DEPLOYMENT=local-dev-or-prod-name
 CONVEX_URL=http://127.0.0.1:3210
 CONVEX_SITE_URL=http://127.0.0.1:3211
+CONVEX_ADMIN_KEY=replace_me
 
 # Dokploy
 DOKPLOY_URL=http://127.0.0.1:3000
@@ -760,37 +894,57 @@ DOKPLOY_API_KEY=replace_me
 # Docker socket
 DOCKER_SOCKET_PATH=/var/run/docker.sock
 
-# Polling
+# Polling intervals (collectors)
 SYSTEM_POLL_INTERVAL_MS=5000
 SECURITY_POLL_INTERVAL_MS=10000
 DOCKER_POLL_INTERVAL_MS=5000
 AGENT_POLL_INTERVAL_MS=5000
+
+# Alert thresholds
+ALERT_CPU_WARNING_PERCENT=80
+ALERT_CPU_CRITICAL_PERCENT=95
+ALERT_RAM_WARNING_PERCENT=85
+ALERT_RAM_CRITICAL_PERCENT=95
+ALERT_DISK_WARNING_PERCENT=80
+ALERT_DISK_CRITICAL_PERCENT=90
 ```
 
 Catatan:
 
 - `CONVEX_URL` harus mengarah ke backend API instance Convex yang benar, bukan dashboard port.
-- `CONTROL_ROOM_SECRET` tidak boleh dikirim ke client.
+- `CONVEX_ADMIN_KEY` dipakai oleh agent untuk authenticate ke Convex self-hosted. Ambil dari admin panel Convex.
+- `CONTROL_ROOM_SECRET` dan `CONTROL_ROOM_SESSION_SECRET` tidak boleh dikirim ke client.
+- `CONTROL_ROOM_SESSION_SECRET` harus berbeda dari `CONTROL_ROOM_SECRET`. Yang pertama untuk sign cookie, yang kedua untuk login.
 
 ## 15. Auth Design
 
 Karena single-user dan Tailscale-only, auth v1 cukup sederhana:
 
 - login page menerima secret token
-- server memverifikasi token terhadap env
-- jika valid, server membuat signed HTTP-only session cookie
+- server memverifikasi token terhadap `CONTROL_ROOM_SECRET` di env
+- jika valid, server membuat signed session cookie menggunakan **HMAC-SHA256** dengan `CONTROL_ROOM_SESSION_SECRET` (key terpisah dari login secret)
+- cookie payload: `{ issued_at, expires_at }`
 - semua page dashboard dan route action memerlukan cookie valid
+
+Cookie flags wajib:
+
+- `HttpOnly: true`
+- `SameSite: Strict`
+- `Secure: false` (karena Tailscale internal, bukan HTTPS — bisa diubah jika pakai TLS)
+- `Path: /`
+- `Max-Age`: sesuai `SESSION_EXPIRY_HOURS`
 
 Kebutuhan:
 
-- rate limit ringan pada endpoint login
-- logout endpoint
-- session expiry configurable
+- rate limit: maksimal **5 login attempt per menit** per IP, implementasi sederhana menggunakan in-memory Map dengan TTL
+- logout endpoint: `POST /api/auth/logout` — hapus cookie
+- session expiry default: **24 jam** (configurable via `SESSION_EXPIRY_HOURS` env)
 
 Tidak boleh:
 
 - menyimpan secret token raw di localStorage
 - mengirim secret raw berkali-kali pada setiap request client
+- menyimpan session di database (cukup stateless signed cookie untuk single user)
 
 ## 16. systemd Deployment
 
@@ -811,13 +965,18 @@ Type=simple
 User=rahman
 WorkingDirectory=/home/rahman/projects/vps-rahmanef/frontend
 EnvironmentFile=/home/rahman/projects/vps-rahmanef/.env.local
-ExecStart=/usr/bin/npm run start
+ExecStart=/usr/bin/node /home/rahman/projects/vps-rahmanef/frontend/.next/standalone/server.js
 Restart=always
 RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vps-cr-frontend
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+Catatan: Next.js harus di-build dengan `output: "standalone"` di `next.config.ts` supaya bisa dijalankan langsung dengan `node`. Jika tidak pakai standalone, gunakan `ExecStart=/usr/bin/npm run start` sebagai fallback.
 
 ### 16.2 Agent unit
 
@@ -832,9 +991,12 @@ Type=simple
 User=rahman
 WorkingDirectory=/home/rahman/projects/vps-rahmanef/agent
 EnvironmentFile=/home/rahman/projects/vps-rahmanef/.env.local
-ExecStart=/usr/bin/npm run start
+ExecStart=/usr/bin/node /home/rahman/projects/vps-rahmanef/agent/dist/index.js
 Restart=always
 RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vps-cr-agent
 
 [Install]
 WantedBy=multi-user.target
@@ -844,6 +1006,91 @@ Catatan implementasi:
 
 - jika `agent` butuh akses ke Docker socket atau command tertentu, permission harus diatur dengan sadar. Jangan default ke root penuh tanpa alasan.
 - jika pada praktiknya perlu wrapper systemd atau sudoers sempit, itu harus dibuat eksplisit di runbook.
+
+## 16.3 Build dan deploy flow
+
+Urutan deploy:
+
+```bash
+# 1. Pull kode terbaru
+cd /home/rahman/projects/vps-rahmanef
+git pull origin main
+
+# 2. Install dependencies
+cd frontend && npm install && npm run build && cd ..
+cd agent && npm install && npm run build && cd ..
+
+# 3. Push Convex schema/functions
+cd convex && npx convex deploy && cd ..
+
+# 4. Restart services
+sudo systemctl restart vps-control-room-frontend
+sudo systemctl restart vps-control-room-agent
+```
+
+Script `scripts/deploy.sh` harus mengotomasi langkah-langkah di atas.
+
+### 16.4 Permission Docker socket
+
+User `rahman` harus masuk ke group `docker`:
+
+```bash
+sudo usermod -aG docker rahman
+```
+
+Jika ada command yang butuh `sudo` (misalnya `systemctl restart`), buat sudoers entry sempit:
+
+```text
+rahman ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart vps-control-room-*
+rahman ALL=(ALL) NOPASSWD: /usr/bin/fail2ban-client set sshd unbanip *
+```
+
+File sudoers: `/etc/sudoers.d/vps-control-room`
+
+## 16.5 Agent Runtime Behavior
+
+### Graceful shutdown
+
+- Agent harus menangani `SIGTERM` dan `SIGINT`.
+- Saat shutdown: selesaikan command yang sedang `running` (tunggu maks 10 detik), lalu set status command tersisa ke `cancelled`.
+- Hentikan semua collector interval.
+- Log shutdown event ke Convex sebelum exit.
+
+### Command execution
+
+- Agent poll `commands` table setiap `AGENT_COMMAND_POLL_INTERVAL_MS` (default 2 detik).
+- Maksimal `AGENT_MAX_CONCURRENT_COMMANDS` (default 3) command bersamaan.
+- Setiap command punya timeout `AGENT_COMMAND_TIMEOUT_MS` (default 30 detik). Jika timeout, set status ke `timeout`.
+- Agent harus retry mutation ke Convex maksimal 3 kali dengan exponential backoff (1s, 2s, 4s) jika gagal.
+
+### Convex connection failure
+
+- Jika Convex tidak reachable, agent tetap mengumpulkan data collector.
+- Data snapshot terakhir disimpan di memory (bukan file) dan dikirim begitu koneksi pulih.
+- Agent mencatat `convex_unreachable` ke stdout log. Retry koneksi setiap 10 detik.
+
+### Health endpoint
+
+- Agent expose HTTP endpoint sederhana di `AGENT_HEALTH_PORT` (default 4001).
+- `GET /health` return `{ status: "ok", uptime: number, convex_connected: boolean, last_snapshot: timestamp }`.
+
+## 16.6 Alert Thresholds
+
+Default thresholds (configurable via env):
+
+| Metric | Warning | Critical |
+|---|---|---|
+| CPU total | 80% | 95% |
+| RAM used | 85% | 95% |
+| Disk used | 80% | 90% |
+
+Alert lifecycle:
+
+1. Collector mendeteksi metric melebihi threshold.
+2. Agent membuat alert di Convex dengan status `active`.
+3. Jika metric kembali normal, agent set alert ke `resolved` dengan `resolved_at`.
+4. Alert `active` yang sudah di atas 1 jam tanpa perubahan, tetap ditampilkan di UI tapi tidak duplikat.
+5. Jangan buat alert baru jika alert `active` dengan type dan target yang sama sudah ada.
 
 ## 17. MVP Scope
 
@@ -947,73 +1194,104 @@ Task list ini sengaja granular supaya bisa dijalankan model yang kurang kuat den
 
 ### Phase 0: Repo foundation
 
-- Buat `frontend/` sebagai Next.js 15 app.
-- Buat `agent/` sebagai Node.js TypeScript package.
-- Buat `convex/` schema dan functions dasar.
-- Buat `.env.example`.
-- Buat `docs/runbook.md`.
-- Buat script install systemd.
+Dependency: tidak ada. Harus selesai sebelum Phase lain dimulai.
+
+- Buat `frontend/` sebagai Next.js 15 app (`npx create-next-app@latest frontend --typescript --tailwind --eslint --app --src-dir=false --import-alias="@/*"`).
+- Setup shadcn/ui di `frontend/` (`npx shadcn@latest init`).
+- Buat `agent/` sebagai Node.js TypeScript package (`npm init -y`, tambah `typescript`, `tsx`, `@types/node` sebagai devDependencies).
+- Buat `agent/tsconfig.json` dengan `target: ES2022`, `module: NodeNext`.
+- Buat `convex/` dengan `npx convex init` (atau setup manual jika self-hosted).
+- Buat `convex/schema.ts` sesuai section 11 (ini harus Phase 0 karena semua Phase lain bergantung padanya).
+- Buat `.env.example` sesuai section 14.
+- Buat `docs/runbook.md` minimal.
+- Buat `scripts/install-systemd.sh`.
+- Buat `scripts/deploy.sh`.
 
 ### Phase 1: Frontend shell
 
-- Implement login page.
-- Implement session middleware / auth guard.
-- Buat layout dashboard.
-- Buat sidebar ke Overview, Apps, Agents, Security, Events, Actions, Audit.
-- Buat empty states dan loading states.
+Dependency: Phase 0 selesai.
+
+- Buat `frontend/lib/auth.ts`: function `signSession(payload)` dan `verifySession(cookie)` menggunakan HMAC-SHA256 dengan `CONTROL_ROOM_SESSION_SECRET`.
+- Buat `frontend/app/api/auth/login/route.ts`: POST handler, validasi secret, set signed cookie.
+- Buat `frontend/app/api/auth/logout/route.ts`: POST handler, hapus cookie.
+- Buat `frontend/middleware.ts`: cek cookie valid di setiap request ke `/(dashboard)/*`, redirect ke `/login` jika invalid.
+- Buat `frontend/app/login/page.tsx`: form input secret, POST ke `/api/auth/login`, redirect ke `/` jika sukses.
+- Buat `frontend/app/(dashboard)/layout.tsx`: sidebar navigation ke Overview, Apps, Agents, Security, Events, Actions, Audit. Termasuk `ConnectionStatus` component.
+- Buat `frontend/app/(dashboard)/page.tsx`: overview page dengan empty/loading state.
+- Buat semua sub-pages (`apps`, `agents`, `security`, `events`, `actions`, `audit`) dengan empty state dan `error.tsx` per folder.
+- Buat `frontend/app/api/health/route.ts`: return `{ status: "ok" }`.
+- Buat `frontend/lib/convex.ts`: Convex client provider wrapper.
 
 ### Phase 2: Convex core
 
-- Buat schema untuk `events`, `audit_log`, `agent_status`, `system_snapshot`, `alerts`, `commands`, `app_status`.
-- Buat mutation untuk insert event.
-- Buat mutation untuk append audit log.
-- Buat mutation untuk create command.
-- Buat mutation untuk update command status/result.
-- Buat query untuk overview summary.
-- Buat query untuk app list.
-- Buat query untuk agent list.
-- Buat query untuk alerts aktif.
+Dependency: `convex/schema.ts` dari Phase 0 sudah ada. Bisa paralel dengan Phase 1.
+
+- Buat `convex/events.ts`: mutation `insertEvent`, query `listEvents` (paginated, filter by type/severity).
+- Buat `convex/audit.ts`: mutation `insertAudit`, query `listAuditLogs` (paginated, filter by target/date).
+- Buat `convex/commands.ts`: mutation `enqueueCommand`, mutation `updateCommandStatus`, query `pollPendingCommands` (index `by_status` where status=`queued`), query `listCommands`.
+- Buat `convex/snapshots.ts`: mutation `upsertSystemSnapshot`, query `getLatestSnapshot`, query `getOverview` (gabungkan snapshot + alert count + app count + agent count).
+- Buat `convex/alerts.ts`: mutation `upsertAlert` (buat baru atau update existing by type+target), mutation `resolveAlert`, query `listActiveAlerts`.
+- Buat `convex/appStatus.ts`: mutation `upsertAppStatus`, query `listApps`.
+- Buat `convex/agentStatus.ts`: mutation `upsertAgentStatus`, query `listAgents`.
+- Buat `convex/crons.ts`: scheduled function untuk TTL cleanup `events` (30 hari) dan `system_snapshot` (7 hari), jalan setiap 1 jam.
 
 ### Phase 3: Agent collector core
 
-- Implement config loader.
-- Implement system collector.
-- Implement docker collector.
-- Implement dokploy collector.
-- Implement process/agent collector.
-- Implement security collector.
-- Buat scheduler polling.
-- Kirim hasil collector ke Convex.
+Dependency: Phase 2 selesai (Convex mutations harus sudah ada).
+
+- Buat `agent/src/config.ts`: load semua env variables dengan default values dan validasi. Throw error jika required env missing.
+- Buat `agent/src/logger.ts`: structured logging sederhana (JSON ke stdout) dengan level `info`, `warn`, `error`.
+- Buat `agent/src/convex-client.ts`: setup Convex client menggunakan `CONVEX_URL` dan `CONVEX_ADMIN_KEY`. Termasuk retry logic (3x exponential backoff).
+- Buat `agent/src/collectors/system.ts`: baca `/proc/stat`, `/proc/meminfo`, `/proc/uptime`, `/proc/net/dev`, `df`. Output sesuai schema `system_snapshot`. Termasuk perhitungan `load_average` dari `/proc/loadavg`.
+- Buat `agent/src/collectors/docker.ts`: query Docker socket (`/var/run/docker.sock`) via HTTP. List containers, inspect state/health/ports. Output sesuai schema `app_status` untuk source `docker`.
+- Buat `agent/src/collectors/dokploy.ts`: query Dokploy API untuk app list dan deploy info. Merge dengan data Docker. Fallback ke Docker-only jika Dokploy unreachable.
+- Buat `agent/src/collectors/agents.ts`: deteksi proses dari known list menggunakan `ps aux` atau `/proc`. Map ke schema `agent_status`.
+- Buat `agent/src/collectors/security.ts`: baca `journalctl -u ssh.service`, `fail2ban-client status sshd`, `ufw status verbose`, `ss -tulpn`. Parse output ke format yang bisa dikirim ke Convex events dan ditampilkan UI.
+- Buat scheduler di `agent/src/index.ts`: jalankan tiap collector pada interval masing-masing. Kirim hasilnya ke Convex mutations. Setiap collector di-wrap try/catch supaya error satu collector tidak menghentikan yang lain.
+- Buat `agent/src/health.ts`: HTTP server sederhana di `AGENT_HEALTH_PORT`.
+- Implement graceful shutdown handler di `agent/src/index.ts` (SIGTERM/SIGINT).
 
 ### Phase 4: UI data binding
 
-- Bind overview ke snapshot dan alerts.
-- Bind apps page ke `app_status`.
-- Bind agents page ke `agent_status`.
-- Bind security page ke data collector security.
-- Bind events page ke `events`.
-- Bind audit page ke `audit_log`.
+Dependency: Phase 1 dan Phase 2 selesai.
+
+- Buat `MetricCard` component: kartu dengan label, value, unit, dan optional trend indicator.
+- Buat `StatusBadge` component: badge warna sesuai status (green=healthy, yellow=warning, red=error, gray=unknown).
+- Bind overview page: subscribe ke `getLatestSnapshot` dan `listActiveAlerts`. Tampilkan CPU, RAM, disk, uptime, network, alert count, quick status badges.
+- Buat `AppTable` component dan bind apps page: subscribe ke `listApps`. Tampilkan tabel dengan kolom sesuai section 7.2.
+- Buat `AgentTable` component dan bind agents page: subscribe ke `listAgents`. Tampilkan tabel sesuai section 7.3.
+- Buat `SecurityPanel` component dan bind security page: subscribe ke events dengan type `security.*`. Tampilkan SSH logins, fail2ban status, UFW rules, listening ports.
+- Buat `EventTimeline` component dan bind events page: subscribe ke `listEvents` dengan live tail. Auto-scroll ke event terbaru.
+- Buat `AuditTable` component dan bind audit page: subscribe ke `listAuditLogs`. Tambah filter by date range dan target.
+- Buat `ConnectionStatus` component: subscribe ke Convex connection state, tampilkan indicator di layout.
 
 ### Phase 5: Action pipeline
 
-- Definisikan allowlist action.
-- Buat commands table consumer pada agent.
-- Buat executor validator.
-- Implement restart container action.
-- Implement fetch logs action.
-- Implement restart systemd service action untuk known service.
-- Implement Dokploy redeploy action.
-- Implement fail2ban unban action.
-- Tulis audit log untuk semua action.
+Dependency: Phase 3 selesai (agent sudah bisa connect ke Convex).
+
+- Buat `agent/src/executor/allowlist.ts`: definisikan map action → command template. Contoh: `{ "container.restart": "docker container restart {target_id}", "container.logs": "docker logs --tail {payload.lines} {target_id}" }`. Known targets harus di-maintain dari collector results.
+- Buat `agent/src/executor/validators.ts`: validasi bahwa `target_id` ada di known targets (dari collector terakhir), `action` ada di allowlist, dan `payload` sesuai schema action tersebut.
+- Buat `agent/src/executor/index.ts`: poll `pollPendingCommands` setiap `AGENT_COMMAND_POLL_INTERVAL_MS`. Untuk setiap command: set status `running`, jalankan via `child_process.exec` dengan timeout, set status `success`/`failed`/`timeout`, tulis audit log via `insertAudit` mutation.
+- Implement action `container.restart`: `docker container restart <known-container>`.
+- Implement action `container.stop`: `docker container stop <known-container>` (sensitive, butuh konfirmasi di UI).
+- Implement action `container.logs`: `docker logs --tail N <known-container>`. Simpan output di result field.
+- Implement action `service.restart`: `sudo systemctl restart <known-service>`.
+- Implement action `dokploy.redeploy`: HTTP POST ke Dokploy API (sensitive).
+- Implement action `fail2ban.unban`: `sudo fail2ban-client set sshd unbanip <ip>` (validate IP format).
+- Buat `ConfirmActionDialog` component di frontend: modal dengan nama action, target, dan tombol confirm/cancel. Wajib untuk sensitive actions.
+- Bind actions page: form untuk trigger action, status tracking, dan result display.
 
 ### Phase 6: Hardening
 
-- Tambah login rate limit ringan.
-- Pastikan semua action butuh auth.
-- Pastikan target action tidak arbitrary.
-- Pastikan secret tidak bocor ke client.
-- Tambah health endpoint frontend.
-- Tambah health event pada agent.
+Dependency: Phase 5 selesai.
+
+- Implement rate limit login: in-memory Map, max 5 attempts per IP per menit, return 429 jika melebihi.
+- Audit semua route handler: pastikan setiap route di `(dashboard)/*` dan `/api/*` (kecuali `/api/health` dan `/api/auth/login`) memerlukan valid session cookie.
+- Audit allowlist: pastikan tidak ada path di executor yang bisa menerima input arbitrary. Test dengan target_id yang tidak ada di known list.
+- Audit env: pastikan `CONTROL_ROOM_SECRET`, `CONTROL_ROOM_SESSION_SECRET`, dan `CONVEX_ADMIN_KEY` tidak pernah dikirim ke client (tidak ada di `NEXT_PUBLIC_*`).
+- Pastikan `NEXT_PUBLIC_CONVEX_URL` hanya berisi URL Convex (ini aman karena Convex punya auth sendiri).
+- Test error boundary: simulasi crash di satu panel, pastikan panel lain tetap hidup.
+- Test Convex disconnect: matikan Convex sementara, pastikan UI menunjukkan disconnected state dan agent tetap berjalan.
 
 ### Phase 7: Deployment
 
@@ -1039,68 +1317,86 @@ Task list ini sengaja granular supaya bisa dijalankan model yang kurang kuat den
 
 Bagian ini untuk meminimalkan ambiguity saat dieksekusi model lain.
 
-### Frontend
+### Frontend — file by file
 
-- Setup Next.js App Router di `frontend/`.
-- Tambah Tailwind dan shadcn/ui.
-- Buat `app/login/page.tsx`.
-- Buat `app/(dashboard)/layout.tsx`.
-- Buat `app/(dashboard)/page.tsx`.
-- Buat `app/(dashboard)/apps/page.tsx`.
-- Buat `app/(dashboard)/agents/page.tsx`.
-- Buat `app/(dashboard)/security/page.tsx`.
-- Buat `app/(dashboard)/events/page.tsx`.
-- Buat `app/(dashboard)/actions/page.tsx`.
-- Buat `app/(dashboard)/audit/page.tsx`.
-- Buat komponen `MetricCard`.
-- Buat komponen `StatusBadge`.
-- Buat komponen `AppTable`.
-- Buat komponen `AgentTable`.
-- Buat komponen `SecurityPanel`.
-- Buat komponen `EventTimeline`.
-- Buat komponen `AuditTable`.
-- Buat komponen `ConfirmActionDialog`.
+- `npx create-next-app@latest frontend --typescript --tailwind --eslint --app --src-dir=false --import-alias="@/*"` lalu `cd frontend && npx shadcn@latest init`.
+- `frontend/lib/auth.ts`: export `signSession(payload, secret): string` dan `verifySession(cookie, secret): payload | null`. Gunakan Node.js `crypto.createHmac('sha256', secret)`. Payload format: `base64(JSON({issued_at, expires_at})).base64(hmac)`.
+- `frontend/lib/convex.ts`: Convex React provider, pakai `NEXT_PUBLIC_CONVEX_URL`.
+- `frontend/lib/types.ts`: shared types untuk UI (metric, status, dll).
+- `frontend/middleware.ts`: Next.js middleware, cek cookie `session` ada dan valid via `verifySession`. Jika invalid dan path bukan `/login` atau `/api/auth/*` atau `/api/health`, redirect ke `/login`.
+- `frontend/app/api/auth/login/route.ts`: POST, body `{ secret }`, validasi terhadap `CONTROL_ROOM_SECRET`, jika cocok set cookie dengan `signSession`, return 200. Jika salah return 401. Rate limit: in-memory Map max 5/menit per IP.
+- `frontend/app/api/auth/logout/route.ts`: POST, hapus cookie `session`, return 200.
+- `frontend/app/api/health/route.ts`: GET, return `{ status: "ok" }`.
+- `frontend/app/login/page.tsx`: form dengan satu input secret dan tombol login. Client-side POST ke `/api/auth/login`. Redirect ke `/` on success. Tampilkan error on 401/429.
+- `frontend/app/(dashboard)/layout.tsx`: layout dengan sidebar (link ke semua pages), header, dan `ConnectionStatus` component. Wrap children dengan Convex provider.
+- `frontend/app/(dashboard)/page.tsx`: overview page. Subscribe ke `getLatestSnapshot`, `listActiveAlerts`. Render `MetricCard` untuk CPU/RAM/disk/uptime/network, `StatusBadge` untuk layanan inti.
+- `frontend/app/(dashboard)/error.tsx`: catch-all error boundary untuk dashboard.
+- `frontend/app/(dashboard)/apps/page.tsx`: subscribe ke `listApps`, render `AppTable`. Action buttons: restart, view logs, refresh.
+- `frontend/app/(dashboard)/apps/error.tsx`.
+- `frontend/app/(dashboard)/agents/page.tsx`: subscribe ke `listAgents`, render `AgentTable`.
+- `frontend/app/(dashboard)/agents/error.tsx`.
+- `frontend/app/(dashboard)/security/page.tsx`: subscribe ke security events, render `SecurityPanel`.
+- `frontend/app/(dashboard)/security/error.tsx`.
+- `frontend/app/(dashboard)/events/page.tsx`: subscribe ke `listEvents`, render `EventTimeline` dengan auto-scroll.
+- `frontend/app/(dashboard)/events/error.tsx`.
+- `frontend/app/(dashboard)/actions/page.tsx`: UI untuk trigger actions. Dropdown target, dropdown action, confirm dialog. Subscribe ke `listCommands` untuk status tracking.
+- `frontend/app/(dashboard)/actions/error.tsx`.
+- `frontend/app/(dashboard)/audit/page.tsx`: subscribe ke `listAuditLogs`, render `AuditTable` dengan filter date/target.
+- `frontend/app/(dashboard)/audit/error.tsx`.
+- `frontend/components/MetricCard.tsx`: props `{ label, value, unit, trend? }`.
+- `frontend/components/StatusBadge.tsx`: props `{ status, label }`. Color map: running/healthy=green, warning=yellow, error/stopped=red, unknown=gray.
+- `frontend/components/AppTable.tsx`: tabel apps sesuai section 7.2 dengan action buttons.
+- `frontend/components/AgentTable.tsx`: tabel agents sesuai section 7.3.
+- `frontend/components/SecurityPanel.tsx`: panel multi-section: SSH logins, fail2ban, UFW, ports.
+- `frontend/components/EventTimeline.tsx`: list events dengan timestamp, icon per severity, auto-scroll to bottom.
+- `frontend/components/AuditTable.tsx`: tabel audit log dengan filter controls.
+- `frontend/components/ConfirmActionDialog.tsx`: modal shadcn dialog. Props `{ action, target, onConfirm, onCancel }`. Wajib untuk sensitive actions.
+- `frontend/components/ConnectionStatus.tsx`: dot indicator (green=connected, yellow=reconnecting, red=disconnected) + tooltip.
 
-### Agent
+### Agent — file by file
 
-- Setup package TypeScript di `agent/`.
-- Buat `src/config.ts`.
-- Buat `src/index.ts`.
-- Buat `src/collectors/system.ts`.
-- Buat `src/collectors/docker.ts`.
-- Buat `src/collectors/dokploy.ts`.
-- Buat `src/collectors/agents.ts`.
-- Buat `src/collectors/security.ts`.
-- Buat `src/executor/allowlist.ts`.
-- Buat `src/executor/validators.ts`.
-- Buat `src/executor/index.ts`.
-- Buat client Convex untuk query/mutation internal.
-- Tambah structured logging sederhana.
+- `cd agent && npm init -y && npm install typescript tsx @types/node convex --save-dev` (adjust Convex package sesuai self-hosted setup).
+- `agent/tsconfig.json`: `target: ES2022`, `module: NodeNext`, `moduleResolution: NodeNext`, `outDir: dist`, `strict: true`.
+- `agent/package.json` scripts: `"build": "tsc"`, `"start": "node dist/index.js"`, `"dev": "tsx src/index.ts"`.
+- `agent/src/config.ts`: load dan validasi semua env. Export typed config object. Throw jika required env missing (`CONVEX_URL`, `CONVEX_ADMIN_KEY`). Default values untuk optional env.
+- `agent/src/logger.ts`: function `log(level, message, data?)` → JSON ke stdout. Format: `{"ts":"ISO","level":"info","msg":"...","data":{}}`.
+- `agent/src/convex-client.ts`: setup Convex client. Export helper function `mutate(fn, args)` dan `query(fn, args)` dengan retry logic (3x, backoff 1s/2s/4s). Track `convex_connected` state.
+- `agent/src/collectors/system.ts`: export `collectSystem(): SystemSnapshot`. Baca `/proc/stat` (hitung delta CPU), `/proc/meminfo`, `/proc/uptime`, `/proc/loadavg`, `/proc/net/dev`, `df -B1 --output=target,size,used,avail`. Return object sesuai schema.
+- `agent/src/collectors/docker.ts`: export `collectDocker(): AppStatus[]`. HTTP GET ke Docker socket: `GET /containers/json?all=true`. Untuk setiap container: map name, state, health, ports. Return array sesuai schema.
+- `agent/src/collectors/dokploy.ts`: export `collectDokploy(): Partial<AppStatus>[]`. GET Dokploy API `/api/application.all` (atau endpoint yang tersedia). Merge deploy info. Catch error dan return `[]` jika Dokploy unreachable.
+- `agent/src/collectors/agents.ts`: export `collectAgents(): AgentStatus[]`. Jalankan `ps aux` dan filter untuk known agent list. Parse PID, CPU%, MEM, elapsed time. Return array sesuai schema.
+- `agent/src/collectors/security.ts`: export `collectSecurity(): SecurityData`. Jalankan: `journalctl -u ssh.service --since "1 hour ago" --no-pager -o json`, `fail2ban-client status sshd`, `ufw status verbose`, `ss -tulpn`. Parse semua output. Return structured data. Generate events untuk anomali (login gagal banyak, banned IP baru, port baru).
+- `agent/src/executor/allowlist.ts`: export `ALLOWLIST: Map<string, ActionDefinition>`. Tiap entry: `{ command_template, target_type, sensitive, timeout_ms }`. Known targets di-update dari collector results.
+- `agent/src/executor/validators.ts`: export `validateCommand(cmd, knownTargets): ValidationResult`. Cek action ada di allowlist, target_id ada di known targets, payload sesuai. Return `{ valid: true }` atau `{ valid: false, reason: string }`.
+- `agent/src/executor/index.ts`: export `startExecutor()`. Poll pending commands. Validate. Execute via `child_process.exec` dengan timeout. Update command status. Insert audit log. Respect `AGENT_MAX_CONCURRENT_COMMANDS`.
+- `agent/src/health.ts`: HTTP server di `AGENT_HEALTH_PORT`. `GET /health` return JSON status.
+- `agent/src/index.ts`: entry point. Load config. Init Convex client. Start semua collectors pada interval. Start executor. Start health server. Handle SIGTERM/SIGINT graceful shutdown.
 
-### Convex
+### Convex — file by file
 
-- Buat `schema.ts`.
-- Buat function query `getOverview`.
-- Buat function query `listApps`.
-- Buat function query `listAgents`.
-- Buat function query `listEvents`.
-- Buat function query `listAuditLogs`.
-- Buat mutation `upsertSystemSnapshot`.
-- Buat mutation `upsertAppStatus`.
-- Buat mutation `upsertAgentStatus`.
-- Buat mutation `insertEvent`.
-- Buat mutation `insertAudit`.
-- Buat mutation `enqueueCommand`.
-- Buat mutation `updateCommandStatus`.
-- Buat query `pollPendingCommandsForAgent`.
+- `convex/schema.ts`: definisikan semua 7 tabel dengan kolom dan index sesuai section 11. Gunakan `defineSchema` dan `defineTable` dari Convex.
+- `convex/events.ts`: `insertEvent` (mutation), `listEvents` (query, paginated, optional filter by type/severity, order by timestamp desc).
+- `convex/audit.ts`: `insertAudit` (mutation), `listAuditLogs` (query, paginated, optional filter by target/action/date range).
+- `convex/commands.ts`: `enqueueCommand` (mutation — generate request_id, set status `queued`), `updateCommandStatus` (mutation), `pollPendingCommands` (query — return commands where status=`queued` ordered by requested_at asc, limit 10), `listCommands` (query, paginated).
+- `convex/snapshots.ts`: `upsertSystemSnapshot` (mutation — insert baru, bukan update), `getLatestSnapshot` (query — return snapshot terbaru), `getOverview` (query — gabungkan latest snapshot + count alerts active + count apps + count agents).
+- `convex/alerts.ts`: `upsertAlert` (mutation — cek apakah alert active dengan type+target sama sudah ada, jika ya update, jika tidak insert baru), `resolveAlert` (mutation), `listActiveAlerts` (query).
+- `convex/appStatus.ts`: `upsertAppStatus` (mutation — by name), `listApps` (query).
+- `convex/agentStatus.ts`: `upsertAgentStatus` (mutation — by name), `listAgents` (query).
+- `convex/crons.ts`: register cron job `cleanupOldEvents` (setiap 1 jam, hapus events > 30 hari, batch 100), `cleanupOldSnapshots` (setiap 1 jam, hapus snapshots > 7 hari, batch 100).
 
 ## 22. Open Questions
 
-- Endpoint dan auth final Convex self-hosted yang akan dipakai persis apa?
-- Dokploy API mana saja yang tersedia dan stabil untuk redeploy/restart?
-- Apakah `agent` akan diberi akses Docker group saja, atau perlu sudoers sempit untuk command tertentu?
-- Apakah panel akan bind ke `127.0.0.1:4000` lalu diproxy, atau langsung ke IP Tailscale?
-- Healthcheck app mana saja yang punya endpoint HTTP valid?
+Resolved:
+
+- ~~Apakah `agent` akan diberi akses Docker group saja, atau perlu sudoers sempit?~~ → Docker group + sudoers sempit untuk systemctl dan fail2ban (lihat section 16.4).
+
+Masih terbuka:
+
+- Endpoint dan auth final Convex self-hosted yang akan dipakai persis apa? (sementara asumsikan `CONVEX_URL=http://127.0.0.1:3210` dengan `CONVEX_ADMIN_KEY`)
+- Dokploy API mana saja yang tersedia dan stabil untuk redeploy/restart? (investigasi saat Phase 3, jika tidak tersedia gunakan Docker restart sebagai fallback)
+- Apakah panel akan bind ke `127.0.0.1:4000` lalu diproxy, atau langsung ke IP Tailscale? (sementara bind ke `CONTROL_ROOM_HOST` langsung)
+- Healthcheck app mana saja yang punya endpoint HTTP valid? (discovery saat Phase 3, catat di config)
+- Apakah Convex self-hosted instance sudah running dan siap dipakai, atau perlu setup dari nol?
 
 ## 23. Definition of Done v1
 
