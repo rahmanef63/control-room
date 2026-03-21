@@ -36,6 +36,8 @@ export default defineSchema({
     ),
     triggered_by: v.union(
       v.literal("manual-dashboard"),
+      v.literal("manual-cli"),
+      v.literal("manual-tui"),
       v.literal("system-agent"),
       v.literal("scheduled-check")
     ),

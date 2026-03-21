@@ -19,3 +19,28 @@ Catatan:
 - `agent/` sebaiknya dijalankan sebagai `systemd service` langsung di host
 - `frontend/` bisa dijalankan terpisah tanpa perlu akses langsung ke host internals
 - `convex/` dipakai sebagai jalur sinkronisasi realtime dua arah
+
+## Terminal access (CLI / lightweight TUI)
+
+Repository ini sekarang punya package `cli/` dengan binary `vpsctl` untuk akses terminal ke command pipeline yang sama.
+
+### Menjalankan CLI
+
+```bash
+cd /workspace/vps-rahmanef.com
+npm install
+npm --prefix cli install
+CONVEX_URL=http://127.0.0.1:3210 CONVEX_ADMIN_KEY=... npm run cli:dev -- status
+```
+
+### Command yang tersedia
+
+- `vpsctl status`
+- `vpsctl apps list`
+- `vpsctl agents list`
+- `vpsctl events list --limit 20`
+- `vpsctl commands list --limit 20`
+- `vpsctl action run <action> --target-type <type> --target-id <id> [--wait]`
+- `vpsctl tui --interval 3` (refreshing terminal dashboard)
+
+Semua action yang dikirim lewat CLI memakai `requested_by=manual-cli` sehingga jejak audit tetap bisa dibedakan dari dashboard web.
