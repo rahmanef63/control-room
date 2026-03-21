@@ -1117,6 +1117,7 @@ Alert lifecycle:
 - multi-user roles
 - conflict detector antar agent
 - terminal web
+- CLI/TUI terminal control untuk chat/command lintas agent (dipindah ke post-MVP, lihat section 21.1)
 
 ## 18. Acceptance Criteria
 
@@ -1323,6 +1324,98 @@ Bagian ini untuk meminimalkan ambiguity saat dieksekusi model lain.
 - `frontend/lib/auth.ts`: export `signSession(payload, secret): string` dan `verifySession(cookie, secret): payload | null`. Gunakan Node.js `crypto.createHmac('sha256', secret)`. Payload format: `base64(JSON({issued_at, expires_at})).base64(hmac)`.
 - `frontend/lib/convex.ts`: Convex React provider, pakai `NEXT_PUBLIC_CONVEX_URL`.
 - `frontend/lib/types.ts`: shared types untuk UI (metric, status, dll).
+
+## 21.1 Post-MVP Extension: Terminal Features (CLI/TUI + Agent Chat)
+
+Tujuan section ini adalah memberi jalur implementasi untuk kebutuhan terminal features tanpa melanggar prinsip keamanan v1.
+
+### 21.1.1 Scope extension
+
+Fitur terminal yang dimaksud:
+
+- user bisa trigger action dari **CLI** (misal `vpsctl`) selain dari dashboard web
+- user bisa memakai **TUI** untuk melihat status realtime dan menjalankan action yang sama dengan UI
+- user bisa kirim command terstruktur ke agent yang dikenali (bukan shell bebas)
+- seluruh aksi CLI/TUI tetap masuk ke `commands`, `events`, dan `audit_log`
+
+### 21.1.2 Guardrails wajib
+
+- tetap **tidak ada shell arbitrary**
+- CLI/TUI hanya boleh memanggil action yang sudah ada di allowlist executor
+- target harus berasal dari known targets hasil collector terakhir
+- actor harus dibedakan:
+  - `manual-dashboard`
+  - `manual-cli`
+  - `manual-tui`
+- command dari CLI/TUI tetap wajib punya `request_id` dan lifecycle status standar
+
+### 21.1.3 Arsitektur yang direkomendasikan
+
+Komponen tambahan:
+
+- `cli/` package (Node.js/TypeScript)
+  - subcommand: `status`, `apps`, `agents`, `events tail`, `action run`
+- `tui/` package (Node.js/TypeScript, berbasis terminal UI library)
+  - panel ringkas: overview/apps/agents/events/actions
+- keduanya memakai Convex sebagai transport yang sama dengan frontend
+
+Alur:
+
+1. CLI/TUI login memakai secret/session flow khusus terminal (token lokal dengan expiry).
+2. CLI/TUI enqueue command ke `commands`.
+3. Agent executor memproses command seperti biasa.
+4. CLI/TUI subscribe status result dari `commands` + `events`.
+5. Semua hasil ditulis ke `audit_log` dengan actor sesuai channel.
+
+### 21.1.4 Task list implementasi terminal
+
+#### Phase T1 — Shared command SDK
+
+- Buat `packages/control-room-sdk/` untuk wrapper query/mutation Convex yang dipakai frontend + CLI + TUI.
+- Tambah helper:
+  - `enqueueAction(action, target_type, target_id, payload, actor)`
+  - `waitForCommandResult(request_id, timeout_ms)`
+  - `listKnownTargets()`
+
+#### Phase T2 — CLI binary (`vpsctl`)
+
+- Buat `cli/` package dengan command:
+  - `vpsctl status`
+  - `vpsctl apps list`
+  - `vpsctl agents list`
+  - `vpsctl events tail`
+  - `vpsctl action run <action> --target <id> [--json-payload ...]`
+- Tambah opsi `--confirm` untuk sensitive actions.
+- Tambah output mode `--json` untuk automasi script.
+
+#### Phase T3 — TUI dashboard
+
+- Buat `tui/` package untuk terminal dashboard interaktif.
+- Minimal panel:
+  - host snapshot live
+  - app table
+  - agent table
+  - events tail
+  - action confirm modal (keyboard-based)
+- TUI harus menampilkan `ConnectionStatus` versi terminal (connected/reconnecting/disconnected).
+
+#### Phase T4 — Auth & identity untuk terminal channel
+
+- Tambah endpoint/login flow khusus machine-friendly:
+  - issue short-lived terminal token
+  - simpan encrypted token local (`~/.config/vpsctl/session.json`)
+- Tambah rate limit terpisah untuk login terminal.
+
+#### Phase T5 — Hardening & observability
+
+- Tambah kolom opsional di `commands`/`audit_log`:
+  - `channel` (`dashboard` | `cli` | `tui`)
+  - `client_version`
+- Tambah alert bila ada burst command dari CLI/TUI yang tidak normal.
+- Tambah test e2e:
+  - enqueue dari CLI → dieksekusi agent → result sukses
+  - sensitive action tanpa `--confirm` harus ditolak
+  - target unknown harus gagal validasi
 - `frontend/middleware.ts`: Next.js middleware, cek cookie `session` ada dan valid via `verifySession`. Jika invalid dan path bukan `/login` atau `/api/auth/*` atau `/api/health`, redirect ke `/login`.
 - `frontend/app/api/auth/login/route.ts`: POST, body `{ secret }`, validasi terhadap `CONTROL_ROOM_SECRET`, jika cocok set cookie dengan `signSession`, return 200. Jika salah return 401. Rate limit: in-memory Map max 5/menit per IP.
 - `frontend/app/api/auth/logout/route.ts`: POST, hapus cookie `session`, return 200.
