@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     sameSite: 'strict',
     path: '/',
     maxAge,
-    secure: false, // Tailscale-only access over HTTP
+    secure: true,
   });
 
   return response;
