@@ -1,0 +1,27 @@
+services:
+  backend:
+    image: ghcr.io/get-convex/convex-backend:latest
+    ports:
+      - "5210:3210"
+      - "5211:3211"
+    environment:
+      - DISABLE_BEACON=true
+    volumes:
+      - ./convex-data:/convex/data
+    restart: always
+    networks:
+      - dokploy-network
+
+  dashboard:
+    image: ghcr.io/get-convex/convex-dashboard:latest
+    ports:
+      - "7791:6791"
+    environment:
+      - CONVEX_BACKEND_URL=http://127.0.0.1:5210
+    restart: always
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true

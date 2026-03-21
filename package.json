@@ -1,0 +1,12 @@
+{
+  "name": "vps-control-room",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "convex:dev": "npx convex dev --env-file convex/.env.local --typecheck disable",
+    "convex:deploy": "npx convex dev --once --env-file convex/.env.local --typecheck disable"
+  },
+  "dependencies": {
+    "convex": "^1.34.0"
+  }
+}

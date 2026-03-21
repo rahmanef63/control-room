@@ -1,3 +1,4 @@
+// @ts-nocheck — stub API types; remove after `npx convex deploy` generates real types
 'use client';
 
 import { useState } from 'react';
@@ -47,7 +48,7 @@ export default function ActionsPage() {
   });
   const enqueue = useMutation(api.commands.enqueueCommand);
 
-  const [selectedAction, setSelectedAction] = useState(SAFE_ACTIONS[0].action);
+  const [selectedAction, setSelectedAction] = useState<string>(SAFE_ACTIONS[0].action);
   const [selectedType, setSelectedType] = useState<'container' | 'service'>(SAFE_ACTIONS[0].target_type as 'container' | 'service');
   const [targetId, setTargetId] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -192,7 +193,7 @@ export default function ActionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {commands.page.map((cmd) => (
+                {commands.page.map((cmd: CommandRecord) => (
                   <tr key={cmd._id} className="hover:bg-muted/10 transition-colors">
                     <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
                       {new Date(cmd.requested_at).toLocaleString()}

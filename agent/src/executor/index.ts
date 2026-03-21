@@ -42,7 +42,7 @@ async function executeCommand(command: ConvexCommand): Promise<void> {
 
   // Mark as running
   try {
-    await mutate("api/commands:updateCommandStatus", {
+    await mutate("commands:updateCommandStatus", {
       id: command._id,
       status: "running",
       started_at: startTime,
@@ -110,7 +110,7 @@ async function executeCommand(command: ConvexCommand): Promise<void> {
 
   // Update command status
   try {
-    await mutate("api/commands:updateCommandStatus", {
+    await mutate("commands:updateCommandStatus", {
       id: command._id,
       status: finalStatus,
       started_at: startTime,
@@ -130,7 +130,7 @@ async function executeCommand(command: ConvexCommand): Promise<void> {
     ALLOWLIST.get(command.action)?.sensitive ? "warning" : "info";
 
   try {
-    await mutate("api/audit:insertAudit", {
+    await mutate("audit:insertAudit", {
       timestamp: finishedAt,
       action: command.action,
       target: command.target_id,
@@ -165,7 +165,7 @@ async function pollAndExecute(): Promise<void> {
 
   let commands: ConvexCommand[];
   try {
-    const raw = await query("api/commands:pollPendingCommands", {});
+    const raw = await query("commands:pollPendingCommands", {});
     commands = (raw as ConvexCommand[]) ?? [];
   } catch (err) {
     logger.error("Failed to poll pending commands", { error: String(err) });
@@ -194,7 +194,7 @@ async function pollAndExecute(): Promise<void> {
       });
 
       try {
-        await mutate("api/commands:updateCommandStatus", {
+        await mutate("commands:updateCommandStatus", {
           id: command._id,
           status: "failed",
           finished_at: Date.now(),

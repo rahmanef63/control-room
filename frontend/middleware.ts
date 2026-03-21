@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifySession } from '@/lib/auth';
 
+export const runtime = 'nodejs';
+
 const PUBLIC_PATHS = ['/login', '/api/auth/', '/api/health'];
 
 export function middleware(request: NextRequest) {

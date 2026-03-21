@@ -23,7 +23,9 @@ Type=simple
 User=rahman
 WorkingDirectory=/home/rahman/projects/vps-rahmanef/frontend
 EnvironmentFile=/home/rahman/projects/vps-rahmanef/.env.local
-ExecStart=/usr/bin/node /home/rahman/projects/vps-rahmanef/frontend/.next/standalone/server.js
+Environment=PORT=4000
+Environment=HOSTNAME=0.0.0.0
+ExecStart=/usr/bin/node /home/rahman/projects/vps-rahmanef/frontend/.next/standalone/frontend/server.js
 Restart=always
 RestartSec=5
 StandardOutput=journal

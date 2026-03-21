@@ -5,6 +5,8 @@ import { logger } from "./logger.js";
 let convex_connected = false;
 
 export const convexClient = new ConvexHttpClient(config.CONVEX_URL);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(convexClient as any).setAdminAuth(config.CONVEX_ADMIN_KEY);
 
 export function isConvexConnected(): boolean {
   return convex_connected;

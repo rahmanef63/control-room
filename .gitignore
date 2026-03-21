@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+frontend/.next/
+agent/dist/
+
+# Environment & secrets
+.env.local
+convex/.env.local
+
+# Convex data
+convex-data/
+convex/_generated/
+convex/convex/
+
+# Lock files (per-component)
+frontend/package-lock.json
+agent/package-lock.json
+
+# Next.js
+frontend/next-env.d.ts
+
+# OS
+.DS_Store

@@ -50,14 +50,14 @@ async function maybeAlert(
   critThreshold: number
 ): Promise<void> {
   if (value >= critThreshold) {
-    await mutate("api/alerts:upsertAlert", {
+    await mutate("alerts:upsertAlert", {
       type,
       message: `${label} is at ${value.toFixed(1)}% (critical threshold: ${critThreshold}%)`,
       severity: "critical" as AlertSeverity,
       target: label,
     });
   } else if (value >= warnThreshold) {
-    await mutate("api/alerts:upsertAlert", {
+    await mutate("alerts:upsertAlert", {
       type,
       message: `${label} is at ${value.toFixed(1)}% (warning threshold: ${warnThreshold}%)`,
       severity: "warning" as AlertSeverity,
@@ -72,7 +72,7 @@ async function runSystemCollector(): Promise<void> {
   try {
     const snapshot = await collectSystem();
 
-    await mutate("api/snapshots:upsertSystemSnapshot", {
+    await mutate("snapshots:upsertSystemSnapshot", {
       timestamp: snapshot.timestamp,
       cpu_total: snapshot.cpu_total,
       cpu_cores: snapshot.cpu_cores,
@@ -191,7 +191,7 @@ async function runAppCollector(): Promise<void> {
           protocol: p.protocol,
         }));
 
-        await mutate("api/appStatus:upsertAppStatus", {
+        await mutate("appStatus:upsertAppStatus", {
           name: app.name,
           source: app.source,
           runtime_status: app.runtime_status,
@@ -237,7 +237,7 @@ async function runAgentsCollector(): Promise<void> {
 
     for (const agent of agents) {
       try {
-        await mutate("api/agentStatus:upsertAgentStatus", {
+        await mutate("agentStatus:upsertAgentStatus", {
           name: agent.name,
           ...(agent.pid !== undefined ? { pid: agent.pid } : {}),
           status: agent.status,
@@ -284,7 +284,7 @@ async function runSecurityCollector(): Promise<void> {
         const severity: EventSeverity =
           severityMap[event.severity] ?? "warning";
 
-        await mutate("api/events:insertEvent", {
+        await mutate("events:insertEvent", {
           timestamp: Date.now(),
           type: event.type,
           message: event.message,
@@ -324,7 +324,7 @@ async function shutdown(signal: string): Promise<void> {
 
   // Log shutdown to Convex (best effort)
   try {
-    await mutate("api/events:insertEvent", {
+    await mutate("events:insertEvent", {
       timestamp: Date.now(),
       type: "agent_shutdown",
       message: `Agent shutting down (signal: ${signal})`,
@@ -396,7 +396,7 @@ async function main(): Promise<void> {
 
   // Log startup event (best effort)
   try {
-    await mutate("api/events:insertEvent", {
+    await mutate("events:insertEvent", {
       timestamp: Date.now(),
       type: "agent_startup",
       message: "VPS Control Room Agent started",
