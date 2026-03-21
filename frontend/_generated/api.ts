@@ -1,47 +1,50 @@
 /**
- * This file is a stub for the Convex generated API types.
- * Run `npx convex dev` from the project root to regenerate it with full types.
- * The Convex CLI will replace this file when you connect to your Convex deployment.
+ * Stub for the Convex generated API types.
+ * Run `npx convex dev` (or `npx convex deploy`) from the convex/ directory to
+ * regenerate this file with full static types for your deployment.
+ *
+ * `anyApi` is a runtime Proxy provided by Convex that resolves any property
+ * path into a FunctionReference — so `api.snapshots.getOverview` returns a
+ * reference the React hooks can use immediately, even before codegen runs.
  */
+import { anyApi } from 'convex/server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyQuery = (...args: any[]) => any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyMutation = (...args: any[]) => any;
+type AnyFn = (...args: any[]) => any;
 
 interface ConvexAPI {
   snapshots: {
-    getLatestSnapshot: AnyQuery;
-    getOverview: AnyQuery;
-    upsertSystemSnapshot: AnyMutation;
+    getLatestSnapshot: AnyFn;
+    getOverview: AnyFn;
+    upsertSystemSnapshot: AnyFn;
   };
   appStatus: {
-    listApps: AnyQuery;
-    upsertAppStatus: AnyMutation;
+    listApps: AnyFn;
+    upsertAppStatus: AnyFn;
   };
   agentStatus: {
-    listAgents: AnyQuery;
-    upsertAgentStatus: AnyMutation;
+    listAgents: AnyFn;
+    upsertAgentStatus: AnyFn;
   };
   alerts: {
-    listActiveAlerts: AnyQuery;
-    upsertAlert: AnyMutation;
-    resolveAlert: AnyMutation;
+    listActiveAlerts: AnyFn;
+    upsertAlert: AnyFn;
+    resolveAlert: AnyFn;
   };
   events: {
-    listEvents: AnyQuery;
-    insertEvent: AnyMutation;
+    listEvents: AnyFn;
+    insertEvent: AnyFn;
   };
   audit: {
-    listAuditLogs: AnyQuery;
-    insertAudit: AnyMutation;
+    listAuditLogs: AnyFn;
+    insertAudit: AnyFn;
   };
   commands: {
-    listCommands: AnyQuery;
-    enqueueCommand: AnyMutation;
-    updateCommandStatus: AnyMutation;
-    pollPendingCommands: AnyQuery;
+    listCommands: AnyFn;
+    enqueueCommand: AnyFn;
+    updateCommandStatus: AnyFn;
+    pollPendingCommands: AnyFn;
   };
 }
 
-export declare const api: ConvexAPI;
+export const api = anyApi as unknown as ConvexAPI;
