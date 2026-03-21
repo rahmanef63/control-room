@@ -20,6 +20,22 @@ interface ConvexCommand {
   requested_at: number;
 }
 
+type AuditActor =
+  | "manual-dashboard"
+  | "manual-cli"
+  | "manual-tui"
+  | "system-agent"
+  | "scheduled-check";
+
+function toAuditActor(input: string): AuditActor {
+  if (input === "manual-dashboard") return input;
+  if (input === "manual-cli") return input;
+  if (input === "manual-tui") return input;
+  if (input === "system-agent") return input;
+  if (input === "scheduled-check") return input;
+  return "manual-dashboard";
+}
+
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 let runningCount = 0;
 let isShuttingDown = false;
@@ -136,7 +152,7 @@ async function executeCommand(command: ConvexCommand): Promise<void> {
       target: command.target_id,
       result: finalStatus === "success" ? "success" : finalStatus === "timeout" ? "failed" : "failed",
       severity: auditSeverity,
-      triggered_by: "manual-dashboard",
+      triggered_by: toAuditActor(command.requested_by),
       request_id: command.request_id,
       metadata: {
         duration_ms: finishedAt - startTime,
