@@ -67,7 +67,7 @@ export default function AuditPage() {
                       {entry.result}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs font-medium ${SEVERITY_BADGES[entry.severity]}">
+                  <td className="px-4 py-3 text-xs font-medium">
                     <span className={SEVERITY_BADGES[entry.severity]}>
                       {entry.severity}
                     </span>

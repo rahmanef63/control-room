@@ -15,9 +15,9 @@ const STATUS_BADGES: Record<CommandRecord['status'], string> = {
 };
 
 const SAFE_ACTIONS = [
-  { action: 'restart', target_type: 'container' as const, label: 'Restart container' },
-  { action: 'restart', target_type: 'service' as const, label: 'Restart service' },
-  { action: 'logs', target_type: 'container' as const, label: 'Fetch container logs' },
+  { action: 'container.restart', target_type: 'container' as const, label: 'Restart container' },
+  { action: 'service.restart', target_type: 'service' as const, label: 'Restart service' },
+  { action: 'container.logs', target_type: 'container' as const, label: 'Fetch container logs (last 100)' },
 ] as const;
 
 const KNOWN_CONTAINERS = [
@@ -64,6 +64,7 @@ export default function ActionsPage() {
         target_type: selectedType,
         target_id: targetId.trim(),
         requested_by: 'manual-dashboard',
+        ...(selectedAction === 'container.logs' ? { payload: { lines: 100 } } : {}),
       });
       setSubmitted(`Queued: ${selectedAction} on ${targetId}`);
       setTargetId('');

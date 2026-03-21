@@ -51,6 +51,34 @@ export const ALLOWLIST: Map<string, ActionDefinition> = new Map([
       timeout_ms: 15000,
     },
   ],
+  [
+    "dokploy-app.restart",
+    {
+      command_template: "docker container restart {target_id}",
+      target_type: "dokploy-app",
+      sensitive: false,
+      timeout_ms: 30000,
+    },
+  ],
+  [
+    "dokploy-app.stop",
+    {
+      command_template: "docker container stop {target_id}",
+      target_type: "dokploy-app",
+      sensitive: true,
+      timeout_ms: 30000,
+    },
+  ],
+  [
+    "dokploy-app.redeploy",
+    {
+      command_template:
+        "curl -s -X POST -H 'Authorization: Bearer $DOKPLOY_API_KEY' -H 'Content-Type: application/json' \"$DOKPLOY_URL/api/project.deploy\" -d '{\"projectId\":\"{target_id}\"}'",
+      target_type: "dokploy-app",
+      sensitive: true,
+      timeout_ms: 60000,
+    },
+  ],
 ]);
 
 /**

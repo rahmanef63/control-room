@@ -167,7 +167,7 @@ export default function AppsPage() {
                           <>
                             <button
                               onClick={() =>
-                                setConfirm({ action: 'restart', targetType, targetId: app.name })
+                                setConfirm({ action: `${targetType}.restart`, targetType, targetId: app.name })
                               }
                               className="rounded px-2 py-1 text-xs bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                             >
@@ -176,7 +176,7 @@ export default function AppsPage() {
                             {app.source === 'dokploy' && (
                               <button
                                 onClick={() =>
-                                  setConfirm({ action: 'redeploy', targetType: 'dokploy-app', targetId: app.name })
+                                  setConfirm({ action: 'dokploy-app.redeploy', targetType: 'dokploy-app', targetId: app.name })
                                 }
                                 className="rounded px-2 py-1 text-xs bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-colors"
                               >
@@ -185,7 +185,7 @@ export default function AppsPage() {
                             )}
                             <button
                               onClick={() =>
-                                setConfirm({ action: 'stop', targetType, targetId: app.name })
+                                setConfirm({ action: `${targetType}.stop`, targetType, targetId: app.name })
                               }
                               className="rounded px-2 py-1 text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
                             >
