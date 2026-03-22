@@ -354,6 +354,31 @@ npm install && npm run build
 sudo systemctl restart vps-control-room-agent
 ```
 
+### GitHub Actions auto-deploy
+
+Repository ini sekarang menyediakan workflow GitHub Actions di `.github/workflows/deploy.yml` yang akan auto-deploy saat ada push ke `main`.
+
+Penting:
+
+- Workflow ini didesain untuk `self-hosted runner` yang berjalan langsung di VPS target.
+- GitHub-hosted runner biasa tidak cocok untuk setup ini karena panel dan host mengandalkan akses lokal VPS dan environment file yang tersimpan di host.
+- Runner harus punya akses ke:
+  - `/home/rahman/projects/vps-rahmanef`
+  - `sudo -n systemctl restart ...`
+  - `.env.local`
+  - `convex/.env.local`
+
+Setelah self-hosted runner diinstall dan dihubungkan ke repository ini, setiap push ke `main` akan menjalankan:
+
+1. `git fetch` dan `git pull --ff-only origin main`
+2. build frontend
+3. build agent
+4. deploy Convex functions
+5. restart service frontend dan agent
+6. verifikasi service aktif
+
+Jika runner belum diinstall, workflow akan muncul di GitHub tetapi tidak akan berjalan.
+
 ---
 
 ## 10. Log Viewing
