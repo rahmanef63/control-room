@@ -40,7 +40,7 @@ Sistem harus tetap bisa dipakai walau Dokploy bermasalah. Karena itu dashboard i
 
 ### 2.3 Non-goals v1
 
-- Tidak menyediakan shell interaktif dari browser.
+- Tidak menyediakan shell interaktif penuh dari browser.
 - Tidak mengedit firewall rules dari UI.
 - Tidak mengedit file arbitrary di host dari UI.
 - Tidak menyediakan multi-user RBAC kompleks.
@@ -67,6 +67,7 @@ Sistem harus tetap bisa dipakai walau Dokploy bermasalah. Karena itu dashboard i
 - Melihat agent yang sedang hidup dan apa yang sedang mereka lakukan.
 - Melihat event keamanan seperti login SSH gagal, IP diblokir fail2ban, port baru terbuka.
 - Restart container/service dengan satu klik.
+- Menjalankan command preset yang aman tanpa membuka SSH manual.
 - Melihat log singkat ketika ada masalah.
 - Melihat riwayat aksi yang pernah dilakukan dari dashboard.
 
@@ -340,6 +341,31 @@ Contoh event:
 - restart service yang dikenali
 - refresh app status
 - fetch logs read-only
+- run allowlisted preset command read-only
+
+### Command Console v1
+
+Dashboard v1 menyediakan `Command Console`, bukan terminal shell penuh.
+
+Command Console adalah antarmuka untuk menjalankan command preset yang sudah di-allowlist, misalnya:
+
+- `docker ps`
+- `docker service ls`
+- `systemctl status ssh`
+- `systemctl status fail2ban`
+- `ufw status verbose`
+- `fail2ban-client status`
+- `ss -tulpn`
+- `journalctl -u ssh.service -n 100 --no-pager`
+
+Karakteristik wajib:
+
+- user tidak bisa mengetik shell arbitrary
+- command berasal dari daftar preset server-side
+- output dibatasi ukuran dan jumlah baris
+- seluruh eksekusi masuk audit log
+- command console read-only di v1
+- tidak ada PTY interaktif di v1
 
 ### Sensitive actions
 
@@ -352,6 +378,7 @@ Contoh event:
 
 - shell arbitrary
 - command arbitrary
+- PTY / terminal interaktif penuh
 - edit file arbitrary
 - edit firewall rules
 - run sudo arbitrary
@@ -1103,6 +1130,7 @@ Alert lifecycle:
 - security panel
 - events timeline live
 - audit log
+- command console read-only berbasis preset allowlist
 - restart app/container yang dikenali
 - view logs read-only
 - unban IP fail2ban
@@ -1116,7 +1144,7 @@ Alert lifecycle:
 - Telegram alert
 - multi-user roles
 - conflict detector antar agent
-- terminal web
+- full web terminal / PTY interaktif
 - CLI/TUI terminal control untuk chat/command lintas agent (dipindah ke post-MVP, lihat section 21.1)
 
 ## 18. Acceptance Criteria
@@ -1148,6 +1176,12 @@ Alert lifecycle:
 - semua action dari UI tercatat
 - audit log bisa difilter minimal berdasarkan tanggal dan target
 
+### Command Console
+
+- user bisa menjalankan preset command read-only dari UI
+- output command muncul tanpa membuka SSH
+- command arbitrary tidak bisa dijalankan
+
 ### Reliability
 
 - frontend dan agent bisa restart otomatis setelah process crash
@@ -1163,7 +1197,7 @@ Mitigasi:
 - auth via signed session
 - action allowlist
 - audit log
-- no shell access
+- no full shell access
 
 ### Risiko: agent terlalu kuat
 
@@ -1222,6 +1256,7 @@ Dependency: Phase 0 selesai.
 - Buat semua sub-pages (`apps`, `agents`, `security`, `events`, `actions`, `audit`) dengan empty state dan `error.tsx` per folder.
 - Buat `frontend/app/api/health/route.ts`: return `{ status: "ok" }`.
 - Buat `frontend/lib/convex.ts`: Convex client provider wrapper.
+- Buat UI `Command Console` di page `actions` berbasis preset server-defined, bukan input shell bebas.
 
 ### Phase 2: Convex core
 
@@ -1234,6 +1269,7 @@ Dependency: `convex/schema.ts` dari Phase 0 sudah ada. Bisa paralel dengan Phase
 - Buat `convex/alerts.ts`: mutation `upsertAlert` (buat baru atau update existing by type+target), mutation `resolveAlert`, query `listActiveAlerts`.
 - Buat `convex/appStatus.ts`: mutation `upsertAppStatus`, query `listApps`.
 - Buat `convex/agentStatus.ts`: mutation `upsertAgentStatus`, query `listAgents`.
+- Tambah dukungan `command_type` atau metadata preset supaya `Command Console` bisa dibedakan dari action mutatif.
 - Buat `convex/crons.ts`: scheduled function untuk TTL cleanup `events` (30 hari) dan `system_snapshot` (7 hari), jalan setiap 1 jam.
 
 ### Phase 3: Agent collector core
