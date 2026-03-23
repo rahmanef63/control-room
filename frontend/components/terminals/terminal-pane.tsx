@@ -43,6 +43,9 @@ export function TerminalPane({
   const isUnmountingRef = useRef(false);
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
   const [error, setError] = useState<string | null>(null);
+  const focusTerminal = () => {
+    terminalRef.current?.focus();
+  };
 
   useEffect(() => {
     onUpdateRef.current = onUpdate;
@@ -278,7 +281,11 @@ export function TerminalPane({
         </div>
       ) : null}
 
-      <div className="relative h-[440px] bg-[#08111f] p-2">
+      <div
+        className="relative h-[440px] bg-[#08111f] p-2"
+        onClick={focusTerminal}
+        onTouchStart={focusTerminal}
+      >
         <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-cyan-500/10 to-transparent" />
         <div
           ref={containerRef}
