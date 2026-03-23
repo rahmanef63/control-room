@@ -65,6 +65,7 @@ fi
 log "Installing and building frontend"
 cd frontend
 npm install
+rm -rf .next
 npm run build
 
 log "Preparing standalone frontend assets"
