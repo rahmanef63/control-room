@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: '/', label: 'Overview', icon: '⬡' },
   { href: '/apps', label: 'Apps & Services', icon: '⬢' },
   { href: '/agents', label: 'Agents', icon: '◈' },
+  { href: '/terminals', label: 'Terminals', icon: '⌘' },
   { href: '/security', label: 'Security', icon: '⊗' },
   { href: '/events', label: 'Events', icon: '◷' },
   { href: '/actions', label: 'Actions', icon: '▶' },

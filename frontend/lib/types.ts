@@ -118,3 +118,21 @@ export interface OverviewData {
   app_count: number;
   agent_count: number;
 }
+
+export type TerminalProfile = 'shell' | 'codex' | 'claude' | 'gemini' | 'openclaw';
+
+export interface TerminalSession {
+  id: string;
+  profile: TerminalProfile;
+  title: string;
+  command: string;
+  pid: number;
+  cwd: string;
+  rows: number;
+  cols: number;
+  status: 'running' | 'exited';
+  created_at: number;
+  updated_at: number;
+  exit_code?: number;
+  exit_signal?: number;
+}

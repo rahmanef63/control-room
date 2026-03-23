@@ -89,6 +89,17 @@ if [ -d public ]; then
   cp -R public .next/standalone/frontend/public
 fi
 
+if [ -d node_modules/node-pty ]; then
+  mkdir -p .next/standalone/frontend/node_modules/node-pty
+
+  for native_dir in build prebuilds; do
+    if [ -d "node_modules/node-pty/${native_dir}" ]; then
+      rm -rf ".next/standalone/frontend/node_modules/node-pty/${native_dir}"
+      cp -R "node_modules/node-pty/${native_dir}" ".next/standalone/frontend/node_modules/node-pty/${native_dir}"
+    fi
+  done
+fi
+
 cd ..
 
 log "Installing and building agent"
