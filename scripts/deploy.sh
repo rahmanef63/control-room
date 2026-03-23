@@ -3,6 +3,10 @@ set -euo pipefail
 
 REPO_DIR="/home/rahman/projects/vps-rahmanef"
 BRANCH="${1:-main}"
+LOCK_FILE="/tmp/vps-control-room-deploy.lock"
+
+exec 9>"${LOCK_FILE}"
+flock 9
 
 log() {
   printf '[%s] %s\n' "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" "$*"
