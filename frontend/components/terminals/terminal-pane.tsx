@@ -11,7 +11,7 @@ import type { TerminalSession } from '@/lib/types';
 import {
   connectionBadgeClasses,
   formatTimestamp,
-  getSocketUrl,
+  getStreamUrl,
   type ConnectionState,
 } from '@/components/terminals/utils';
 
@@ -35,8 +35,7 @@ export function TerminalPane({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimerRef = useRef<number | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const onUpdateRef = useRef(onUpdate);
@@ -92,9 +91,15 @@ export function TerminalPane({
     fitAddon.fit();
     terminalRef.current = term;
 
-    const sendMessage = (payload: Record<string, unknown>) => {
-      if (socketRef.current?.readyState === WebSocket.OPEN) {
-        socketRef.current.send(JSON.stringify(payload));
+    const postAction = async (pathname: 'input' | 'resize', payload: Record<string, unknown>) => {
+      try {
+        await fetch(`/api/terminals/${encodeURIComponent(session.id)}/${pathname}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        setError('Terminal request failed');
       }
     };
 
@@ -102,8 +107,7 @@ export function TerminalPane({
       if (!fitAddonRef.current || !terminalRef.current) return;
 
       fitAddonRef.current.fit();
-      sendMessage({
-        type: 'resize',
+      void postAction('resize', {
         cols: terminalRef.current.cols,
         rows: terminalRef.current.rows,
       });
@@ -114,17 +118,17 @@ export function TerminalPane({
 
       setConnectionState(reconnectAttemptsRef.current === 0 ? 'connecting' : 'reconnecting');
 
-      const socket = new WebSocket(getSocketUrl(session.id));
-      socketRef.current = socket;
+      const eventSource = new EventSource(getStreamUrl(session.id));
+      eventSourceRef.current = eventSource;
 
-      socket.addEventListener('open', () => {
+      eventSource.onopen = () => {
         reconnectAttemptsRef.current = 0;
         setConnectionState('connected');
         setError(null);
         resizeTerminal();
-      });
+      };
 
-      socket.addEventListener('message', (message) => {
+      eventSource.onmessage = (message) => {
         const payload = JSON.parse(message.data) as TerminalSocketEvent;
 
         switch (payload.type) {
@@ -162,10 +166,10 @@ export function TerminalPane({
           default:
             break;
         }
-      });
+      };
 
-      socket.addEventListener('close', () => {
-        socketRef.current = null;
+      eventSource.addEventListener('error', () => {
+        eventSourceRef.current = null;
 
         if (isUnmountingRef.current) {
           return;
@@ -174,20 +178,15 @@ export function TerminalPane({
         if (sessionRef.current.status === 'running') {
           reconnectAttemptsRef.current += 1;
           setConnectionState('reconnecting');
-          const delay = Math.min(1000 * 2 ** (reconnectAttemptsRef.current - 1), 8000);
-          reconnectTimerRef.current = window.setTimeout(connect, delay);
+          setError('Stream dropped, reconnecting…');
         } else {
           setConnectionState('disconnected');
         }
       });
-
-      socket.addEventListener('error', () => {
-        setError('Socket dropped, trying to reattach…');
-      });
     };
 
     term.onData((data) => {
-      sendMessage({ type: 'input', data });
+      void postAction('input', { data });
     });
 
     resizeObserverRef.current = new ResizeObserver(() => {
@@ -201,11 +200,8 @@ export function TerminalPane({
 
     return () => {
       isUnmountingRef.current = true;
-      if (reconnectTimerRef.current !== null) {
-        window.clearTimeout(reconnectTimerRef.current);
-      }
       resizeObserverRef.current?.disconnect();
-      socketRef.current?.close();
+      eventSourceRef.current?.close();
       term.dispose();
     };
   }, [session.id]);

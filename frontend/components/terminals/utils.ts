@@ -4,13 +4,8 @@ export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'dis
 
 export const SESSION_STORAGE_KEY = 'vps-control-room.terminal-sessions';
 
-export function getSocketUrl(sessionId: string): string {
-  if (typeof window === 'undefined') {
-    return '';
-  }
-
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}/ws/terminals?sessionId=${encodeURIComponent(sessionId)}`;
+export function getStreamUrl(sessionId: string): string {
+  return `/api/terminals/${encodeURIComponent(sessionId)}/stream`;
 }
 
 export function formatTimestamp(timestamp: number): string {
