@@ -10,13 +10,14 @@ import {
   Command,
   LayoutGrid,
   LogOut,
+  RefreshCcw,
   ScrollText,
   Shield,
   Settings2,
   TerminalSquare,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 const NAV_ITEMS: Array<{
   href: string;
@@ -70,6 +71,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isRefreshing, startRefreshTransition] = useTransition();
   const clock = useClock();
   const currentItem =
     NAV_ITEMS.find((item) => item.href === pathname) ||
@@ -168,6 +170,15 @@ export default function DashboardLayout({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => startRefreshTransition(() => router.refresh())}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 transition hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={isRefreshing}
+                >
+                  <RefreshCcw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  {isRefreshing ? 'Refreshing…' : 'Refresh'}
+                </button>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300">
                   single-user cockpit
                 </span>
