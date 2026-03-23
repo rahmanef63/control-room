@@ -55,6 +55,17 @@ log "Installing and building frontend"
 cd frontend
 npm install
 npm run build
+
+log "Preparing standalone frontend assets"
+mkdir -p .next/standalone/frontend/.next
+rm -rf .next/standalone/frontend/.next/static
+cp -R .next/static .next/standalone/frontend/.next/static
+
+if [ -d public ]; then
+  rm -rf .next/standalone/frontend/public
+  cp -R public .next/standalone/frontend/public
+fi
+
 cd ..
 
 log "Installing and building agent"
