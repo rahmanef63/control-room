@@ -121,6 +121,40 @@ export interface OverviewData {
 
 export type TerminalProfile = 'shell' | 'codex' | 'claude' | 'gemini' | 'openclaw';
 
+export interface RuntimeEnvironment {
+  id: string;
+  label: string;
+  description: string;
+  cwd: string;
+  envText: string;
+  tags: string[];
+}
+
+export interface RuntimeEnvironmentSummary extends RuntimeEnvironment {
+  envVarCount: number;
+  envKeys: string[];
+}
+
+export interface RuntimeAgentProfile {
+  id: string;
+  label: string;
+  description: string;
+  terminalProfile: TerminalProfile;
+  model: string;
+  environmentId?: string;
+  skills: string[];
+  launchCommand?: string;
+}
+
+export interface RuntimeResolvedAgentProfile extends RuntimeAgentProfile {
+  environmentLabel?: string;
+}
+
+export interface RuntimeConfig {
+  environments: RuntimeEnvironment[];
+  agentProfiles: RuntimeAgentProfile[];
+}
+
 export interface TerminalSession {
   id: string;
   profile: TerminalProfile;
@@ -133,6 +167,18 @@ export interface TerminalSession {
   status: 'running' | 'exited';
   created_at: number;
   updated_at: number;
+  environment_id?: string;
+  environment_label?: string;
+  agent_profile_id?: string;
+  model?: string;
+  skills?: string[];
   exit_code?: number;
   exit_signal?: number;
+}
+
+export interface RuntimeConfigResponse {
+  config: RuntimeConfig;
+  environments: RuntimeEnvironmentSummary[];
+  agentProfiles: RuntimeResolvedAgentProfile[];
+  configPath: string;
 }

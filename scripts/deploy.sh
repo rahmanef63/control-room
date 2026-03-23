@@ -40,6 +40,7 @@ fi
 
 require_file "${REPO_DIR}/.env.local"
 require_file "${REPO_DIR}/convex/.env.local"
+require_file "${REPO_DIR}/ops/traefik/vps-control-room.yml"
 
 load_env_file "${REPO_DIR}/.env.local"
 load_env_file "${REPO_DIR}/convex/.env.local"
@@ -47,9 +48,19 @@ load_env_file "${REPO_DIR}/convex/.env.local"
 cd "${REPO_DIR}"
 
 log "Updating repository"
+PREVIOUS_COMMIT="$(git rev-parse HEAD)"
 git fetch origin
 git checkout "${BRANCH}"
 git pull --ff-only origin "${BRANCH}"
+CURRENT_COMMIT="$(git rev-parse HEAD)"
+
+CHANGED_FILES="$(git diff --name-only "${PREVIOUS_COMMIT}" "${CURRENT_COMMIT}" || true)"
+LOCAL_AGENT_CHANGES="$(git status --porcelain -- agent scripts/deploy.sh convex frontend/app/api/terminals frontend/app/\(dashboard\)/terminals frontend/lib/server/terminal-gateway.ts frontend/next.config.ts || true)"
+AGENT_RESTART_REQUIRED=0
+
+if printf '%s\n%s\n' "${CHANGED_FILES}" "${LOCAL_AGENT_CHANGES}" | rg -q '(^| )agent/|(^| )convex/|scripts/deploy\.sh|frontend/app/api/terminals|frontend/app/\(dashboard\)/terminals|frontend/lib/server/terminal-gateway\.ts'; then
+  AGENT_RESTART_REQUIRED=1
+fi
 
 log "Installing and building frontend"
 cd frontend
@@ -89,34 +100,34 @@ if [ -d public ]; then
   cp -R public .next/standalone/frontend/public
 fi
 
-if [ -d node_modules/node-pty ]; then
-  mkdir -p .next/standalone/frontend/node_modules/node-pty
+cd ..
 
-  for native_dir in build prebuilds; do
-    if [ -d "node_modules/node-pty/${native_dir}" ]; then
-      rm -rf ".next/standalone/frontend/node_modules/node-pty/${native_dir}"
-      cp -R "node_modules/node-pty/${native_dir}" ".next/standalone/frontend/node_modules/node-pty/${native_dir}"
-    fi
-  done
+if [ "${AGENT_RESTART_REQUIRED}" -eq 1 ]; then
+  log "Installing and building agent"
+  cd agent
+  npm install
+  npm run build
+  cd ..
+else
+  log "Skipping agent rebuild (no relevant changes)"
 fi
-
-cd ..
-
-log "Installing and building agent"
-cd agent
-npm install
-npm run build
-cd ..
 
 log "Deploying Convex functions"
 npx convex deploy --env-file convex/.env.local --typecheck disable -y
 
+log "Syncing Traefik dynamic config"
+sudo cp "${REPO_DIR}/ops/traefik/vps-control-room.yml" /etc/dokploy/traefik/dynamic/vps-control-room.yml
+
 log "Restarting systemd services"
 sudo systemctl restart vps-control-room-frontend
-sudo systemctl restart vps-control-room-agent
+if [ "${AGENT_RESTART_REQUIRED}" -eq 1 ]; then
+  sudo systemctl restart vps-control-room-agent
+fi
 
 log "Verifying services are active"
 sudo systemctl is-active --quiet vps-control-room-frontend
-sudo systemctl is-active --quiet vps-control-room-agent
+if [ "${AGENT_RESTART_REQUIRED}" -eq 1 ]; then
+  sudo systemctl is-active --quiet vps-control-room-agent
+fi
 
 log "Deployment complete"

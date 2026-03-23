@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { terminalManager } from '@/lib/server/terminal-manager';
+import { terminalGatewayFetch } from '@/lib/server/terminal-gateway';
 
 export const runtime = 'nodejs';
 
@@ -14,24 +14,13 @@ async function resolveId(context: RouteContext): Promise<string> {
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  let body: { data?: string };
-
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-  }
-
-  if (typeof body.data !== 'string') {
-    return NextResponse.json({ error: 'Input data must be a string' }, { status: 400 });
-  }
-
-  try {
-    const id = await resolveId(context);
-    terminalManager.sendInput(id, body.data);
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to send input';
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
+  const id = await resolveId(context);
+  const body = await request.text();
+  const response = await terminalGatewayFetch(`/terminals/${encodeURIComponent(id)}/input`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+  const payload = await response.json();
+  return NextResponse.json(payload, { status: response.status });
 }

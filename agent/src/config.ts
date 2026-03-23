@@ -22,6 +22,7 @@ function getEnvNum(name: string, defaultValue: number): number {
 
 export interface Config {
   CONTROL_ROOM_SECRET: string | undefined;
+  CONTROL_ROOM_SESSION_SECRET: string | undefined;
   CONVEX_URL: string;
   CONVEX_ADMIN_KEY: string;
   AGENT_HEALTH_PORT: number;
@@ -45,6 +46,7 @@ export interface Config {
 
 export const config: Config = {
   CONTROL_ROOM_SECRET: process.env["CONTROL_ROOM_SECRET"],
+  CONTROL_ROOM_SESSION_SECRET: process.env["CONTROL_ROOM_SESSION_SECRET"],
   CONVEX_URL: requireEnv("CONVEX_URL"),
   CONVEX_ADMIN_KEY: requireEnv("CONVEX_ADMIN_KEY"),
   AGENT_HEALTH_PORT: getEnvNum("AGENT_HEALTH_PORT", 4001),

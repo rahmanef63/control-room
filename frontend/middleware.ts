@@ -3,7 +3,15 @@ import { verifySession } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
-const PUBLIC_PATHS = ['/login', '/api/auth/', '/api/health'];
+const PUBLIC_PATHS = [
+  '/login',
+  '/api/auth/',
+  '/api/health',
+  '/manifest.webmanifest',
+  '/sw.js',
+  '/icon',
+  '/apple-icon',
+];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

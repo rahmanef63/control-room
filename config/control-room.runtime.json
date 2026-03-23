@@ -1,0 +1,66 @@
+{
+  "environments": [
+    {
+      "id": "host-default",
+      "label": "Host Default",
+      "description": "Main host workspace for the control room and general VPS operations.",
+      "cwd": "/home/rahman/projects/vps-rahmanef",
+      "envText": "CONTROL_ROOM_DOMAIN=vps.rahmanef.com\nCONTROL_ROOM_ACCESS_MODE=tailscale-only\nWORKSPACE_ROOT=/home/rahman/projects",
+      "tags": ["host", "default", "ops"]
+    },
+    {
+      "id": "frontend-workspace",
+      "label": "Frontend Workspace",
+      "description": "Use this when operating the Next.js dashboard shell and UI slices.",
+      "cwd": "/home/rahman/projects/vps-rahmanef/frontend",
+      "envText": "APP_SCOPE=frontend\nNEXT_RUNTIME=nodejs\nPREFERRED_UI_STYLE=bento",
+      "tags": ["frontend", "nextjs", "ui"]
+    },
+    {
+      "id": "agent-workspace",
+      "label": "Agent Workspace",
+      "description": "Use this for host collectors, terminal gateway logic, and executor work.",
+      "cwd": "/home/rahman/projects/vps-rahmanef/agent",
+      "envText": "APP_SCOPE=agent\nDOCKER_HOST=unix:///var/run/docker.sock\nSYSTEM_ACCESS=host",
+      "tags": ["agent", "host", "runtime"]
+    }
+  ],
+  "agentProfiles": [
+    {
+      "id": "codex-ops",
+      "label": "Codex Ops",
+      "description": "Codex terminal tuned for VPS operations and end-to-end fixes.",
+      "terminalProfile": "codex",
+      "model": "codex",
+      "environmentId": "host-default",
+      "skills": ["skill-coder", "system-check", "dokploy-deploy"]
+    },
+    {
+      "id": "claude-ui",
+      "label": "Claude UI",
+      "description": "Claude terminal focused on frontend polish, UI review, and UX iteration.",
+      "terminalProfile": "claude",
+      "model": "claude",
+      "environmentId": "frontend-workspace",
+      "skills": ["webapp-delivery", "project-template"]
+    },
+    {
+      "id": "gemini-research",
+      "label": "Gemini Research",
+      "description": "Gemini terminal for exploration, comparisons, and documentation-heavy work.",
+      "terminalProfile": "gemini",
+      "model": "gemini",
+      "environmentId": "host-default",
+      "skills": ["system-check", "skill-coder"]
+    },
+    {
+      "id": "openclaw-runtime",
+      "label": "OpenClaw Runtime",
+      "description": "OpenClaw TUI attached to the agent runtime workspace.",
+      "terminalProfile": "openclaw",
+      "model": "openclaw",
+      "environmentId": "agent-workspace",
+      "skills": ["openclaw-master", "system-check"]
+    }
+  ]
+}
