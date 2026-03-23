@@ -47,7 +47,7 @@ export default function ProfilesPage() {
       environmentCount: payload?.environments.length ?? 0,
       agentCount: payload?.agentProfiles.length ?? 0,
       skillCount:
-        payload?.agentProfiles.reduce((total, profile) => total + profile.skills.length, 0) ?? 0,
+        payload?.agentProfiles.reduce((total, profile) => total + (profile.skills?.length ?? 0), 0) ?? 0,
     };
   }, [payload]);
 
@@ -237,7 +237,7 @@ export default function ProfilesPage() {
                     Bound env: {profile.environmentLabel ?? 'Not assigned'}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    {profile.skills.map((skill) => (
+                    {(profile.skills ?? []).map((skill) => (
                       <span
                         key={skill}
                         className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-400"

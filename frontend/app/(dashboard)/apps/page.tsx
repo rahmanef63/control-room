@@ -1,10 +1,23 @@
 // @ts-nocheck — stub API types; remove after `npx convex deploy` generates real types
 'use client';
 
-import { useState } from 'react';
-import { useQuery, useMutation } from 'convex/react';
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery } from 'convex/react';
+
 import { api } from '@/_generated/api';
+import { ConfirmActionDialog } from '@/components/dashboard/confirm-action-dialog';
+import { SortableTableHead } from '@/components/dashboard/sortable-table-head';
+import { TableSearch } from '@/components/dashboard/table-search';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import type { AppStatus } from '@/lib/types';
+import { filterItems, sortItems, toggleSort, type SortState } from '@/lib/table-controls';
 
 function StatusBadge({ status }: { status: AppStatus['runtime_status'] }) {
   const map: Record<AppStatus['runtime_status'], string> = {
@@ -33,46 +46,16 @@ function HealthBadge({ status }: { status: AppStatus['health_status'] }) {
   return <span className={`text-xs ${map[status]}`}>{status}</span>;
 }
 
-function ConfirmDialog({
-  open,
-  action,
-  target,
-  onConfirm,
-  onCancel,
-}: {
-  open: boolean;
-  action: string;
-  target: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl">
-        <h3 className="text-base font-semibold text-foreground">Confirm Action</h3>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Execute <span className="font-mono text-foreground">{action}</span> on{' '}
-          <span className="font-medium text-foreground">{target}</span>?
-        </p>
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            onClick={onCancel}
-            className="rounded-md border border-border px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-          >
-            Confirm
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+const APP_SORTERS = {
+  name: (app: AppStatus) => app.name,
+  source: (app: AppStatus) => app.source,
+  status: (app: AppStatus) => app.runtime_status,
+  health: (app: AppStatus) => app.health_status,
+  ports: (app: AppStatus) => app.ports.length,
+  domain: (app: AppStatus) => app.domain ?? '',
+  restarts: (app: AppStatus) => app.restart_count ?? -1,
+  actions: (app: AppStatus) => (app.source === 'dokploy' ? 3 : 2),
+};
 
 export default function AppsPage() {
   const apps = useQuery(api.appStatus.listApps);
@@ -84,6 +67,8 @@ export default function AppsPage() {
     targetId: string;
   } | null>(null);
   const [feedback, setFeedback] = useState<Record<string, string>>({});
+  const [search, setSearch] = useState('');
+  const [sortState, setSortState] = useState<SortState>({ key: 'name', direction: 'asc' });
 
   async function handleAction(
     action: string,
@@ -98,119 +83,214 @@ export default function AppsPage() {
         target_id: targetId,
         requested_by: 'manual-dashboard',
       });
-      setFeedback((f) => ({ ...f, [targetId]: 'Queued' }));
-      setTimeout(() => setFeedback((f) => { const n = { ...f }; delete n[targetId]; return n; }), 3000);
+      setFeedback((current) => ({ ...current, [targetId]: 'Queued' }));
+      setTimeout(() => {
+        setFeedback((current) => {
+          const next = { ...current };
+          delete next[targetId];
+          return next;
+        });
+      }, 3000);
     } catch {
-      setFeedback((f) => ({ ...f, [targetId]: 'Error queuing command' }));
+      setFeedback((current) => ({ ...current, [targetId]: 'Error queuing command' }));
     }
   }
 
+  const visibleApps = useMemo(() => {
+    const base = apps ?? [];
+    const filtered = filterItems(base, search, (app) =>
+      [
+        app.name,
+        app.source,
+        app.runtime_status,
+        app.health_status,
+        app.domain ?? '',
+        app.ports.map((port) => `${port.internal}:${port.published}/${port.protocol}`).join(' '),
+      ].join(' ')
+    );
+    return sortItems(filtered, sortState, APP_SORTERS);
+  }, [apps, search, sortState]);
+
   if (apps === undefined) {
-    return <div className="p-6 text-muted-foreground text-sm">Loading apps...</div>;
+    return <div className="p-6 text-sm text-muted-foreground">Loading apps...</div>;
   }
 
   return (
-    <div className="p-6 space-y-4">
-      <h2 className="text-lg font-semibold text-foreground">Apps & Services</h2>
-      <p className="text-sm text-muted-foreground">{apps.length} apps tracked</p>
+    <div className="space-y-4 p-6">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Apps & Services</h2>
+        <p className="text-sm text-muted-foreground">{apps.length} apps tracked</p>
+      </div>
+
+      <TableSearch
+        value={search}
+        onChange={setSearch}
+        placeholder="Search apps, domains, ports, source…"
+        resultCount={visibleApps.length}
+      />
 
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/30">
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Name</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Source</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Health</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Ports</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Domain</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Restarts</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {apps.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground text-sm">
-                  No apps found. Agent may not have reported yet.
-                </td>
-              </tr>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/30 hover:bg-muted/30">
+              <TableHead>
+                <SortableTableHead
+                  label="Name"
+                  active={sortState.key === 'name'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'name'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Source"
+                  active={sortState.key === 'source'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'source'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Status"
+                  active={sortState.key === 'status'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'status'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Health"
+                  active={sortState.key === 'health'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'health'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Ports"
+                  active={sortState.key === 'ports'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'ports'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Domain"
+                  active={sortState.key === 'domain'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'domain'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Restarts"
+                  active={sortState.key === 'restarts'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'restarts'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Actions"
+                  active={sortState.key === 'actions'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'actions'))}
+                />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visibleApps.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
+                  No apps matched the current filter.
+                </TableCell>
+              </TableRow>
             ) : (
-              apps.map((app) => {
+              visibleApps.map((app) => {
                 const targetType: 'container' | 'dokploy-app' =
                   app.source === 'dokploy' ? 'dokploy-app' : 'container';
+
                 return (
-                  <tr key={app._id} className="hover:bg-muted/10 transition-colors">
-                    <td className="px-4 py-3 font-medium text-foreground">{app.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{app.source}</td>
-                    <td className="px-4 py-3">
+                  <TableRow key={app._id} className="hover:bg-muted/10">
+                    <TableCell className="font-medium text-foreground">{app.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{app.source}</TableCell>
+                    <TableCell>
                       <StatusBadge status={app.runtime_status} />
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>
                       <HealthBadge status={app.health_status} />
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs">
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
                       {app.ports.length > 0
-                        ? app.ports.map((p) => `${p.internal}→${p.published}`).join(', ')
+                        ? app.ports.map((port) => `${port.internal}→${port.published}`).join(', ')
                         : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs">
-                      {app.domain ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {app.restart_count ?? '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{app.domain ?? '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{app.restart_count ?? '—'}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-2">
                         {feedback[app.name] ? (
                           <span className="text-xs text-emerald-400">{feedback[app.name]}</span>
                         ) : (
                           <>
                             <button
                               onClick={() =>
-                                setConfirm({ action: `${targetType}.restart`, targetType, targetId: app.name })
+                                setConfirm({
+                                  action: `${targetType}.restart`,
+                                  targetType,
+                                  targetId: app.name,
+                                })
                               }
-                              className="rounded px-2 py-1 text-xs bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                              className="rounded bg-primary/10 px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/20"
                             >
                               Restart
                             </button>
-                            {app.source === 'dokploy' && (
+                            {app.source === 'dokploy' ? (
                               <button
                                 onClick={() =>
-                                  setConfirm({ action: 'dokploy-app.redeploy', targetType: 'dokploy-app', targetId: app.name })
+                                  setConfirm({
+                                    action: 'dokploy-app.redeploy',
+                                    targetType: 'dokploy-app',
+                                    targetId: app.name,
+                                  })
                                 }
-                                className="rounded px-2 py-1 text-xs bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-colors"
+                                className="rounded bg-orange-500/10 px-2 py-1 text-xs text-orange-400 transition-colors hover:bg-orange-500/20"
                               >
                                 Redeploy
                               </button>
-                            )}
+                            ) : null}
                             <button
                               onClick={() =>
-                                setConfirm({ action: `${targetType}.stop`, targetType, targetId: app.name })
+                                setConfirm({
+                                  action: `${targetType}.stop`,
+                                  targetType,
+                                  targetId: app.name,
+                                })
                               }
-                              className="rounded px-2 py-1 text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                              className="rounded bg-red-500/10 px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-500/20"
                             >
                               Stop
                             </button>
                           </>
                         )}
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
-      <ConfirmDialog
+      <ConfirmActionDialog
         open={confirm !== null}
         action={confirm?.action ?? ''}
         target={confirm?.targetId ?? ''}
         onConfirm={() => {
           if (confirm) {
-            handleAction(confirm.action, confirm.targetType, confirm.targetId);
+            void handleAction(confirm.action, confirm.targetType, confirm.targetId);
           }
         }}
         onCancel={() => setConfirm(null)}

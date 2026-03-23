@@ -1,10 +1,23 @@
 // @ts-nocheck — stub API types; remove after `npx convex deploy` generates real types
 'use client';
 
-import { useState } from 'react';
-import { useQuery, useMutation } from 'convex/react';
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery } from 'convex/react';
+
 import { api } from '@/_generated/api';
+import { ConfirmActionDialog } from '@/components/dashboard/confirm-action-dialog';
+import { SortableTableHead } from '@/components/dashboard/sortable-table-head';
+import { TableSearch } from '@/components/dashboard/table-search';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import type { AgentStatus } from '@/lib/types';
+import { filterItems, sortItems, toggleSort, type SortState } from '@/lib/table-controls';
 
 function StatusDot({ status }: { status: AgentStatus['status'] }) {
   const color =
@@ -18,54 +31,25 @@ function StatusDot({ status }: { status: AgentStatus['status'] }) {
 
 function formatUptime(seconds: number): string {
   if (!seconds) return '—';
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
-function ConfirmDialog({
-  open,
-  action,
-  target,
-  onConfirm,
-  onCancel,
-}: {
-  open: boolean;
-  action: string;
-  target: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl">
-        <h3 className="text-base font-semibold text-foreground">Confirm Action</h3>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Execute <span className="font-mono text-foreground">{action}</span> on{' '}
-          <span className="font-medium text-foreground">{target}</span>?
-        </p>
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            onClick={onCancel}
-            className="rounded-md border border-border px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-          >
-            Confirm
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+const AGENT_SORTERS = {
+  name: (agent: AgentStatus) => agent.name,
+  status: (agent: AgentStatus) => agent.status,
+  pid: (agent: AgentStatus) => agent.pid ?? -1,
+  cpu: (agent: AgentStatus) => agent.cpu,
+  memory: (agent: AgentStatus) => agent.memory,
+  uptime: (agent: AgentStatus) => agent.uptime_seconds,
+  detection: (agent: AgentStatus) => agent.detection_source,
+  lastSeen: (agent: AgentStatus) => agent.last_seen,
+  actions: (agent: AgentStatus) => agent.available_actions.length,
+};
 
 export default function AgentsPage() {
   const agents = useQuery(api.agentStatus.listAgents);
@@ -76,6 +60,8 @@ export default function AgentsPage() {
     targetId: string;
   } | null>(null);
   const [feedback, setFeedback] = useState<Record<string, string>>({});
+  const [search, setSearch] = useState('');
+  const [sortState, setSortState] = useState<SortState>({ key: 'name', direction: 'asc' });
 
   async function handleAction(action: string, targetId: string) {
     setConfirm(null);
@@ -86,29 +72,41 @@ export default function AgentsPage() {
         target_id: targetId,
         requested_by: 'manual-dashboard',
       });
-      setFeedback((f) => ({ ...f, [targetId]: 'Queued' }));
-      setTimeout(
-        () =>
-          setFeedback((f) => {
-            const n = { ...f };
-            delete n[targetId];
-            return n;
-          }),
-        3000
-      );
+      setFeedback((current) => ({ ...current, [targetId]: 'Queued' }));
+      setTimeout(() => {
+        setFeedback((current) => {
+          const next = { ...current };
+          delete next[targetId];
+          return next;
+        });
+      }, 3000);
     } catch {
-      setFeedback((f) => ({ ...f, [targetId]: 'Error' }));
+      setFeedback((current) => ({ ...current, [targetId]: 'Error' }));
     }
   }
 
+  const visibleAgents = useMemo(() => {
+    const base = agents ?? [];
+    const filtered = filterItems(base, search, (agent) =>
+      [
+        agent.name,
+        agent.status,
+        agent.pid ?? '',
+        agent.detection_source,
+        agent.available_actions.join(' '),
+      ].join(' ')
+    );
+    return sortItems(filtered, sortState, AGENT_SORTERS);
+  }, [agents, search, sortState]);
+
   if (agents === undefined) {
-    return <div className="p-6 text-muted-foreground text-sm">Loading agents...</div>;
+    return <div className="p-6 text-sm text-muted-foreground">Loading agents...</div>;
   }
 
-  const running = agents.filter((a) => a.status === 'running').length;
+  const running = agents.filter((agent) => agent.status === 'running').length;
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="space-y-4 p-6">
       <div>
         <h2 className="text-lg font-semibold text-foreground">Agents</h2>
         <p className="text-sm text-muted-foreground">
@@ -116,54 +114,124 @@ export default function AgentsPage() {
         </p>
       </div>
 
+      <TableSearch
+        value={search}
+        onChange={setSearch}
+        placeholder="Search agents, status, PID, detection source…"
+        resultCount={visibleAgents.length}
+      />
+
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/30">
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Name</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">PID</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">CPU</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Memory</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Uptime</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Detected via</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Last seen</th>
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {agents.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground text-sm">
-                  No agents found. Agent may not have reported yet.
-                </td>
-              </tr>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/30 hover:bg-muted/30">
+              <TableHead>
+                <SortableTableHead
+                  label="Name"
+                  active={sortState.key === 'name'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'name'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Status"
+                  active={sortState.key === 'status'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'status'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="PID"
+                  active={sortState.key === 'pid'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'pid'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="CPU"
+                  active={sortState.key === 'cpu'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'cpu'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Memory"
+                  active={sortState.key === 'memory'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'memory'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Uptime"
+                  active={sortState.key === 'uptime'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'uptime'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Detected via"
+                  active={sortState.key === 'detection'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'detection'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Last seen"
+                  active={sortState.key === 'lastSeen'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'lastSeen'))}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableTableHead
+                  label="Actions"
+                  active={sortState.key === 'actions'}
+                  direction={sortState.direction}
+                  onToggle={() => setSortState((current) => toggleSort(current, 'actions'))}
+                />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visibleAgents.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                  No agents matched the current filter.
+                </TableCell>
+              </TableRow>
             ) : (
-              agents.map((agent) => (
-                <tr key={agent._id} className="hover:bg-muted/10 transition-colors">
-                  <td className="px-4 py-3 font-medium text-foreground flex items-center gap-2">
-                    <StatusDot status={agent.status} />
-                    {agent.name}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground capitalize">{agent.status}</td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
-                    {agent.pid ?? '—'}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {agent.cpu.toFixed(1)}%
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {(agent.memory / (1024 * 1024)).toFixed(0)} MB
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {formatUptime(agent.uptime_seconds)}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{agent.detection_source}</td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">
-                    {new Date(agent.last_seen).toLocaleTimeString()}
-                  </td>
-                  <td className="px-4 py-3">
+              visibleAgents.map((agent) => (
+                <TableRow key={agent._id} className="hover:bg-muted/10">
+                  <TableCell className="font-medium text-foreground">
                     <div className="flex items-center gap-2">
+                      <StatusDot status={agent.status} />
+                      {agent.name}
+                    </div>
+                  </TableCell>
+                  <TableCell className="capitalize text-muted-foreground">{agent.status}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {agent.pid ?? '—'}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{agent.cpu.toFixed(1)}%</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {(agent.memory / (1024 * 1024)).toFixed(0)} MB
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatUptime(agent.uptime_seconds)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{agent.detection_source}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {new Date(agent.last_seen).toLocaleTimeString()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-2">
                       {feedback[agent.name] ? (
                         <span className="text-xs text-emerald-400">{feedback[agent.name]}</span>
                       ) : (
@@ -171,27 +239,29 @@ export default function AgentsPage() {
                           <button
                             key={action}
                             onClick={() => setConfirm({ action, targetId: agent.name })}
-                            className="rounded px-2 py-1 text-xs bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                            className="rounded bg-primary/10 px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/20"
                           >
                             {action}
                           </button>
                         ))
                       )}
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
-      <ConfirmDialog
+      <ConfirmActionDialog
         open={confirm !== null}
         action={confirm?.action ?? ''}
         target={confirm?.targetId ?? ''}
         onConfirm={() => {
-          if (confirm) handleAction(confirm.action, confirm.targetId);
+          if (confirm) {
+            void handleAction(confirm.action, confirm.targetId);
+          }
         }}
         onCancel={() => setConfirm(null)}
       />

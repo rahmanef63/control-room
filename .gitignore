@@ -4,6 +4,7 @@ node_modules/
 # Build outputs
 frontend/.next/
 agent/dist/
+.deploy-state/
 
 # Environment & secrets
 .env.local
