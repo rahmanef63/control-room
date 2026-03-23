@@ -116,6 +116,18 @@ if [ -d public ]; then
   cp -R public .next/standalone/frontend/public
 fi
 
+for required_file in \
+  .next/standalone/frontend/.next/server/middleware-manifest.json \
+  .next/standalone/frontend/.next/server/next-font-manifest.json \
+  .next/standalone/frontend/.next/routes-manifest.json \
+  .next/standalone/frontend/server.js
+do
+  if [ ! -f "${required_file}" ]; then
+    log "Missing standalone artifact after copy: ${required_file}"
+    exit 1
+  fi
+done
+
 cd ..
 
 if [ "${AGENT_RESTART_REQUIRED}" -eq 1 ]; then

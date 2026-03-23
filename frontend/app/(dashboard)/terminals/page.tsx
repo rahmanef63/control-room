@@ -220,10 +220,10 @@ export default function TerminalsPage() {
             Connection behavior
           </div>
           <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
-            <li>WebSocket transport is used for live PTY output and input.</li>
-            <li>Pane status distinguishes `connecting`, `reconnecting`, and `connected`.</li>
+            <li>Browser panes stream through a same-origin event channel so Tailscale and proxies stay stable.</li>
+            <li>Input still lands on the host PTY immediately, with pane status showing `connecting`, `reconnecting`, and `connected`.</li>
             <li>Sessions live in the host agent and reattach after browser reloads.</li>
-            <li>Open terminal IDs are remembered locally and restored on page reload.</li>
+            <li>Launcher panels collapse once sessions exist, so active terminals stay within reach.</li>
           </ul>
         </aside>
       </section>
