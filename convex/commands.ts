@@ -17,7 +17,7 @@ export const enqueueCommand = mutation({
     requested_by: v.string(),
   },
   handler: async (ctx, args) => {
-    const request_id = crypto.randomUUID();
+    const request_id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const requested_at = Date.now();
 
     return await ctx.db.insert("commands", {

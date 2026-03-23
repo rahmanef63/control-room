@@ -75,10 +75,7 @@ npm run build
 cd ..
 
 log "Deploying Convex functions"
-cd convex
-npm install
-npm run deploy
-cd ..
+npx convex deploy --env-file convex/.env.local --typecheck disable -y
 
 log "Restarting systemd services"
 sudo systemctl restart vps-control-room-frontend
