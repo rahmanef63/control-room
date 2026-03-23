@@ -60,6 +60,29 @@ log "Preparing standalone frontend assets"
 mkdir -p .next/standalone/frontend/.next
 rm -rf .next/standalone/frontend/.next/static
 cp -R .next/static .next/standalone/frontend/.next/static
+rm -rf .next/standalone/frontend/.next/server
+cp -R .next/server .next/standalone/frontend/.next/server
+
+for manifest in \
+  BUILD_ID \
+  app-build-manifest.json \
+  app-path-routes-manifest.json \
+  app-paths-manifest.json \
+  build-manifest.json \
+  export-marker.json \
+  images-manifest.json \
+  next-minimal-server.js.nft.json \
+  next-server.js.nft.json \
+  package.json \
+  prerender-manifest.json \
+  react-loadable-manifest.json \
+  required-server-files.json \
+  routes-manifest.json
+do
+  if [ -f ".next/${manifest}" ]; then
+    cp ".next/${manifest}" ".next/standalone/frontend/.next/${manifest}"
+  fi
+done
 
 if [ -d public ]; then
   rm -rf .next/standalone/frontend/public
