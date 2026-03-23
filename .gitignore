@@ -17,6 +17,7 @@ convex/convex/
 # Lock files (per-component)
 frontend/package-lock.json
 agent/package-lock.json
+convex/package-lock.json
 
 # Next.js
 frontend/next-env.d.ts

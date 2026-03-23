@@ -16,6 +16,21 @@ require_file() {
   fi
 }
 
+load_env_file() {
+  local path="$1"
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ""|\#*)
+        continue
+        ;;
+    esac
+
+    local key="${line%%=*}"
+    local value="${line#*=}"
+    export "${key}=${value}"
+  done < "$path"
+}
+
 log "Starting deploy for branch: ${BRANCH}"
 
 if ! sudo -n true >/dev/null 2>&1; then
@@ -25,6 +40,9 @@ fi
 
 require_file "${REPO_DIR}/.env.local"
 require_file "${REPO_DIR}/convex/.env.local"
+
+load_env_file "${REPO_DIR}/.env.local"
+load_env_file "${REPO_DIR}/convex/.env.local"
 
 cd "${REPO_DIR}"
 
