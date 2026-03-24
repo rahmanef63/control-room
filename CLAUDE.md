@@ -49,7 +49,7 @@ Data flow: agent collects → Convex stores → frontend subscribes → user tri
 ```bash
 # Frontend
 cd frontend && npm install && npm run build
-# Runs via systemd: node frontend/.next/standalone/server.js
+# Runs via systemd: npm run start -- --hostname 0.0.0.0 --port 4000
 
 # Agent
 cd agent && npm install && npm run build
@@ -69,12 +69,14 @@ This project uses specialized agents for token efficiency. Each agent has a narr
 - `/vps-collector` — Host collector creation pattern
 - `/vps-action` — Action pipeline addition pattern
 - `/vps-deploy` — Deploy workflow
+- `/vps-control-room` — Project playbook for runtime, deploy, firewall, and asset delivery
 
 Agents:
 - `vps-alfa` — Main orchestrator, delegates to specialists, generates new skills
 - `vps-frontend` — Frontend pages and components
 - `vps-convex` — Convex schema and functions
 - `vps-host-agent` — Collectors and executor
+- `vps-control-room-master` — Project-specific coordinator for deploy/runtime issues
 
 ## Rules
 
