@@ -16,6 +16,12 @@ const PUBLIC_PATHS = [
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  if (pathname === '/favicon.ico') {
+    const iconUrl = request.nextUrl.clone();
+    iconUrl.pathname = '/icon';
+    return NextResponse.rewrite(iconUrl);
+  }
+
   const isPublic = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
   if (isPublic) {
     return NextResponse.next();
@@ -33,5 +39,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image).*)'],
 };
