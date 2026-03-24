@@ -64,7 +64,7 @@ export function SecurityEventsTable({
     <section className="space-y-3">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
       <TableSearch value={search} onChange={setSearch} placeholder={placeholder} resultCount={visibleEvents.length} />
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="overflow-x-auto rounded-sm border border-border">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">

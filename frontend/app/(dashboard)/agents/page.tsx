@@ -24,8 +24,8 @@ function StatusDot({ status }: { status: AgentStatus['status'] }) {
     status === 'running'
       ? 'bg-emerald-500'
       : status === 'stopped'
-      ? 'bg-red-500'
-      : 'bg-yellow-500';
+        ? 'bg-red-500'
+        : 'bg-yellow-500';
   return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
 }
 
@@ -121,7 +121,7 @@ export default function AgentsPage() {
         resultCount={visibleAgents.length}
       />
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="overflow-x-auto rounded-sm border border-border">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">

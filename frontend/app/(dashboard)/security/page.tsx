@@ -35,21 +35,21 @@ export default function SecurityPage() {
       <h2 className="text-lg font-semibold text-foreground">Security</h2>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border border-border bg-card p-4">
+        <div className="rounded-sm border border-border bg-card p-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">SSH Success (recent)</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{sshSuccess.length}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
+        <div className="rounded-sm border border-border bg-card p-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">SSH Failed (recent)</p>
           <p className={`mt-1 text-2xl font-bold ${sshFailed.length > 5 ? 'text-red-400' : 'text-foreground'}`}>
             {sshFailed.length}
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
+        <div className="rounded-sm border border-border bg-card p-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Bans (recent)</p>
           <p className="mt-1 text-2xl font-bold text-foreground">{banEvents.length}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
+        <div className="rounded-sm border border-border bg-card p-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Unknown Ports</p>
           <p className={`mt-1 text-2xl font-bold ${unknownPorts.length > 0 ? 'text-red-400' : 'text-foreground'}`}>
             {unknownPorts.length}
@@ -58,7 +58,7 @@ export default function SecurityPage() {
       </div>
 
       {unknownPorts.length > 0 ? (
-        <div className="space-y-1 rounded-lg border border-red-800 bg-red-950/20 px-4 py-3 text-sm text-red-400">
+        <div className="space-y-1 rounded-sm border border-red-800 bg-red-950/20 px-4 py-3 text-sm text-red-400">
           <p className="font-semibold">Warning: Unknown ports detected</p>
           {unknownPorts.map((event) => (
             <p key={event._id} className="text-xs">

@@ -129,7 +129,7 @@ export default function AppsPage() {
         resultCount={visibleApps.length}
       />
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="overflow-x-auto rounded-sm border border-border">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">

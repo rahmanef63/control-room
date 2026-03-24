@@ -72,6 +72,22 @@
     background: rgba(34, 211, 238, 0.35);
     color: white;
   }
+
+  .xterm {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .xterm .xterm-screen canvas,
+  .xterm .xterm-viewport {
+    touch-action: pan-y;
+  }
+
+  .xterm .xterm-viewport {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+  }
 }
 
 @layer utilities {

@@ -17,7 +17,7 @@ export function ConfirmActionDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 shadow-xl">
+      <div className="w-full max-w-sm rounded-sm border border-border bg-card p-6 shadow-xl">
         <h3 className="text-base font-semibold text-foreground">Confirm Action</h3>
         <p className="mt-2 text-sm text-muted-foreground">
           Execute <span className="font-mono text-foreground">{action}</span> on{' '}

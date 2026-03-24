@@ -29,8 +29,8 @@ export default function PageNamePage() {
         <h1 className="text-2xl font-bold">Page Title</h1>
         <div className="grid gap-4">
           {/* Skeleton loading */}
-          <div className="h-32 rounded-lg bg-muted animate-pulse" />
-          <div className="h-32 rounded-lg bg-muted animate-pulse" />
+          <div className="h-32 rounded-sm bg-muted animate-pulse" />
+          <div className="h-32 rounded-sm bg-muted animate-pulse" />
         </div>
       </div>
     );
@@ -41,7 +41,7 @@ export default function PageNamePage() {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold">Page Title</h1>
-        <div className="flex items-center justify-center h-64 rounded-lg border border-dashed">
+        <div className="flex items-center justify-center h-64 rounded-sm border border-dashed">
           <p className="text-muted-foreground">No data available.</p>
         </div>
       </div>

@@ -123,7 +123,7 @@ export default function ActionsPage() {
     <div className="space-y-6 p-6">
       <h2 className="text-lg font-semibold text-foreground">Actions</h2>
 
-      <div className="max-w-lg space-y-4 rounded-lg border border-border bg-card p-5">
+      <div className="max-w-lg space-y-4 rounded-sm border border-border bg-card p-5">
         <h3 className="text-sm font-semibold text-foreground">Queue an Action</h3>
         <div className="space-y-3">
           <div>
@@ -223,7 +223,7 @@ export default function ActionsPage() {
         ) : visibleCommands.length === 0 ? (
           <p className="text-sm text-muted-foreground">No commands matched the current filter.</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <div className="overflow-x-auto rounded-sm border border-border">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
