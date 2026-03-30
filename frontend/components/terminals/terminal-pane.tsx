@@ -41,6 +41,7 @@ export function TerminalPane({
   const onUpdateRef = useRef(onUpdate);
   const sessionRef = useRef(session);
   const isUnmountingRef = useRef(false);
+  const lastOutputRef = useRef('');
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
   const [error, setError] = useState<string | null>(null);
   const canSendInput = session.status === 'running';
@@ -72,19 +73,52 @@ export function TerminalPane({
     sendInput(String.fromCharCode(key.toUpperCase().charCodeAt(0) & 0x1f));
   }
 
-  function scrollLines(amount: number) {
-    terminalRef.current?.scrollLines(amount);
+  function trackOutput(chunk: string) {
+    if (!chunk) return;
+    const next = `${lastOutputRef.current}${chunk}`;
+    lastOutputRef.current = next.slice(-6000);
   }
 
-  function scrollToEdge(edge: 'top' | 'bottom') {
-    if (!terminalRef.current) return;
+  async function pasteFromClipboard() {
+    if (!canSendInput || !navigator?.clipboard?.readText) return;
 
-    if (edge === 'top') {
-      terminalRef.current.scrollToTop();
-      return;
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        sendInput(text);
+      }
+    } catch {
+      setError('Clipboard read blocked');
     }
+  }
 
-    terminalRef.current.scrollToBottom();
+  async function copyTerminalContent() {
+    const terminal = terminalRef.current;
+    if (!terminal || !navigator?.clipboard?.writeText) return;
+
+    const selected = terminal.hasSelection() ? terminal.getSelection() : '';
+    const text = selected || lastOutputRef.current;
+
+    if (!text) return;
+
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      setError('Clipboard write blocked');
+    }
+  }
+
+  function clearTerminal() {
+    terminalRef.current?.clear();
+    sendControlKey('l');
+  }
+
+  function sendAgentShortcut(shortcut: '1' | '2') {
+    const payload =
+      shortcut === '1'
+        ? 'Summarize the latest terminal output and suggest next command.\r'
+        : 'Diagnose current issue from terminal context and propose a fix.\r';
+    sendInput(payload);
   }
 
   useEffect(() => {
@@ -166,6 +200,7 @@ export function TerminalPane({
           case 'bootstrap':
             term.reset();
             if (payload.buffer) {
+              trackOutput(payload.buffer);
               term.write(payload.buffer);
             }
             if (payload.session) {
@@ -175,6 +210,7 @@ export function TerminalPane({
             break;
           case 'output':
             if (payload.data) {
+              trackOutput(payload.data);
               term.write(payload.data);
             }
             break;
@@ -320,168 +356,73 @@ export function TerminalPane({
         />
       </div>
 
-      <div className="border-t border-white/10 bg-black/20 px-3 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-            Touch controls
-          </p>
-          <button
-            type="button"
-            onClick={focusTerminal}
-            className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-cyan-100 transition-colors hover:border-cyan-300/40 hover:bg-cyan-400/15"
-          >
-            Focus keyboard
-          </button>
-        </div>
-
-        <div className="mt-3 grid gap-2">
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+      <div className="border-t border-white/10 bg-black/35 px-2.5 py-2">
+        <div className="mx-auto grid max-w-xl gap-1.5">
+          <div className="grid grid-cols-5 gap-1.5">
             <button
               type="button"
-              onClick={() => sendInput('\t')}
-              disabled={!canSendInput}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Tab
-            </button>
-            <button
-              type="button"
-              onClick={() => sendInput('\x1b')}
-              disabled={!canSendInput}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Esc
-            </button>
-            <button
-              type="button"
-              onClick={() => sendInput('\r')}
-              disabled={!canSendInput}
-              className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-medium text-cyan-100 transition-colors hover:border-cyan-300/40 hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Enter
-            </button>
-            <button
-              type="button"
-              onClick={() => sendInput('\x1b[A')}
-              disabled={!canSendInput}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Up
-            </button>
-            <button
-              type="button"
-              onClick={() => sendInput('\x1b[B')}
-              disabled={!canSendInput}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Down
-            </button>
-            <button
-              type="button"
-              onClick={() => sendInput('\x1b[D')}
-              disabled={!canSendInput}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Left
-            </button>
-            <button
-              type="button"
-              onClick={() => sendInput('\x1b[C')}
-              disabled={!canSendInput}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Right
-            </button>
-            <button
-              type="button"
-              onClick={() => sendInput('\x7f')}
-              disabled={!canSendInput}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Backspace
-            </button>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-            <button
-              type="button"
+              title="Interrupt (Ctrl+C)"
+              aria-label="Interrupt process"
               onClick={() => sendControlKey('c')}
               disabled={!canSendInput}
-              className="rounded-2xl border border-orange-400/20 bg-orange-400/10 px-3 py-2 text-xs font-medium text-orange-100 transition-colors hover:border-orange-300/40 hover:bg-orange-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+              className={`rounded-[10px] border px-2 py-2 text-base leading-none transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                canSendInput
+                  ? 'border-orange-300/45 bg-orange-400/15 text-orange-100 shadow-[0_0_0.8rem_rgba(251,146,60,0.18)]'
+                  : 'border-white/10 bg-white/5 text-slate-300'
+              }`}
             >
-              Ctrl+C
+              ⛔
             </button>
             <button
               type="button"
-              onClick={() => sendControlKey('l')}
+              title="Paste"
+              aria-label="Paste from clipboard"
+              onClick={() => void pasteFromClipboard()}
               disabled={!canSendInput}
-              className="rounded-2xl border border-orange-400/20 bg-orange-400/10 px-3 py-2 text-xs font-medium text-orange-100 transition-colors hover:border-orange-300/40 hover:bg-orange-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Ctrl+L
+              📥
             </button>
             <button
               type="button"
-              onClick={() => sendControlKey('d')}
-              disabled={!canSendInput}
-              className="rounded-2xl border border-orange-400/20 bg-orange-400/10 px-3 py-2 text-xs font-medium text-orange-100 transition-colors hover:border-orange-300/40 hover:bg-orange-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+              title="Copy selected or latest output"
+              aria-label="Copy selected or latest output"
+              onClick={() => void copyTerminalContent()}
+              className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20"
             >
-              Ctrl+D
+              📋
             </button>
             <button
               type="button"
-              onClick={() => sendControlKey('u')}
+              title="Enter"
+              aria-label="Send enter"
+              onClick={() => sendInput('\r')}
               disabled={!canSendInput}
-              className="rounded-2xl border border-orange-400/20 bg-orange-400/10 px-3 py-2 text-xs font-medium text-orange-100 transition-colors hover:border-orange-300/40 hover:bg-orange-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-[10px] border border-cyan-400/30 bg-cyan-400/12 px-2 py-2 text-base leading-none text-cyan-100 shadow-[0_0_0.75rem_rgba(34,211,238,0.2)] transition-colors hover:border-cyan-300/50 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Ctrl+U
+              ⏎
             </button>
             <button
               type="button"
-              onClick={() => sendControlKey('a')}
+              title="Clear"
+              aria-label="Clear terminal"
+              onClick={clearTerminal}
               disabled={!canSendInput}
-              className="rounded-2xl border border-orange-400/20 bg-orange-400/10 px-3 py-2 text-xs font-medium text-orange-100 transition-colors hover:border-orange-300/40 hover:bg-orange-400/15 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Ctrl+A
-            </button>
-            <button
-              type="button"
-              onClick={() => sendControlKey('e')}
-              disabled={!canSendInput}
-              className="rounded-2xl border border-orange-400/20 bg-orange-400/10 px-3 py-2 text-xs font-medium text-orange-100 transition-colors hover:border-orange-300/40 hover:bg-orange-400/15 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Ctrl+E
+              🧹
             </button>
           </div>
 
-          <div className="grid grid-cols-4 gap-2">
-            <button
-              type="button"
-              onClick={() => scrollLines(-12)}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-white/20 hover:text-white"
-            >
-              Scroll -
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollLines(12)}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-white/20 hover:text-white"
-            >
-              Scroll +
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToEdge('top')}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-white/20 hover:text-white"
-            >
-              Top
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToEdge('bottom')}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-white/20 hover:text-white"
-            >
-              Latest
-            </button>
+          <div className="grid grid-cols-8 gap-1.5">
+            <button type="button" title="Left" aria-label="Move left" onClick={() => sendInput('\x1b[D')} disabled={!canSendInput} className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40">←</button>
+            <button type="button" title="Up" aria-label="Move up" onClick={() => sendInput('\x1b[A')} disabled={!canSendInput} className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40">↑</button>
+            <button type="button" title="Down" aria-label="Move down" onClick={() => sendInput('\x1b[B')} disabled={!canSendInput} className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40">↓</button>
+            <button type="button" title="Right" aria-label="Move right" onClick={() => sendInput('\x1b[C')} disabled={!canSendInput} className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40">→</button>
+            <button type="button" title="Start (Ctrl+A)" aria-label="Go to start" onClick={() => sendControlKey('a')} disabled={!canSendInput} className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40">⏮</button>
+            <button type="button" title="End (Ctrl+E)" aria-label="Go to end" onClick={() => sendControlKey('e')} disabled={!canSendInput} className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40">⏭</button>
+            <button type="button" title="Agent shortcut 1" aria-label="Send agent shortcut 1" onClick={() => sendAgentShortcut('1')} disabled={!canSendInput} className="rounded-[10px] border border-fuchsia-400/30 bg-fuchsia-400/10 px-2 py-2 text-base leading-none text-fuchsia-100 transition-colors hover:border-fuchsia-300/40 disabled:cursor-not-allowed disabled:opacity-40">①</button>
+            <button type="button" title="Agent shortcut 2" aria-label="Send agent shortcut 2" onClick={() => sendAgentShortcut('2')} disabled={!canSendInput} className="rounded-[10px] border border-fuchsia-400/30 bg-fuchsia-400/10 px-2 py-2 text-base leading-none text-fuchsia-100 transition-colors hover:border-fuchsia-300/40 disabled:cursor-not-allowed disabled:opacity-40">②</button>
           </div>
         </div>
       </div>
