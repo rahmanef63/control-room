@@ -5,8 +5,19 @@ import '@xterm/xterm/css/xterm.css';
 import { startTransition, useEffect, useRef, useState } from 'react';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
+import {
+  ArrowDown,
+  ArrowUp,
+  Ban,
+  Clipboard,
+  ClipboardPaste,
+  Command,
+  CornerDownLeft,
+  Eraser,
+} from 'lucide-react';
 
 import type { TerminalSession } from '@/lib/types';
+import { Button } from '@/components/ui/button';
 
 import {
   connectionBadgeClasses,
@@ -44,6 +55,7 @@ export function TerminalPane({
   const lastOutputRef = useRef('');
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
   const [error, setError] = useState<string | null>(null);
+  const [ctrlHold, setCtrlHold] = useState(false);
   const canSendInput = session.status === 'running';
 
   const focusTerminal = () => {
@@ -71,6 +83,16 @@ export function TerminalPane({
   function sendControlKey(key: string) {
     if (!/^[a-z]$/i.test(key)) return;
     sendInput(String.fromCharCode(key.toUpperCase().charCodeAt(0) & 0x1f));
+  }
+
+  function sendMobileKey(key: string) {
+    if (ctrlHold && /^[a-z]$/i.test(key)) {
+      sendControlKey(key);
+      setCtrlHold(false);
+      return;
+    }
+
+    sendInput(key);
   }
 
   function trackOutput(chunk: string) {
@@ -111,14 +133,6 @@ export function TerminalPane({
   function clearTerminal() {
     terminalRef.current?.clear();
     sendControlKey('l');
-  }
-
-  function sendAgentShortcut(shortcut: '1' | '2') {
-    const payload =
-      shortcut === '1'
-        ? 'Summarize the latest terminal output and suggest next command.\r'
-        : 'Diagnose current issue from terminal context and propose a fix.\r';
-    sendInput(payload);
   }
 
   useEffect(() => {
@@ -359,70 +373,75 @@ export function TerminalPane({
       <div className="border-t border-white/10 bg-black/35 px-2.5 py-2">
         <div className="mx-auto grid max-w-xl gap-1.5">
           <div className="grid grid-cols-5 gap-1.5">
-            <button
+            <Button
               type="button"
               title="Interrupt (Ctrl+C)"
               aria-label="Interrupt process"
               onClick={() => sendControlKey('c')}
               disabled={!canSendInput}
-              className={`rounded-[10px] border px-2 py-2 text-base leading-none transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+              variant="outline"
+              className={`h-10 rounded-[10px] border px-2 text-base leading-none transition-all ${
                 canSendInput
                   ? 'border-orange-300/45 bg-orange-400/15 text-orange-100 shadow-[0_0_0.8rem_rgba(251,146,60,0.18)]'
                   : 'border-white/10 bg-white/5 text-slate-300'
               }`}
             >
-              ⛔
-            </button>
-            <button
+              <Ban className="h-4 w-4" />
+            </Button>
+            <Button
               type="button"
               title="Paste"
               aria-label="Paste from clipboard"
               onClick={() => void pasteFromClipboard()}
               disabled={!canSendInput}
-              className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+              variant="outline"
+              className="h-10 rounded-[10px] border-white/10 bg-white/5 px-2 text-slate-100 hover:border-white/20 hover:bg-white/10"
             >
-              📥
-            </button>
-            <button
+              <ClipboardPaste className="h-4 w-4" />
+            </Button>
+            <Button
               type="button"
               title="Copy selected or latest output"
               aria-label="Copy selected or latest output"
               onClick={() => void copyTerminalContent()}
-              className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20"
+              variant="outline"
+              className="h-10 rounded-[10px] border-white/10 bg-white/5 px-2 text-slate-100 hover:border-white/20 hover:bg-white/10"
             >
-              📋
-            </button>
-            <button
+              <Clipboard className="h-4 w-4" />
+            </Button>
+            <Button
               type="button"
               title="Enter"
               aria-label="Send enter"
               onClick={() => sendInput('\r')}
               disabled={!canSendInput}
-              className="rounded-[10px] border border-cyan-400/30 bg-cyan-400/12 px-2 py-2 text-base leading-none text-cyan-100 shadow-[0_0_0.75rem_rgba(34,211,238,0.2)] transition-colors hover:border-cyan-300/50 disabled:cursor-not-allowed disabled:opacity-40"
+              variant="outline"
+              className="h-10 rounded-[10px] border-cyan-400/30 bg-cyan-400/12 px-2 text-cyan-100 shadow-[0_0_0.75rem_rgba(34,211,238,0.2)] hover:border-cyan-300/50 hover:bg-cyan-400/20"
             >
-              ⏎
-            </button>
-            <button
+              <CornerDownLeft className="h-4 w-4" />
+            </Button>
+            <Button
               type="button"
               title="Clear"
               aria-label="Clear terminal"
               onClick={clearTerminal}
               disabled={!canSendInput}
-              className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+              variant="outline"
+              className="h-10 rounded-[10px] border-white/10 bg-white/5 px-2 text-slate-100 hover:border-white/20 hover:bg-white/10"
             >
-              🧹
-            </button>
+              <Eraser className="h-4 w-4" />
+            </Button>
           </div>
 
           <div className="grid grid-cols-8 gap-1.5">
-            <button type="button" title="Left" aria-label="Move left" onClick={() => sendInput('\x1b[D')} disabled={!canSendInput} className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40">←</button>
-            <button type="button" title="Up" aria-label="Move up" onClick={() => sendInput('\x1b[A')} disabled={!canSendInput} className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40">↑</button>
-            <button type="button" title="Down" aria-label="Move down" onClick={() => sendInput('\x1b[B')} disabled={!canSendInput} className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40">↓</button>
-            <button type="button" title="Right" aria-label="Move right" onClick={() => sendInput('\x1b[C')} disabled={!canSendInput} className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40">→</button>
-            <button type="button" title="Start (Ctrl+A)" aria-label="Go to start" onClick={() => sendControlKey('a')} disabled={!canSendInput} className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40">⏮</button>
-            <button type="button" title="End (Ctrl+E)" aria-label="Go to end" onClick={() => sendControlKey('e')} disabled={!canSendInput} className="rounded-[10px] border border-white/10 bg-white/5 px-2 py-2 text-base leading-none text-slate-100 transition-colors hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-40">⏭</button>
-            <button type="button" title="Agent shortcut 1" aria-label="Send agent shortcut 1" onClick={() => sendAgentShortcut('1')} disabled={!canSendInput} className="rounded-[10px] border border-fuchsia-400/30 bg-fuchsia-400/10 px-2 py-2 text-base leading-none text-fuchsia-100 transition-colors hover:border-fuchsia-300/40 disabled:cursor-not-allowed disabled:opacity-40">①</button>
-            <button type="button" title="Agent shortcut 2" aria-label="Send agent shortcut 2" onClick={() => sendAgentShortcut('2')} disabled={!canSendInput} className="rounded-[10px] border border-fuchsia-400/30 bg-fuchsia-400/10 px-2 py-2 text-base leading-none text-fuchsia-100 transition-colors hover:border-fuchsia-300/40 disabled:cursor-not-allowed disabled:opacity-40">②</button>
+            <Button type="button" title="Back tab" aria-label="Send shift tab" onClick={() => sendInput('\x1b[Z')} disabled={!canSendInput} variant="outline" className="h-10 rounded-[10px] border-white/10 bg-white/5 px-2 text-xs font-semibold text-slate-100 hover:border-white/20 hover:bg-white/10">Tab←</Button>
+            <Button type="button" title="Up" aria-label="Move up" onClick={() => sendInput('\x1b[A')} disabled={!canSendInput} variant="outline" className="h-10 rounded-[10px] border-white/10 bg-white/5 px-2 text-slate-100 hover:border-white/20 hover:bg-white/10"><ArrowUp className="h-4 w-4" /></Button>
+            <Button type="button" title="Down" aria-label="Move down" onClick={() => sendInput('\x1b[B')} disabled={!canSendInput} variant="outline" className="h-10 rounded-[10px] border-white/10 bg-white/5 px-2 text-slate-100 hover:border-white/20 hover:bg-white/10"><ArrowDown className="h-4 w-4" /></Button>
+            <Button type="button" title="Tab" aria-label="Send tab" onClick={() => sendInput('\t')} disabled={!canSendInput} variant="outline" className="h-10 rounded-[10px] border-white/10 bg-white/5 px-2 text-xs font-semibold text-slate-100 hover:border-white/20 hover:bg-white/10">Tab→</Button>
+            <Button type="button" title={ctrlHold ? 'Ctrl hold active' : 'Enable ctrl hold'} aria-label="Toggle ctrl hold" onClick={() => setCtrlHold((value) => !value)} disabled={!canSendInput} variant="outline" className={`h-10 rounded-[10px] px-2 ${ctrlHold ? 'border-cyan-300/50 bg-cyan-500/15 text-cyan-100' : 'border-white/10 bg-white/5 text-slate-100 hover:border-white/20 hover:bg-white/10'}`}><Command className="h-4 w-4" /></Button>
+            <Button type="button" title="Ctrl + C" aria-label="Send ctrl c" onClick={() => sendControlKey('c')} disabled={!canSendInput} variant="outline" className="h-10 rounded-[10px] border-white/10 bg-white/5 px-2 text-xs font-semibold text-slate-100 hover:border-white/20 hover:bg-white/10">Ctrl+C</Button>
+            <Button type="button" title="Send key 1" aria-label="Send key 1" onClick={() => sendMobileKey('1')} disabled={!canSendInput} variant="outline" className="h-10 rounded-[10px] border-fuchsia-400/30 bg-fuchsia-400/10 px-2 text-base leading-none text-fuchsia-100 hover:border-fuchsia-300/40 hover:bg-fuchsia-400/20">1</Button>
+            <Button type="button" title="Send key 2" aria-label="Send key 2" onClick={() => sendMobileKey('2')} disabled={!canSendInput} variant="outline" className="h-10 rounded-[10px] border-fuchsia-400/30 bg-fuchsia-400/10 px-2 text-base leading-none text-fuchsia-100 hover:border-fuchsia-300/40 hover:bg-fuchsia-400/20">2</Button>
           </div>
         </div>
       </div>
