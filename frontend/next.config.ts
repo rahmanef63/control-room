@@ -10,26 +10,35 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // HTML pages must never be served from an intermediate cache.
-        // This forces the browser (and any CDN/proxy) to always validate
-        // with the origin, preventing stale HTML from embedding dead chunk hashes.
+        // HTML pages — always revalidate with the origin so the browser never
+        // serves stale HTML containing dead chunk hashes after a redeploy.
+        // `no-cache` (unlike `no-store`) still allows bfcache and conditional
+        // requests (304), which is critical for mobile back/forward navigation.
         source: '/:path*',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'no-store',
+            value: 'no-cache',
           },
         ],
       },
       {
         // Next.js content-hashed static assets are immutable — safe to cache forever.
-        // The SW also caches these cache-first, so this header serves as a belt-and-
-        // suspenders for requests that bypass the SW.
         source: '/_next/static/:path*',
         headers: [
           {
             key: 'Cache-Control',
             value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        // Service worker must always be revalidated so updates are detected promptly.
+        source: '/sw.js',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache',
           },
         ],
       },

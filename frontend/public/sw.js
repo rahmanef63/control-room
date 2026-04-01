@@ -1,7 +1,7 @@
 // Increment this version on every deploy to evict stale client caches.
 // Old CACHE_NAME/STATIC_CACHE entries are deleted in the activate handler.
-const CACHE_NAME = 'vps-control-room-v4';
-const STATIC_CACHE = 'vps-static-v4';
+const CACHE_NAME = 'vps-control-room-v5';
+const STATIC_CACHE = 'vps-static-v5';
 
 const APP_SHELL = [
   '/manifest.webmanifest',
@@ -20,7 +20,17 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
+      .then((cache) =>
+        // Cache each resource independently so a single network failure
+        // (common on mobile) does not block the entire SW install.
+        Promise.allSettled(
+          APP_SHELL.map((url) =>
+            cache.add(url).catch(() => {
+              /* non-critical — skip failed assets */
+            })
+          )
+        )
+      )
       .then(() => self.skipWaiting())
   );
 });
@@ -120,11 +130,13 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.open(CACHE_NAME).then(async (cache) => {
       const cached = await cache.match(request);
-      const networkFetch = fetch(request).then((response) => {
-        if (response.ok) cache.put(request, response.clone());
-        return response;
-      });
-      return cached ?? networkFetch;
+      const networkFetch = fetch(request)
+        .then((response) => {
+          if (response.ok) cache.put(request, response.clone());
+          return response;
+        })
+        .catch(() => undefined);
+      return cached ?? (await networkFetch) ?? new Response('', { status: 503 });
     })
   );
 });
