@@ -1,0 +1,45 @@
+http:
+  routers:
+    vps-control-room-router:
+      rule: Host(`${CONTROL_ROOM_DOMAIN}`)
+      service: vps-control-room-service
+      middlewares:
+        - redirect-to-https
+      entryPoints:
+        - web
+    vps-control-room-router-websecure:
+      rule: Host(`${CONTROL_ROOM_DOMAIN}`)
+      service: vps-control-room-service
+      middlewares: []
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+    vps-control-room-terminal-router:
+      rule: Host(`${CONTROL_ROOM_DOMAIN}`) && PathPrefix(`/ws/terminals`)
+      service: vps-control-room-terminal-service
+      middlewares:
+        - redirect-to-https
+      priority: 100
+      entryPoints:
+        - web
+    vps-control-room-terminal-router-websecure:
+      rule: Host(`${CONTROL_ROOM_DOMAIN}`) && PathPrefix(`/ws/terminals`)
+      service: vps-control-room-terminal-service
+      middlewares: []
+      priority: 100
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+  services:
+    vps-control-room-service:
+      loadBalancer:
+        servers:
+          - url: http://172.17.0.1:4000
+        passHostHeader: true
+    vps-control-room-terminal-service:
+      loadBalancer:
+        servers:
+          - url: http://172.17.0.1:4001
+        passHostHeader: true

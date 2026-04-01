@@ -1,0 +1,45 @@
+name: Deploy VPS Control Room
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-vps-control-room-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy on VPS self-hosted runner
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify deploy prerequisites
+        run: |
+          test -f "${GITHUB_WORKSPACE}/.env.local"
+          test -f "${GITHUB_WORKSPACE}/convex/.env.local"
+          test -x "${GITHUB_WORKSPACE}/scripts/deploy.sh"
+          sudo -n true
+
+      - name: Deploy latest main to VPS
+        env:
+          DEPLOY_BRANCH: ${{ github.ref_name }}
+        run: |
+          bash "${GITHUB_WORKSPACE}/scripts/deploy.sh" "${DEPLOY_BRANCH}"
+
+      - name: Verify services after deploy
+        run: |
+          sudo systemctl is-active --quiet vps-control-room-frontend
+          sudo systemctl is-active --quiet vps-control-room-agent

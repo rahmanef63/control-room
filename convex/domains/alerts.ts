@@ -1,0 +1,75 @@
+import { v } from "convex/values";
+import type { Id } from "../_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
+import {
+  alertSeverityValidator,
+} from "../lib/validators";
+
+export interface UpsertAlertArgs {
+  type: string;
+  message: string;
+  severity: "warning" | "error" | "critical";
+  target?: string;
+  metadata?: unknown;
+}
+
+export interface ResolveAlertArgs {
+  id: Id<"alerts">;
+}
+
+export async function upsertAlertHandler(
+  ctx: MutationCtx,
+  args: UpsertAlertArgs
+) {
+  const existingAlerts = await ctx.db
+    .query("alerts")
+    .withIndex("by_status", (q) => q.eq("status", "active"))
+    .collect();
+
+  const existing = existingAlerts.find((alert) => {
+    if (alert.type !== args.type) {
+      return false;
+    }
+    if (args.target !== undefined) {
+      return alert.metadata?.target === args.target;
+    }
+    return true;
+  });
+
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      message: args.message,
+      severity: args.severity,
+      metadata: args.metadata,
+    });
+    return existing._id;
+  }
+
+  return await ctx.db.insert("alerts", {
+    type: args.type,
+    message: args.message,
+    severity: args.severity,
+    status: "active",
+    created_at: Date.now(),
+    metadata: args.metadata,
+  });
+}
+
+export async function resolveAlertHandler(
+  ctx: MutationCtx,
+  args: ResolveAlertArgs
+) {
+  await ctx.db.patch(args.id, {
+    status: "resolved",
+    resolved_at: Date.now(),
+  });
+  return args.id;
+}
+
+export async function listActiveAlertsHandler(ctx: QueryCtx) {
+  return await ctx.db
+    .query("alerts")
+    .withIndex("by_status", (q) => q.eq("status", "active"))
+    .order("desc")
+    .collect();
+}

@@ -1,0 +1,12 @@
+{
+  "name": "vps-control-room-convex",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "deploy": "npx convex deploy",
+    "dev": "npx convex dev"
+  },
+  "devDependencies": {
+    "convex": "^1.0.0"
+  }
+}
