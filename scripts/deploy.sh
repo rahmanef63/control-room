@@ -59,8 +59,21 @@ log "Updating repository"
 PREVIOUS_COMMIT="$(git rev-parse HEAD)"
 git fetch origin
 git checkout "${BRANCH}"
+# Reset any files patched by a previous deploy (e.g. sw.js version stamp)
+# so git pull --ff-only is never blocked by a locally-modified tracked file.
+git restore frontend/public/sw.js 2>/dev/null || git checkout -- frontend/public/sw.js 2>/dev/null || true
 git pull --ff-only origin "${BRANCH}"
 CURRENT_COMMIT="$(git rev-parse HEAD)"
+
+# Stamp the service worker cache names with the current commit hash on every
+# deploy. This guarantees each deploy produces a unique cache version, which
+# forces all mobile clients to evict stale _next chunk caches automatically.
+SW_VERSION="${CURRENT_COMMIT:0:8}"
+sed -i \
+  -e "s/vps-control-room-v[^']*/vps-control-room-${SW_VERSION}/g" \
+  -e "s/vps-static-v[^']*/vps-static-${SW_VERSION}/g" \
+  "${REPO_DIR}/frontend/public/sw.js"
+log "Stamped sw.js cache version: ${SW_VERSION}"
 
 CHANGED_FILES="$(git diff --name-only "${PREVIOUS_COMMIT}" "${CURRENT_COMMIT}" || true)"
 LOCAL_AGENT_CHANGES="$(git status --porcelain -- agent scripts/deploy.sh convex frontend/app/api/terminals frontend/app/\(dashboard\)/terminals frontend/lib/server/terminal-gateway.ts frontend/next.config.ts || true)"
@@ -87,6 +100,8 @@ fi
 log "Installing and building frontend"
 cd frontend
 npm install
+# Wipe the entire previous build including incremental cache so no stale
+# chunk hashes can survive into the new output.
 rm -rf .next
 npm run build
 cd ..

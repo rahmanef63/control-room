@@ -1,7 +1,8 @@
-// Increment this version on every deploy to evict stale client caches.
-// Old CACHE_NAME/STATIC_CACHE entries are deleted in the activate handler.
-const CACHE_NAME = 'vps-control-room-v5';
-const STATIC_CACHE = 'vps-static-v5';
+// Cache version is stamped automatically by scripts/deploy.sh using the git
+// commit hash. Do NOT edit these lines manually — the deploy sed pattern
+// matches `vps-control-room-v*` and `vps-static-v*` to replace them.
+const CACHE_NAME = 'vps-control-room-v0';
+const STATIC_CACHE = 'vps-static-v0';
 
 const APP_SHELL = [
   '/manifest.webmanifest',
