@@ -12,6 +12,11 @@ export default function LoginPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    const normalizedSecret = secret.trim();
+    if (!normalizedSecret || loading) {
+      return;
+    }
+
     setError(null);
     setLoading(true);
 
@@ -19,7 +24,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret }),
+        body: JSON.stringify({ secret: normalizedSecret }),
       });
 
       if (res.ok) {
@@ -108,11 +113,15 @@ export default function LoginPage() {
                 </label>
                 <input
                   id="secret"
+                  name="secret"
                   type="password"
                   value={secret}
                   onChange={(e) => setSecret(e.target.value)}
+                  onInput={(e) => setSecret((e.target as HTMLInputElement).value)}
                   placeholder="Enter control room secret…"
                   required
+                  autoComplete="current-password"
+                  enterKeyHint="go"
                   autoFocus
                   className="w-full rounded-[1.25rem] border border-white/10 bg-black/20 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
                 />
@@ -126,7 +135,7 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading || !secret}
+                disabled={loading}
                 className="w-full rounded-[1.25rem] bg-gradient-to-r from-cyan-400 to-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? 'Authenticating…' : 'Unlock control room'}
