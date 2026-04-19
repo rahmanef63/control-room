@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+frontend/.next/
+frontend/.next-staging/
+frontend/.next-previous/
+agent/dist/
+cli/dist/
+.deploy-state/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Environment & secrets
+.env.local
+.env.*.local
+convex/.env.local
+
+# Convex data
+convex-data/
+convex-data.backup-*/
+convex/_generated/
+convex/convex/
+
+# Lock files (per-component)
+frontend/package-lock.json
+agent/package-lock.json
+convex/package-lock.json
+cli/package-lock.json
+
+# Next.js
+frontend/next-env.d.ts
+
+# Internal working documents
+refactore.md
+
+# Local agent/tool caches
+.claude/worktrees/
+.claude/settings.local.json
+.openclaw/state/
+.codex/state/
+.gemini/state/
+
+# OS
+.DS_Store
+Thumbs.db
