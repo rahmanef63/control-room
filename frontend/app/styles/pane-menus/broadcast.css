@@ -1,0 +1,289 @@
+/* Topbar broadcast dropdown — checkbox targets + zoom + color batch. */
+@layer base {
+  .topbar-broadcast {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .topbar-broadcast-trigger {
+    gap: 0.4rem;
+  }
+
+  .topbar-broadcast-trigger[data-open] {
+    color: var(--foreground);
+    border-color: rgba(125, 211, 252, 0.5);
+    background: rgba(56, 189, 248, 0.12);
+  }
+
+  .topbar-broadcast-trigger[data-compact] {
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+
+  .topbar-broadcast-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: rgba(56, 189, 248, 0.22);
+    color: rgba(125, 211, 252, 0.95);
+    font-size: 0.62rem;
+    font-weight: 700;
+  }
+
+  .topbar-broadcast-chev {
+    opacity: 0.6;
+    transition: transform 140ms ease, opacity 140ms ease;
+  }
+
+  .topbar-broadcast-trigger[data-open] .topbar-broadcast-chev {
+    opacity: 1;
+    transform: rotate(180deg);
+  }
+
+  .topbar-broadcast-popover {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    right: 0;
+    z-index: 60;
+    width: min(20rem, calc(100vw - 1.5rem));
+    max-height: min(70dvh, 32rem);
+    overflow-y: auto;
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 0.85rem;
+    background:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--card) 98%, transparent),
+        color-mix(in srgb, var(--background) 96%, transparent));
+    box-shadow: 0 22px 52px -24px rgba(0, 0, 0, 0.7);
+    padding: 0.7rem 0.8rem 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    animation: fade-in 140ms ease;
+  }
+
+  /* Mobile: anchor to viewport edges so it doesn't escape the screen. */
+  @media (max-width: 768px) {
+    .topbar-broadcast-popover {
+      position: fixed;
+      top: 4rem;
+      right: 0.6rem;
+      left: 0.6rem;
+      width: auto;
+      max-width: calc(100vw - 1.2rem);
+    }
+  }
+
+  .topbar-broadcast-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.3rem 0.55rem;
+    border-radius: 0.45rem;
+    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    background: color-mix(in srgb, var(--background) 60%, transparent);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+  }
+
+  .topbar-broadcast-status-dot {
+    height: 0.5rem;
+    width: 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+  }
+
+  .topbar-broadcast-status[data-active] {
+    border-color: rgba(251, 113, 133, 0.55);
+    background: rgba(251, 113, 133, 0.12);
+    color: rgba(254, 205, 211, 0.98);
+  }
+
+  .topbar-broadcast-status[data-active] .topbar-broadcast-status-dot {
+    background: rgba(251, 113, 133, 0.95);
+    box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.18);
+    animation: topbar-broadcast-pulse 1.4s ease-in-out infinite;
+  }
+
+  .topbar-broadcast-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .topbar-broadcast-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+
+  .topbar-broadcast-eyebrow {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--muted-foreground) 85%, white 5%);
+  }
+
+  .topbar-broadcast-quick {
+    display: inline-flex;
+    gap: 0.3rem;
+  }
+
+  .topbar-broadcast-quick button {
+    padding: 0.1rem 0.5rem;
+    border-radius: 0.4rem;
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    background: color-mix(in srgb, var(--card) 70%, transparent);
+    color: var(--muted-foreground);
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+  }
+
+  .topbar-broadcast-quick button:hover {
+    color: var(--foreground);
+    border-color: color-mix(in srgb, var(--border) 100%, transparent);
+  }
+
+  .topbar-broadcast-targets {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    max-height: 16rem;
+    overflow-y: auto;
+  }
+
+  .topbar-broadcast-target {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.45rem;
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--card) 50%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    cursor: pointer;
+  }
+
+  .topbar-broadcast-target:hover {
+    background: color-mix(in srgb, var(--card) 70%, transparent);
+    border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  }
+
+  .topbar-broadcast-target input[type='checkbox'] {
+    accent-color: rgba(125, 211, 252, 0.9);
+    width: 0.9rem;
+    height: 0.9rem;
+  }
+
+  .topbar-broadcast-target-title {
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--foreground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .topbar-broadcast-target-meta {
+    font-size: 0.6rem;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .topbar-broadcast-empty {
+    margin: 0;
+    padding: 0.4rem 0.45rem;
+    font-size: 0.7rem;
+    color: var(--muted-foreground);
+  }
+
+  .topbar-broadcast-hint {
+    margin: 0;
+    font-size: 0.62rem;
+    color: var(--muted-foreground);
+    line-height: 1.35;
+  }
+
+  .topbar-broadcast-zoom {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem;
+  }
+
+  .topbar-broadcast-zoom button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: 0.5rem;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    background: color-mix(in srgb, var(--card) 70%, transparent);
+    color: var(--foreground);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+
+  .topbar-broadcast-zoom button:hover {
+    background: color-mix(in srgb, var(--accent) 60%, transparent);
+    border-color: color-mix(in srgb, var(--border) 100%, transparent);
+  }
+
+  .topbar-broadcast-random {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.4rem;
+    border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    background: color-mix(in srgb, var(--card) 70%, transparent);
+    color: var(--muted-foreground);
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+  }
+
+  .topbar-broadcast-random:hover {
+    color: var(--foreground);
+    border-color: rgba(125, 211, 252, 0.5);
+    background: rgba(56, 189, 248, 0.12);
+  }
+
+  .topbar-broadcast-palette {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.3rem;
+  }
+
+  .topbar-broadcast-swatch {
+    height: 1.6rem;
+    border-radius: 0.4rem;
+    border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    cursor: pointer;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+
+  .topbar-broadcast-swatch:hover {
+    transform: scale(1.06);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  }
+}

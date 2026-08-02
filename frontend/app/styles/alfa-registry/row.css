@@ -1,0 +1,135 @@
+/* Alfa Registry — active alfa row + form fields + demote button. */
+@layer base {
+  .alfa-registry-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .alfa-registry-row {
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    border-radius: 0.65rem;
+    background: color-mix(in srgb, var(--background) 60%, transparent);
+    overflow: hidden;
+    /* Per-session accent applied via --session-color (see useSessionColors). */
+    border-left: 3px solid var(--session-color, transparent);
+  }
+
+  .alfa-registry-row[data-offline] {
+    opacity: 0.6;
+    border-style: dashed;
+  }
+
+  .alfa-registry-row-head {
+    display: flex;
+    align-items: center;
+    padding: 0.45rem 0.55rem;
+    gap: 0.5rem;
+  }
+
+  .alfa-registry-row-toggle {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    padding: 0;
+  }
+
+  .alfa-registry-row-title {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+    min-width: 0;
+  }
+
+  .alfa-registry-row-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
+  .alfa-registry-row-meta {
+    font-size: 0.66rem;
+    color: var(--muted-foreground);
+  }
+
+  .alfa-registry-row-chevron {
+    color: var(--muted-foreground);
+    transition: transform 140ms ease;
+  }
+
+  .alfa-registry-row-toggle[data-expanded] .alfa-registry-row-chevron {
+    transform: rotate(180deg);
+  }
+
+  .alfa-registry-row-demote {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 0.45rem;
+    border: 1px solid rgba(251, 113, 133, 0.4);
+    background: rgba(251, 113, 133, 0.1);
+    color: rgba(251, 113, 133, 0.95);
+    font-size: 0.68rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .alfa-registry-row-demote:hover {
+    background: rgba(251, 113, 133, 0.18);
+  }
+
+  .alfa-registry-row-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.55rem 0.65rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  }
+
+  .alfa-registry-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .alfa-registry-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  .alfa-registry-input,
+  .alfa-registry-textarea {
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--background) 65%, transparent);
+    color: var(--foreground);
+    padding: 0.35rem 0.55rem;
+    font-size: 0.78rem;
+  }
+
+  .alfa-registry-textarea {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    resize: vertical;
+    min-height: 3.5rem;
+  }
+
+  .alfa-registry-input:focus,
+  .alfa-registry-textarea:focus {
+    outline: none;
+    border-color: rgba(125, 211, 252, 0.55);
+  }
+}

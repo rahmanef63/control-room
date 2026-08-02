@@ -1,0 +1,58 @@
+name: Deploy VPS Control Room
+
+# Disabled per repo policy — auto-deploy on push burns runner minutes and
+# can't target the right install dir (systemd points to a fixed path that
+# is not the runner workspace). Use scripts/deploy.sh directly on the
+# host instead, or trigger this workflow manually via the Actions tab.
+#
+# Kept around as workflow_dispatch only so a manual escape hatch exists.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-vps-control-room-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy on VPS self-hosted runner (manual)
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Stage env files from persistent host path
+        run: |
+          set -e
+          PERSIST="${CONTROL_ROOM_ENV_DIR:-${HOME}/.config/control-room}"
+          mkdir -p "${GITHUB_WORKSPACE}/convex"
+
+          if [ -f "${PERSIST}/.env.local" ]; then
+            cp "${PERSIST}/.env.local" "${GITHUB_WORKSPACE}/.env.local"
+          elif [ ! -f "${GITHUB_WORKSPACE}/.env.local" ]; then
+            echo "ERROR: Place env at ${PERSIST}/.env.local on the runner host."
+            exit 1
+          fi
+
+          if [ -f "${PERSIST}/convex.env.local" ]; then
+            cp "${PERSIST}/convex.env.local" "${GITHUB_WORKSPACE}/convex/.env.local"
+          elif [ ! -f "${GITHUB_WORKSPACE}/convex/.env.local" ]; then
+            echo "ERROR: Place convex env at ${PERSIST}/convex.env.local on the runner host."
+            exit 1
+          fi
+
+      - name: Deploy latest main to VPS
+        env:
+          DEPLOY_BRANCH: ${{ github.ref_name }}
+        run: |
+          bash "${GITHUB_WORKSPACE}/scripts/deploy.sh" "${DEPLOY_BRANCH}"

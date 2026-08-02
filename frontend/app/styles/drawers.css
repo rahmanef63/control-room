@@ -1,0 +1,398 @@
+@layer base {
+  /* ===== Settings drawer ===== */
+  .settings-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    justify-content: flex-end;
+    align-items: stretch;
+  }
+
+  .settings-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(8, 12, 20, 0.6);
+    backdrop-filter: blur(4px);
+  }
+
+  .settings-panel {
+    position: relative;
+    z-index: 1;
+    width: min(28rem, 100vw);
+    background: color-mix(in srgb, var(--card) 96%, transparent);
+    border-left: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    overflow-y: auto;
+    padding: 1rem 1rem calc(1.5rem + var(--safe-bottom)) 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+
+  .settings-header h2 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--foreground);
+  }
+
+  .settings-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .settings-section h3 {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted-foreground);
+  }
+
+  .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--card) 60%, transparent);
+    font-size: 0.78rem;
+  }
+
+  .settings-row > span {
+    color: var(--foreground);
+  }
+
+  .settings-row input[type='range'] {
+    flex: 1 1 auto;
+    max-width: 12rem;
+  }
+
+  .settings-select {
+    background: color-mix(in srgb, var(--background) 95%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    border-radius: 0.4rem;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.75rem;
+    color: var(--foreground);
+    max-width: 14rem;
+  }
+
+  .settings-help {
+    font-size: 0.7rem;
+    color: var(--muted-foreground);
+    padding: 0 0.5rem;
+  }
+
+  .settings-hint {
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+    font-weight: 500;
+  }
+
+  .settings-secondary-btn {
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    background: color-mix(in srgb, var(--card) 70%, transparent);
+    color: var(--foreground);
+    border-radius: 0.4rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.72rem;
+    cursor: pointer;
+  }
+  .settings-secondary-btn:hover {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+
+  .settings-test-row {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .settings-subgroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding-left: 0.5rem;
+    border-left: 2px solid color-mix(in srgb, var(--border) 50%, transparent);
+  }
+
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+  }
+
+  .settings-key-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.5rem;
+    border-radius: 0.4rem;
+    background: color-mix(in srgb, var(--card) 50%, transparent);
+    font-size: 0.72rem;
+    color: var(--foreground);
+  }
+
+  .settings-footer {
+    margin-top: auto;
+    padding-top: 0.6rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  /* ===== Cron card ===== */
+  .cron-card {
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    border-radius: 0.6rem;
+    padding: 0.6rem;
+    background: color-mix(in srgb, var(--card) 60%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .cron-card[data-enabled='false'] {
+    opacity: 0.55;
+  }
+
+  .cron-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+  }
+
+  .cron-expr {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.3rem;
+    background: color-mix(in srgb, var(--background) 92%, transparent);
+    color: var(--muted-foreground);
+  }
+
+  .cron-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    font-size: 0.65rem;
+    color: var(--muted-foreground);
+  }
+
+  .cron-card-meta [data-ok='false'] {
+    color: rgb(248, 113, 113);
+  }
+
+  .cron-card-meta [data-ok='true'] {
+    color: rgb(74, 222, 128);
+  }
+
+  .cron-card-actions {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+  }
+
+  .terminal-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    background: color-mix(in srgb, var(--background) 92%, transparent);
+    padding: 0.55rem 0.85rem;
+    padding-right: max(0.85rem, calc(0.85rem + var(--safe-right)));
+    padding-left: max(0.85rem, calc(0.85rem + var(--safe-left)));
+    backdrop-filter: blur(14px);
+  }
+
+  /* Launcher drawer */
+  .launcher-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgba(8, 11, 17, 0.72);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+    animation: fade-in 180ms ease;
+  }
+
+  .launcher-drawer-sheet {
+    position: relative;
+    width: 100%;
+    max-width: 40rem;
+    /* Cap to the viewport (dvh tracks the mobile URL bar) and lay out as a
+       column so a long preset list scrolls INSIDE the sheet. Without this the
+       sheet grows past the screen and, anchored to the bottom, pushes its own
+       header + close button off the top on small phones. */
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - var(--safe-top, 0px) - 0.75rem);
+    border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: 1.25rem 1.25rem 0 0;
+    background:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--card) 98%, transparent),
+        color-mix(in srgb, var(--background) 96%, transparent));
+    box-shadow: 0 -24px 80px -20px rgba(0, 0, 0, 0.65);
+    padding-bottom: max(0.5rem, calc(0.5rem + var(--safe-bottom)));
+    animation: drawer-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  @media (min-width: 640px) {
+    .launcher-drawer-backdrop {
+      align-items: center;
+      padding: 1rem;
+    }
+
+    .launcher-drawer-sheet {
+      border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+      border-radius: 1.25rem;
+      max-height: calc(100dvh - 2rem);
+    }
+  }
+
+  @keyframes drawer-in {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .launch-row {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    align-items: center;
+    gap: 0.65rem;
+    border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+    border-radius: 0.85rem;
+    background: color-mix(in srgb, var(--card) 70%, transparent);
+    padding: 0.65rem 0.75rem;
+    text-align: left;
+    overflow: hidden;
+    transition: border-color 140ms ease, transform 140ms ease;
+  }
+
+  .launch-row:hover {
+    border-color: color-mix(in srgb, var(--border) 100%, transparent);
+    transform: translateY(-1px);
+  }
+
+  .launch-row:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .launch-row[data-profile='codex'] { border-left: 3px solid rgba(96, 165, 250, 0.55); }
+  .launch-row[data-profile='claude'] { border-left: 3px solid rgba(251, 146, 60, 0.55); }
+  .launch-row[data-profile='gemini'] { border-left: 3px solid rgba(74, 222, 128, 0.55); }
+  .launch-row[data-profile='openclaw'] { border-left: 3px solid rgba(232, 121, 249, 0.55); }
+
+  .launch-row-icon {
+    display: inline-flex;
+    height: 2.25rem;
+    width: 2.25rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    background: color-mix(in srgb, var(--accent) 50%, transparent);
+    color: var(--foreground);
+  }
+
+  .launch-row-card {
+    border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+    border-radius: 0.9rem;
+    background: color-mix(in srgb, var(--card) 68%, transparent);
+    padding: 0.75rem;
+    max-width: 100%;
+    min-width: 0;
+    /* No overflow:hidden here — the Launch dropdown (.agent-launch-menu) is an
+       absolutely-positioned descendant and would be clipped. Chip containment
+       comes from the inner flex-wrap row + the dashboard-chip max-width cap. */
+  }
+
+  /* The badge/chip rows inside launcher cards must reflow inside the card on
+     narrow screens instead of clipping past the right edge. dashboard-chip
+     ships a wide letter-spacing; cap each chip to the container and let the
+     row wrap. */
+  .launch-row .dashboard-chip,
+  .launch-row-card .dashboard-chip {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .launch-row-card[data-profile='codex'] { border-left: 3px solid rgba(96, 165, 250, 0.55); }
+  .launch-row-card[data-profile='claude'] { border-left: 3px solid rgba(251, 146, 60, 0.55); }
+  .launch-row-card[data-profile='gemini'] { border-left: 3px solid rgba(74, 222, 128, 0.55); }
+  .launch-row-card[data-profile='openclaw'] { border-left: 3px solid rgba(232, 121, 249, 0.55); }
+
+  @media (max-width: 640px) {
+    .session-tab {
+      min-width: 10.5rem;
+      max-width: 13.5rem;
+    }
+
+    .terminal-main {
+      padding: 0.4rem 0.4rem;
+    }
+
+    .terminal-pane-header {
+      padding: 0.5rem;
+    }
+
+    .terminal-pane-screen {
+      padding: 0.35rem;
+    }
+
+    /* Narrow viewports: let the Base-tab type badge (SHELL/CODEX/…) wrap onto
+       its own line under the title instead of forcing the row wider than the
+       card. The icon stays pinned; the title block + trailing chip share the
+       remaining width and reflow. */
+    .launch-row {
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .launch-row > .launch-row-icon {
+      align-self: center;
+    }
+
+    /* Tighten the chip's wide tracking + padding so badges/skill chips fit and
+       reflow inside the card rather than clipping at the right edge. */
+    .launch-row .dashboard-chip,
+    .launch-row-card .dashboard-chip {
+      letter-spacing: 0.08em;
+      padding: 0.3rem 0.5rem;
+    }
+  }
+
+}

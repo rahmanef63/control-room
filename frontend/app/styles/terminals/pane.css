@@ -1,0 +1,310 @@
+/* Terminal pane shell — border + background + header + title + screen.
+   Activity-driven heartbeat colors live in heartbeat.css.
+   --session-color is set inline on .terminal-pane-slot by TerminalsMain. */
+@layer base {
+  .terminal-pane-mobile {
+    --surface-accent: rgba(148, 163, 184, 0.1);
+    --pane-border-default: color-mix(in srgb, var(--border) 78%, transparent);
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--session-color, var(--pane-border-default));
+    border-radius: calc(var(--radius) + 0.35rem);
+    background:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--card) 98%, transparent),
+        color-mix(in srgb, var(--background) 96%, transparent));
+    box-shadow: 0 26px 72px -60px rgba(0, 0, 0, 0.82);
+  }
+
+  /* Alfa-role accents — target/alfa get a thicker border so the patrol
+     grouping reads at a glance even before the picker is touched. */
+  .terminal-pane-slot[data-alfa-role='target'] .terminal-pane-mobile {
+    border-width: 2px;
+  }
+
+  .terminal-pane-slot[data-alfa-role='alfa'] .terminal-pane-mobile {
+    border-width: 2px;
+    box-shadow:
+      0 26px 72px -60px rgba(0, 0, 0, 0.82),
+      inset 0 0 0 1px color-mix(in srgb, var(--session-color, transparent) 25%, transparent);
+  }
+
+  /* Profile accents — hint per CLI inside the pane. */
+  .terminal-pane-mobile[data-profile='codex'] { --surface-accent: rgba(96, 165, 250, 0.16); }
+  .terminal-pane-mobile[data-profile='claude'] { --surface-accent: rgba(251, 146, 60, 0.16); }
+  .terminal-pane-mobile[data-profile='gemini'] { --surface-accent: rgba(74, 222, 128, 0.15); }
+  .terminal-pane-mobile[data-profile='openclaw'] { --surface-accent: rgba(232, 121, 249, 0.15); }
+
+  .terminal-pane-mobile[data-view-mode='grid'] .terminal-pane-header {
+    padding: 0.4rem 0.55rem;
+  }
+
+  /* Pane-level activity accent (inset shadow) — orthogonal to heartbeat. */
+  .terminal-pane-mobile[data-activity='working'] {
+    box-shadow: 0 26px 72px -60px rgba(0, 0, 0, 0.82), inset 0 0 0 1px rgba(251, 191, 36, 0.22);
+  }
+
+  .terminal-pane-mobile[data-activity='waiting'] {
+    box-shadow: 0 26px 72px -60px rgba(0, 0, 0, 0.82), inset 0 0 0 1px rgba(56, 189, 248, 0.25);
+  }
+
+  .terminal-pane-mobile[data-activity='done'] {
+    box-shadow: 0 26px 72px -60px rgba(0, 0, 0, 0.82), inset 0 0 0 1px rgba(134, 239, 172, 0.22);
+  }
+
+  /* Header — title block + actions cluster. */
+  .terminal-pane-header {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    background: linear-gradient(180deg, var(--surface-accent), transparent 80%);
+    padding: 0.55rem 0.7rem;
+  }
+
+  /* Title block (single row: name + chips) */
+  .title-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .title-block-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+
+  .title-name-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    max-width: 100%;
+    flex: 0 1 auto;
+    cursor: pointer;
+    text-align: left;
+    padding: 0;
+    background: transparent;
+    border: none;
+  }
+
+  .title-name-btn h2 {
+    min-width: 0;
+  }
+
+  @media (max-width: 768px) {
+    .terminal-pane-header {
+      gap: 0.25rem;
+      padding: 0.3rem 0.5rem;
+      flex-wrap: nowrap;
+    }
+
+    /* Mobile single-row: title shrinks, action cluster pinned right. */
+    .terminal-pane-header > div:first-child {
+      flex: 1 1 auto !important;
+      min-width: 0;
+      gap: 0.2rem !important;
+    }
+
+    .terminal-pane-header > div:last-child {
+      flex: 0 0 auto !important;
+      justify-content: flex-end;
+      flex-wrap: nowrap;
+      gap: 0.25rem;
+    }
+
+    .terminal-pane-header .pane-action-btn,
+    .terminal-pane-header .pane-zoom-group {
+      height: 1.85rem;
+    }
+
+    .terminal-pane-header .pane-zoom-btn {
+      width: 1.75rem;
+    }
+
+    .terminal-pane-header .pane-action-btn svg {
+      height: 0.9rem;
+      width: 0.9rem;
+    }
+
+    /* Compact header — drop decorative chips. Pane border animation conveys
+       activity, session-tab icon conveys profile. */
+    .terminal-pane-mobile .title-name-row .dashboard-chip {
+      display: none;
+    }
+
+    .terminal-pane-mobile .title-name-btn h2 {
+      font-size: 0.85rem;
+      line-height: 1.1;
+    }
+
+    .terminal-pane-mobile .title-cwd-row {
+      font-size: 0.65rem;
+      line-height: 1.1;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .terminal-pane-mobile .title-name-row .connection-chip {
+      display: none;
+    }
+    /* Drop size info + close btn — reachable via the pane actions menu. */
+    .terminal-pane-mobile .title-size-row { display: none; }
+    .terminal-pane-mobile .pane-close-btn { display: none; }
+  }
+
+  /* Screen surface — xterm container. */
+  .terminal-pane-screen {
+    position: relative;
+    /* flex: 1 1 0 + min-height: 0 lets the screen shrink under pressure so
+       the per-pane keyboard at the bottom is never clipped by overflow:hidden
+       on tight viewports (iPhone SE, dense desktop grid). xterm's FitAddon
+       picks up the new size via ResizeObserver. */
+    flex: 1 1 0;
+    min-height: 0;
+    background: #101418;
+    padding: 0.45rem;
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+    touch-action: manipulation;
+  }
+
+  .terminal-pane-screen .xterm-screen,
+  .terminal-pane-screen .xterm-helper-textarea,
+  .terminal-pane-screen .xterm-rows {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    -webkit-touch-callout: default !important;
+  }
+
+  .terminal-pane-screen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(96, 165, 250, 0.06), transparent 18%);
+  }
+
+  /* Drag-and-drop media overlay: covers the pane while a file is over it or
+     mid-upload. pointer-events:none so the underlying drop target keeps
+     receiving dragover/drop events. */
+  .pane-drop-overlay {
+    position: absolute;
+    inset: 0.45rem;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    pointer-events: none;
+    border-radius: calc(var(--radius) + 0.25rem);
+    border: 2px dashed rgba(96, 165, 250, 0.55);
+    background: rgba(16, 20, 24, 0.72);
+    color: rgba(191, 219, 254, 0.95);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-align: center;
+    padding: 0.75rem;
+    backdrop-filter: blur(2px);
+  }
+
+  /* Mobile action cluster: single ⋮ trigger collapses the three pane menus. */
+  .pane-menu-cluster {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .pane-cluster-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    min-width: 13rem;
+    padding: 0.35rem;
+    gap: 0.15rem;
+    border-radius: 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    background: color-mix(in srgb, var(--card) 98%, transparent);
+    box-shadow: 0 24px 60px -32px rgba(0, 0, 0, 0.85);
+  }
+
+  .pane-cluster-item {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    padding: 0.6rem 0.65rem;
+    border-radius: 0.55rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--foreground);
+    text-align: left;
+  }
+
+  .pane-cluster-item:hover {
+    background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  }
+
+  .pane-cluster-chevron {
+    margin-left: auto;
+    color: var(--muted-foreground);
+  }
+
+  /* Generic centered sheet — color/AI popovers reuse this on mobile so they
+     don't try to anchor to a trigger that the cluster hides. */
+  .pane-sheet-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .pane-sheet-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(2, 6, 12, 0.6);
+    backdrop-filter: blur(2px);
+  }
+
+  .pane-sheet-panel {
+    position: relative;
+    z-index: 1;
+    max-width: min(92vw, 26rem);
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  /* Color palette as a sheet: drop the popover's absolute anchoring and let it
+     center + wrap inside the panel. */
+  .session-color-picker.session-color-picker-sheet {
+    position: static;
+    top: auto;
+    left: auto;
+  }
+
+  /* AI launch popover reused as a sheet: neutralize its absolute anchoring
+     (two-class selector beats the base .pane-ai-launch-popover rule). */
+  .pane-sheet-panel.pane-ai-launch-popover {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+  }
+}

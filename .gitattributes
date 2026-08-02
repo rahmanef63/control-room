@@ -1,0 +1,22 @@
+# Normalize all text to LF in the repo (deploy target is Linux).
+# Editors on Windows may show LF; that's expected and correct here.
+* text=auto eol=lf
+
+# Windows-only scripts must keep CRLF to run natively.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Shell scripts must always be LF even if edited on Windows.
+*.sh    text eol=lf
+
+# Binaries: never touch (git auto-detects, but be explicit for common types).
+*.ico   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.pdf   binary

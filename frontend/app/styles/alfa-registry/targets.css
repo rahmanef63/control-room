@@ -1,0 +1,78 @@
+/* Alfa Registry — target list (legacy checkbox view) + save action. */
+@layer base {
+  .alfa-registry-target-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .alfa-registry-target {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.35rem 0.45rem;
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--card) 60%, transparent);
+    border-left: 3px solid var(--session-color, transparent);
+  }
+
+  .alfa-registry-target-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.76rem;
+    color: var(--foreground);
+    cursor: pointer;
+  }
+
+  .alfa-registry-target-head input {
+    accent-color: rgba(125, 211, 252, 0.85);
+  }
+
+  .alfa-registry-target-title {
+    font-weight: 600;
+  }
+
+  .alfa-registry-target-meta {
+    font-size: 0.65rem;
+    color: var(--muted-foreground);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    margin-left: auto;
+  }
+
+  .alfa-registry-target-instruction {
+    min-height: 2.5rem;
+  }
+
+  .alfa-registry-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+  }
+
+  .alfa-registry-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.85rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(125, 211, 252, 0.5);
+    background: rgba(56, 189, 248, 0.18);
+    color: rgba(125, 211, 252, 0.95);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .alfa-registry-save:hover:not(:disabled) {
+    background: rgba(56, 189, 248, 0.28);
+  }
+
+  .alfa-registry-save:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}

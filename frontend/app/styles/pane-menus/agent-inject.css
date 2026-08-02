@@ -1,0 +1,93 @@
+/* Agent inject menu — regular vs bypass row inside the pane-actions panel. */
+@layer base {
+  .pane-action-btn[data-tone='ai'] {
+    color: rgba(254, 215, 170, 0.98);
+    border-color: rgba(251, 146, 60, 0.45);
+    background: rgba(251, 146, 60, 0.14);
+  }
+
+  .pane-action-btn[data-tone='accent'] {
+    color: rgba(125, 211, 252, 0.98);
+    border-color: rgba(125, 211, 252, 0.5);
+    background: rgba(56, 189, 248, 0.12);
+  }
+
+  .agent-inject-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.4rem);
+    z-index: 40;
+    width: min(22rem, calc(100vw - 1.5rem));
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 0.85rem;
+    background:
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--card) 98%, transparent),
+        color-mix(in srgb, var(--background) 96%, transparent));
+    box-shadow: 0 22px 52px -24px rgba(0, 0, 0, 0.7);
+    overflow: hidden;
+    animation: fade-in 140ms ease;
+  }
+
+  .agent-inject-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.55rem 0.7rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+
+  .agent-inject-row:last-child {
+    border-bottom: none;
+  }
+
+  .agent-inject-row-head {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .agent-inject-row-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem;
+  }
+
+  .agent-inject-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    height: 2.25rem;
+    padding: 0 0.7rem;
+    border-radius: 0.55rem;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    font-size: 0.72rem;
+    font-weight: 600;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+
+  .agent-inject-btn[data-tone='regular'] {
+    background: color-mix(in srgb, var(--accent) 55%, transparent);
+    color: var(--foreground);
+  }
+
+  .agent-inject-btn[data-tone='regular']:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 80%, transparent);
+  }
+
+  .agent-inject-btn[data-tone='bypass'] {
+    background: rgba(251, 146, 60, 0.15);
+    color: rgba(254, 215, 170, 0.98);
+    border-color: rgba(251, 146, 60, 0.45);
+  }
+
+  .agent-inject-btn[data-tone='bypass']:hover:not(:disabled) {
+    background: rgba(251, 146, 60, 0.28);
+  }
+
+  .agent-inject-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}

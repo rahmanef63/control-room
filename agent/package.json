@@ -1,0 +1,23 @@
+{
+  "name": "vps-control-room-agent",
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "tsc && node --test 'dist/**/*.test.js'"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@types/node-cron": "^3.0.11",
+    "node-cron": "^4.2.1",
+    "node-pty": "^1.1.0",
+    "ws": "^8.21.0"
+  }
+}

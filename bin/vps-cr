@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# vps-cr — macOS/Linux wrapper. Mirrors scripts/win-local/vps-cr.ps1 by
+# delegating every command to the cross-platform Node brain. install.sh
+# symlinks this onto your PATH (~/.local/bin/vps-cr).
+set -euo pipefail
+DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
+exec node "$DIR/../scripts/local/control.mjs" "$@"

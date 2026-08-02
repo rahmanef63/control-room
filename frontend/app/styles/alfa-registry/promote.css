@@ -1,0 +1,211 @@
+/* Alfa Registry — promote panel (turn a pane into the alfa patroller). */
+@layer base {
+  .alfa-registry-promote {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    padding-top: 0.85rem;
+  }
+
+  .alfa-registry-promote-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .alfa-registry-promote-row {
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    border-radius: 0.6rem;
+    overflow: hidden;
+    border-left: 3px solid var(--session-color, transparent);
+  }
+
+  .alfa-registry-promote-toggle {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    background: color-mix(in srgb, var(--background) 60%, transparent);
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .alfa-registry-promote-title {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+    min-width: 0;
+  }
+
+  .alfa-registry-promote-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
+  .alfa-registry-promote-cwd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.66rem;
+    color: var(--muted-foreground);
+  }
+
+  .alfa-registry-promote-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: 0.45rem;
+    background: rgba(74, 222, 128, 0.16);
+    color: rgba(134, 239, 172, 0.95);
+    border: 1px solid rgba(74, 222, 128, 0.35);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .alfa-registry-promote-cta:hover {
+    background: rgba(74, 222, 128, 0.26);
+  }
+
+  .alfa-registry-promote-line {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.6rem;
+    background: color-mix(in srgb, var(--background) 60%, transparent);
+  }
+  .alfa-registry-promote-line-title {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .alfa-registry-promote-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.55rem 0.6rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    background: color-mix(in srgb, var(--background) 50%, transparent);
+  }
+
+  .alfa-registry-promote-cta-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .alfa-registry-promote-meta {
+    font-size: 0.65rem;
+    color: var(--muted-foreground);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .alfa-registry-promote-fact-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.8rem;
+    padding: 0.4rem 0.55rem;
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--background) 65%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+
+  .alfa-registry-promote-fact {
+    font-size: 0.7rem;
+    color: var(--muted-foreground);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .alfa-registry-promote-fact strong {
+    color: var(--foreground);
+    font-weight: 600;
+    margin-right: 0.25rem;
+  }
+
+  .alfa-registry-toggle-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.45rem;
+    background: color-mix(in srgb, var(--background) 60%, transparent);
+    font-size: 0.74rem;
+    color: var(--foreground);
+  }
+
+  .alfa-registry-toggle-row input {
+    accent-color: rgba(125, 211, 252, 0.85);
+    margin-top: 0.15rem;
+  }
+
+  .alfa-registry-toggle-row code {
+    background: color-mix(in srgb, var(--card) 85%, transparent);
+    border-radius: 0.3rem;
+    padding: 0.05rem 0.35rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.7rem;
+  }
+
+  .alfa-registry-skill-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.35rem;
+  }
+
+  .alfa-registry-skill-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    background: color-mix(in srgb, var(--card) 70%, transparent);
+    color: var(--foreground);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.68rem;
+    cursor: pointer;
+  }
+
+  .alfa-registry-skill-chip[data-active] {
+    border-color: rgba(125, 211, 252, 0.6);
+    background: rgba(56, 189, 248, 0.18);
+    color: rgba(125, 211, 252, 0.95);
+  }
+
+  .alfa-registry-promote-summary {
+    border-left: 2px solid rgba(74, 222, 128, 0.5);
+    padding: 0.4rem 0.55rem;
+    background: color-mix(in srgb, var(--background) 60%, transparent);
+    border-radius: 0 0.45rem 0.45rem 0;
+  }
+
+  .alfa-registry-promote-summary ol {
+    margin: 0.25rem 0 0;
+    padding-left: 1.1rem;
+    color: var(--muted-foreground);
+    font-size: 0.72rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .alfa-registry-promote-summary code {
+    background: color-mix(in srgb, var(--card) 85%, transparent);
+    border-radius: 0.3rem;
+    padding: 0.05rem 0.3rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.66rem;
+    color: rgba(125, 211, 252, 0.95);
+  }
+}

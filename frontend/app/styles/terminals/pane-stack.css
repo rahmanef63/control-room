@@ -1,0 +1,150 @@
+/* Pane stack — main wrapper, grid + single view, slot visibility, overlay. */
+@layer base {
+  .terminal-main {
+    position: relative;
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    padding: 0.5rem 0.6rem;
+    padding-bottom: max(0.5rem, calc(0.5rem + var(--safe-bottom)));
+  }
+
+  .terminal-empty {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    text-align: center;
+    color: var(--muted-foreground);
+    padding: 3rem 1rem;
+  }
+
+  /* Pane stack — keeps all sessions mounted, toggles visibility */
+  .terminal-pane-stack {
+    position: relative;
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+  }
+
+  /* Grid: every tile gets at least --pane-grid-min so header + screen + full
+     2-row keyboard fit per tile. Stack scrolls when tile count overflows the
+     viewport — no per-tile overflow:hidden clipping. SSOT in base.css. */
+  .terminal-pane-stack[data-view='grid'] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+    grid-auto-rows: minmax(var(--pane-grid-min), 1fr);
+    gap: 0.6rem;
+    align-content: stretch;
+    overflow-y: auto;
+  }
+
+  /* Desktop: compute each row as half of (viewport − stacked top bars).
+     Tune --terminal-tops-h if a bar gets added/removed.
+     1 row = half screen, 2 rows = full screen, 3+ rows scroll.
+     Mobile keeps the flexible minmax for portrait. */
+  [data-platform='desktop'] .terminal-pane-stack[data-view='grid'] {
+    grid-auto-rows: calc((100dvh - var(--terminal-tops-h, 13rem)) / 2);
+  }
+
+  /* Single-row grids fill the full available height (no phantom 2nd row).
+     `data-pane-rows` is computed in TerminalsMain from visible slot
+     offsetTop values, so it tracks the *real* layout regardless of how
+     `gridCols='auto'` resolves at the current viewport width. */
+  [data-platform='desktop']
+    .terminal-pane-stack[data-view='grid'][data-pane-rows='1'] {
+    grid-auto-rows: calc(100dvh - var(--terminal-tops-h, 13rem));
+  }
+
+  @media (max-width: 768px) and (orientation: portrait) {
+    .terminal-pane-stack[data-view='grid'] {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
+  @media (max-width: 1024px) and (orientation: landscape) {
+    .terminal-pane-stack[data-view='grid'] {
+      grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    }
+  }
+
+  .terminal-pane-slot {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .terminal-pane-stack[data-view='grid'] .terminal-pane-slot {
+    display: flex !important;
+    min-height: var(--pane-grid-min);
+    height: 100%;
+  }
+
+  /* Grid-view compaction: strip the chrome that's redundant when many
+     panes are tiled. Profile/connection/activity are signaled by the pane
+     border + tab icon; cwd is in the prompt; size info is informational. */
+  .terminal-pane-stack[data-view='grid'] .terminal-pane-mobile .title-cwd-row,
+  .terminal-pane-stack[data-view='grid'] .terminal-pane-mobile .title-size-row,
+  .terminal-pane-stack[data-view='grid'] .terminal-pane-mobile .dashboard-chip,
+  .terminal-pane-stack[data-view='grid'] .terminal-pane-mobile .connection-chip,
+  .terminal-pane-stack[data-view='grid'] .terminal-pane-mobile .activity-chip {
+    display: none !important;
+  }
+
+  .terminal-pane-stack[data-view='grid'] .terminal-pane-mobile .terminal-pane-header {
+    padding: 0.3rem 0.5rem;
+  }
+
+  .terminal-pane-stack[data-view='grid'] .terminal-pane-mobile .title-name-btn h2 {
+    font-size: 0.85rem;
+  }
+
+  .terminal-pane-stack[data-view='single'] .terminal-pane-slot[data-active='false'] {
+    display: none;
+  }
+
+  /* Workspace-hidden slots stay mounted (terminal state preserved) but
+     are pulled out of layout + flow regardless of view mode. */
+  .terminal-pane-stack .terminal-pane-slot[data-workspace-visible='false'] {
+    display: none !important;
+  }
+
+  /* Overlay (loading / empty workspace) layered on top of the always-mounted
+     pane stack so background terminals keep their EventSource + xterm state. */
+  .terminal-empty-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    background: color-mix(in srgb, var(--background) 92%, transparent);
+    backdrop-filter: blur(4px);
+  }
+
+  /* Mobile: per-pane keyboard lives inside each pane. Single view fills the
+     remaining viewport height; grid mode is uncommon on mobile but allowed. */
+  @media (max-width: 768px) {
+    .terminal-pane-stack {
+      overflow-y: auto;
+      align-content: start;
+    }
+    .terminal-pane-stack[data-view='single'] {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .terminal-pane-stack[data-view='single'] .terminal-pane-slot {
+      flex: 1 1 0%;
+      min-height: 0;
+      height: auto;
+    }
+    .terminal-pane-stack[data-view='grid'] {
+      grid-auto-rows: 60dvh;
+    }
+    .terminal-pane-mobile {
+      height: 100%;
+    }
+  }
+}

@@ -1,0 +1,102 @@
+/* Alfa launcher — preset builder strip used inside the registry header. */
+@layer base {
+  .alfa-launcher {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    border-radius: 0.7rem;
+    background: linear-gradient(180deg,
+      rgba(56, 189, 248, 0.06),
+      color-mix(in srgb, var(--background) 60%, transparent));
+  }
+
+  .alfa-launcher-header { display: flex; flex-direction: column; gap: 0.2rem; }
+
+  .alfa-launcher-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: end;
+    flex-wrap: wrap;
+  }
+
+  .alfa-launcher-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 12rem;
+  }
+
+  .alfa-launcher-bypass {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.55rem;
+    border-radius: 0.45rem;
+    border: 1px solid rgba(251, 146, 60, 0.4);
+    background: rgba(251, 146, 60, 0.1);
+    color: rgba(254, 215, 170, 0.95);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .alfa-launcher-bypass input { accent-color: rgba(251, 146, 60, 0.9); }
+
+  .alfa-launcher-skill-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+
+  .alfa-launcher-skill-chip {
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    background: color-mix(in srgb, var(--card) 70%, transparent);
+    color: var(--foreground);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+  }
+
+  .alfa-launcher-skill-chip[data-active] {
+    border-color: rgba(125, 211, 252, 0.6);
+    background: rgba(56, 189, 248, 0.18);
+    color: rgba(125, 211, 252, 0.95);
+  }
+
+  .alfa-launcher-preview {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    border-radius: 0.5rem;
+    background: #08111f;
+    color: rgba(125, 211, 252, 0.95);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.75rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .alfa-launcher-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .alfa-launcher-empty {
+    padding: 0.8rem;
+    border: 1px dashed color-mix(in srgb, var(--border) 70%, transparent);
+    border-radius: 0.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.78rem;
+  }
+
+  .alfa-launcher-empty code,
+  .alfa-launcher code,
+  .alfa-launcher-header code {
+    background: color-mix(in srgb, var(--card) 85%, transparent);
+    border-radius: 0.3rem;
+    padding: 0.05rem 0.35rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.7rem;
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "vps-control-room",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "agent:build": "npm --prefix agent run build",
+    "frontend:build": "npm --prefix frontend run build",
+    "build": "npm run agent:build && npm run frontend:build"
+  }
+}

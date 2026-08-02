@@ -1,0 +1,128 @@
+/* Sticky workspace tabs row (top of terminal shell). */
+@layer base {
+  .workspace-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 21;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.4rem 0.85rem;
+    padding-right: max(0.85rem, calc(0.85rem + var(--safe-right)));
+    padding-left: max(0.85rem, calc(0.85rem + var(--safe-left)));
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    background: color-mix(in srgb, var(--background) 92%, transparent);
+    backdrop-filter: blur(14px);
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .workspace-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--card) 45%, transparent);
+    transition: border-color 140ms ease, background-color 140ms ease;
+  }
+
+  .workspace-tab[data-active] {
+    border-color: rgba(96, 165, 250, 0.55);
+    background: rgba(96, 165, 250, 0.16);
+  }
+
+  .workspace-tab-main {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+  }
+
+  .workspace-tab[data-active] .workspace-tab-main {
+    color: var(--foreground);
+  }
+
+  .workspace-tab-dot {
+    height: 0.45rem;
+    width: 0.45rem;
+    border-radius: 999px;
+    background: var(--muted-foreground);
+  }
+
+  .workspace-tab-name {
+    white-space: nowrap;
+  }
+
+  .workspace-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--card) 80%, transparent);
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--muted-foreground);
+  }
+
+  .workspace-tab[data-active] .workspace-tab-count {
+    background: rgba(96, 165, 250, 0.28);
+    color: rgba(219, 234, 254, 0.98);
+  }
+
+  .workspace-tab-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--foreground);
+    font-size: 0.72rem;
+    font-weight: 600;
+    width: 8rem;
+  }
+
+  .workspace-tab-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.4rem;
+    width: 1.4rem;
+    margin-right: 0.2rem;
+    border-radius: 999px;
+    color: var(--muted-foreground);
+    opacity: 0;
+    transition: opacity 140ms ease, color 140ms ease;
+  }
+
+  .workspace-tab:hover .workspace-tab-close,
+  .workspace-tab[data-active] .workspace-tab-close {
+    opacity: 0.8;
+  }
+
+  .workspace-tab-close:hover {
+    color: rgb(248, 113, 113);
+    opacity: 1;
+  }
+
+  .workspace-tab-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.7rem;
+    width: 1.7rem;
+    border-radius: 999px;
+    border: 1px dashed color-mix(in srgb, var(--border) 60%, transparent);
+    color: var(--muted-foreground);
+    transition: color 140ms ease, border-color 140ms ease;
+  }
+
+  .workspace-tab-add:hover {
+    color: var(--foreground);
+    border-color: rgba(96, 165, 250, 0.55);
+  }
+}

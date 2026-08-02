@@ -1,0 +1,94 @@
+/* File-explorer popover — search input + breadcrumb + entry list. */
+@layer base {
+  .fs-root-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    background: color-mix(in srgb, var(--card) 55%, transparent);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
+  .fs-root-chip:hover {
+    background: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  .fs-search {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.65rem;
+    border-radius: 0.65rem;
+    border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+    background: color-mix(in srgb, var(--card) 55%, transparent);
+  }
+
+  .fs-search-input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    outline: none;
+    font-size: 0.82rem;
+    color: var(--foreground);
+  }
+
+  .fs-crumb-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+  }
+
+  .fs-crumb-btn:hover {
+    color: var(--foreground);
+    background: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  .fs-entry {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.55rem 0.65rem;
+    border-radius: 0.6rem;
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    background: color-mix(in srgb, var(--card) 55%, transparent);
+    text-align: left;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+
+  .fs-entry:hover {
+    background: color-mix(in srgb, var(--accent) 60%, transparent);
+    border-color: color-mix(in srgb, var(--border) 100%, transparent);
+  }
+
+  .fs-entry-cd {
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid rgba(96, 165, 250, 0.4);
+    background: rgba(96, 165, 250, 0.14);
+    color: rgba(219, 234, 254, 0.98);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .fs-cd-current {
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid rgba(96, 165, 250, 0.4);
+    background: rgba(96, 165, 250, 0.14);
+    color: rgba(219, 234, 254, 0.98);
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+}
