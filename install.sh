@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/rahmanef63/control-room/main/install.sh | bash
 #
 # What it does (re-runnable; skips anything already done):
-#   1. Verifies Node 18+, git
+#   1. Verifies Node 18+ (the agent daemon runs on node) and git; installs bun
 #   2. Clones (or pulls) the repo
 #   3. Generates .env.local with fresh secrets (node crypto, no openssl)
 #   4. Installs frontend + agent deps
@@ -40,6 +40,14 @@ if [ "$node_major" -lt 18 ]; then red "Node $node_major detected; need 18+."; ex
 green "  Node $(node -v) ✓"
 need git "install git: https://git-scm.com/"
 green "  git $(git --version | awk '{print $3}') ✓"
+# bun is the package manager + frontend runtime; node stays for the agent daemon.
+if ! command -v bun >/dev/null 2>&1; then
+  yellow "  bun not found — installing from https://bun.sh …"
+  curl -fsSL https://bun.sh/install | bash
+  export PATH="${BUN_INSTALL:-$HOME/.bun}/bin:$PATH"
+fi
+need bun "install bun: https://bun.sh/ (then reopen your shell)"
+green "  bun $(bun --version) ✓"
 
 cyan "→ Cloning workspace…"
 if [ -d "$INSTALL_DIR/.git" ]; then
@@ -60,8 +68,8 @@ node scripts/local/control.mjs config --yes --no-install
 green "  .env.local ready ✓"
 
 cyan "→ Installing deps (frontend + agent)…"
-npm --prefix frontend install --silent
-npm --prefix agent install --silent
+bun install --cwd frontend --silent
+bun install --cwd agent --silent
 green "  deps installed ✓"
 
 cyan "→ Linking the vps-cr command…"

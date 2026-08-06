@@ -5,8 +5,8 @@
 - Repo: `git@github.com:rahmanef63/control-room.git`
 - Path: clone anywhere — systemd units are generated relative to the repo root by `scripts/install-systemd.sh`
 - Domain: `vps.rahmanef.com` (Tailscale only)
-- Host: Ubuntu 24.04.4 LTS, 8 vCPU, 31 GiB RAM, Node.js v22.22.1
-- Package manager: **npm**
+- Host: Ubuntu 24.04.4 LTS, 8 vCPU, 31 GiB RAM, Bun 1.3.x + Node.js v22.22.1
+- Package manager: **bun** (lockfile `bun.lock`). Node.js 22 must stay installed — the agent daemon runs on it.
 - Deploy: systemd-managed (`vps-control-room-frontend.service`, `vps-control-room-agent.service`) via `scripts/deploy.sh main`. Workflow_dispatch only — no auto-deploy on push.
 
 ## Architecture (current — 2026-05-27)
@@ -33,6 +33,11 @@ Data flow (runtime): **user → frontend (Next.js) → agent HTTP API (`/api/ter
 - Auth: HMAC-SHA256 signed cookie, single user, `CONTROL_ROOM_SECRET` for login, `CONTROL_ROOM_SESSION_SECRET` for signing.
 - Agent actions are logged to JSON audit (no Convex `audit_log`).
 - Color/heartbeat state via `useSyncExternalStore` module-level snapshot — sync across all panes realtime, hydrated from localStorage.
+
+### Runtime split — Bun frontend, Node agent (2026-08-06)
+
+- Frontend runs on the Bun runtime (`bun --bun next …`); bun also does every install/script.
+- The agent **daemon stays on Node** (`ExecStart=/usr/bin/node <repo>/agent/dist/index.js`). Measured on Bun 1.3.14: node-pty loads and spawns but `onData` never fires, so every terminal is silently blank. `Bun.Terminal` does stream, but gives the child no controlling tty and no `setsid` — no job control, so Ctrl-C and the process-group kill in `TerminalManager.killSessionTree` break.
 
 ## Env Files
 
@@ -61,12 +66,12 @@ NEVER put secrets in `NEXT_PUBLIC_*` (leaks to client bundle).
 
 ```bash
 # Frontend (PWA dashboard)
-cd frontend && npm install && npm run build
-# systemd: npm run start -- --hostname 0.0.0.0 --port 4000
+bun install --cwd frontend && bun run --cwd frontend build
+# systemd: bun --bun node_modules/.bin/next start --hostname 0.0.0.0 --port 4000
 
 # Agent (host executor)
-cd agent && npm install && npm run build
-# systemd: node agent/dist/index.js
+bun install --cwd agent && bun run --cwd agent build
+# systemd: node agent/dist/index.js   (daemon stays on Node — see Runtime split)
 ```
 
 Deploy on the VPS:
@@ -110,7 +115,7 @@ Skills (built-in to this VPS, installed at `~/.agents/skills/`):
 
 ## Distribution
 
-Installer: `npx rahman-cr install --vps user@<ip> --domain <tailnet>` clones this repo, generates two secrets, runs `install-systemd.sh` + `deploy.sh main`. The `rahman-cr` npm package is published separately — its source is NOT vendored in this repo (there is no `resources/packages/cr/`). Docs at https://resource.rahmanef.com/control-room.
+Installer: `bunx rahman-cr install --vps user@<ip> --domain <tailnet>` clones this repo, generates two secrets, runs `install-systemd.sh` + `deploy.sh main`. The `rahman-cr` npm package is published separately — its source is NOT vendored in this repo (there is no `resources/packages/cr/`). Docs at https://resource.rahmanef.com/control-room.
 
 **Local (no VPS):** `install.sh` / `install.ps1` one-liners + the cross-platform `vps-cr` CLI (`scripts/local/control.mjs`, Windows wrapper `scripts/win-local/vps-cr.ps1`). When asked to onboard a user to a LOCAL install, follow the playbook in `docs/AI-ONBOARDING.md` (human guide: `docs/INSTALL-LOCAL.md`).
 

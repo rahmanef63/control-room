@@ -3,8 +3,8 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
-    "agent:build": "npm --prefix agent run build",
-    "frontend:build": "npm --prefix frontend run build",
-    "build": "npm run agent:build && npm run frontend:build"
+    "agent:build": "bun run --cwd agent build",
+    "frontend:build": "bun run --cwd frontend build",
+    "build": "bun run agent:build && bun run frontend:build"
   }
 }

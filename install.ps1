@@ -4,7 +4,7 @@
 #   irm https://raw.githubusercontent.com/rahmanef63/control-room/main/install.ps1 | iex
 #
 # What it does (re-runnable; skips anything already done):
-#   1. Verifies Node 18+, git
+#   1. Verifies Node 18+ (the agent daemon runs on node) and git; installs bun
 #   2. Clones (or pulls) the repo
 #   3. Generates .env.local with fresh secrets (node crypto, no openssl)
 #   4. Installs frontend + agent deps
@@ -36,6 +36,15 @@ if ($nodeMajor -lt 18) { Write-Host "Node $nodeMajor detected; need 18+." -Foreg
 Write-Host "  Node $(node -v) ok" -ForegroundColor Green
 Need git "install git: https://git-scm.com/"
 Write-Host "  git ok" -ForegroundColor Green
+# bun is the package manager + frontend runtime; node stays for the agent daemon.
+if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
+  Write-Host "  bun not found - installing from https://bun.sh ..." -ForegroundColor Yellow
+  powershell -NoProfile -Command "irm bun.sh/install.ps1 | iex"
+  $bunBin = if ($env:BUN_INSTALL) { Join-Path $env:BUN_INSTALL 'bin' } else { Join-Path $HOME '.bun\bin' }
+  $env:PATH = "$bunBin;$env:PATH"
+}
+Need bun "install bun: https://bun.sh/ (then reopen PowerShell)"
+Write-Host "  bun $(bun --version) ok" -ForegroundColor Green
 
 Write-Host "-> Cloning workspace..." -ForegroundColor Cyan
 if (Test-Path (Join-Path $InstallDir '.git')) {
@@ -54,8 +63,8 @@ node scripts\local\control.mjs config --yes --no-install
 Write-Host "  .env.local ready ok" -ForegroundColor Green
 
 Write-Host "-> Installing deps (frontend + agent)..." -ForegroundColor Cyan
-npm --prefix frontend install
-npm --prefix agent install
+bun install --cwd frontend
+bun install --cwd agent
 Write-Host "  deps installed ok" -ForegroundColor Green
 
 Write-Host "-> Wiring up the vps-cr command..." -ForegroundColor Cyan

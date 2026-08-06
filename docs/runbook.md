@@ -20,10 +20,22 @@ The following must be installed and running on the VPS before proceeding.
 
 ### Node.js 22
 
+Still required: the agent daemon runs on Node (node-pty needs it), even though
+everything else is bun.
+
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs
 node --version   # should print v22.x.x
+```
+
+### Bun 1.3+
+
+Package manager for both components and the runtime for the frontend.
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+bun --version    # should print 1.3.x or newer
 ```
 
 ### Docker
@@ -98,15 +110,15 @@ openssl rand -hex 32
 ### Install dependencies
 
 ```bash
-cd frontend && npm install && cd ..
-cd agent    && npm install && cd ..
+bun install --cwd frontend
+bun install --cwd agent
 ```
 
 ### Build
 
 ```bash
-cd frontend && npm run build && cd ..
-cd agent    && npm run build && cd ..
+bun run --cwd frontend build
+bun run --cwd agent    build
 ```
 
 ---
@@ -241,7 +253,7 @@ Expected response: `{"status":"ok"}`.
    ```bash
    ls <your-repo-path>/frontend/.next/BUILD_ID
    ```
-   If missing, rebuild: `cd frontend && npm run build`
+   If missing, rebuild: `bun run --cwd frontend build`
 3. Confirm `.env.local` is present and readable by the app user:
    ```bash
    ls -la <your-repo-path>/.env.local
@@ -263,7 +275,7 @@ Expected response: `{"status":"ok"}`.
    ```bash
    ls <your-repo-path>/agent/dist/index.js
    ```
-   If missing, rebuild: `cd agent && npm run build`
+   If missing, rebuild: `bun run --cwd agent build`
 3. Check `AGENT_HEALTH_PORT` is not already in use:
    ```bash
    sudo ss -tlnp | grep 4001
@@ -315,13 +327,13 @@ To update only a single component, run the relevant steps manually:
 
 ```bash
 # Frontend only
-cd <your-repo-path>/frontend
-npm install && npm run build
+cd <your-repo-path>
+bun install --cwd frontend && bun run --cwd frontend build
 sudo systemctl restart vps-control-room-frontend
 
 # Agent only
-cd <your-repo-path>/agent
-npm install && npm run build
+cd <your-repo-path>
+bun install --cwd agent && bun run --cwd agent build
 sudo systemctl restart vps-control-room-agent
 ```
 

@@ -31,13 +31,15 @@ Saat issue menyentuh live site, systemd, Traefik, UFW, atau asset 404/504:
 1. Cek `scripts/install-systemd.sh`, `scripts/deploy.sh`, `ops/traefik/vps-control-room.yml`, dan `frontend/middleware.ts`.
 2. Verifikasi service lokal dengan `curl` ke `127.0.0.1:4000`.
 3. Verifikasi log service dengan `systemctl status` dan `journalctl`.
-4. Jika masalahnya static asset, pastikan frontend jalan dengan `npm run start` dari `frontend/`.
+4. Jika masalahnya static asset, pastikan unit frontend ExecStart-nya `bun --bun node_modules/.bin/next start --hostname 0.0.0.0 --port 4000` (WorkingDirectory `frontend/`).
 5. Jika masalahnya firewall, cek rule `docker0 -> 4000/4001`.
 
 ## Rules
 
 - Jangan menulis perubahan besar sendiri kalau domainnya jelas milik specialist.
 - Jangan mengandalkan asumsi untuk live runtime. Validasi dengan `curl` dan `systemctl` dulu.
-- Setelah perubahan frontend, cek `cd frontend && npm run build`.
-- Setelah perubahan agent, cek `cd agent && npm run build`.
-- Setelah perubahan Convex schema/function, cek `npx convex deploy`.
+- Setelah perubahan frontend, cek `cd frontend && bun run build`.
+- Setelah perubahan agent, cek `cd agent && bun run build`.
+- Setelah perubahan Convex schema/function, cek `bunx convex deploy`.
+- Package manager = bun di mana-mana. Tapi daemon agent tetap dijalankan systemd
+  dengan `node dist/index.js` — node-pty tidak mengalirkan data di bawah Bun.

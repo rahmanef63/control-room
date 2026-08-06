@@ -95,7 +95,7 @@ _policy_defaults() {
   "pollMinMs": 6000,
   "pollMaxMs": 30000,
   "blocklist": ["rm -rf","git push --force","git push -f","DROP TABLE","git reset --hard","mkfs","dd if=","> /dev/sd",":(){:|:&};:"],
-  "heavyCmds": ["git push","next build","npm run build","pnpm run build","yarn build","docker build","npm run deploy","convex deploy"],
+  "heavyCmds": ["git push","next build","bun run build","npm run build","pnpm run build","yarn build","docker build","bun run deploy","npm run deploy","convex deploy"],
   "notifyWebhook": "",
   "memMax": 20,
   "memTtlDays": 7,

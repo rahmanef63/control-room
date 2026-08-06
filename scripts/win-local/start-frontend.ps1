@@ -18,8 +18,8 @@ $fePort = if ($env:CONTROL_ROOM_PORT) { $env:CONTROL_ROOM_PORT } else { '4000' }
 
 if (Test-Path (Join-Path $fe '.next\BUILD_ID')) {
   Write-Host "Frontend starting on http://${feHost}:${fePort} (PROD build - light)"
-  npm --prefix $fe run start -- --hostname $feHost --port $fePort
+  bun run --cwd $fe start -- --hostname $feHost --port $fePort
 } else {
   Write-Host "Frontend starting on http://${feHost}:${fePort} (dev mode - run 'vps-cr build' for the lighter prod server)"
-  npm --prefix $fe run dev -- --hostname $feHost --port $fePort
+  bun run --cwd $fe dev -- --hostname $feHost --port $fePort
 }

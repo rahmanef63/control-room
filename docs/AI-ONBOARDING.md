@@ -27,17 +27,21 @@ If they just want to "see it work on this computer", continue here.
 
 ## 2. Check prerequisites first
 
-Tell them you'll check two things, then run:
+Tell them you'll check three things, then run:
 
 ```
-node -v      # need v18 or newer
+bun -v       # need 1.3 or newer
+node -v      # need v22 or newer
 git --version
 ```
 
-- If `node` is missing or < 18 → point them to https://nodejs.org/ (LTS).
+- If `bun` is missing or < 1.3 → the installer in step 3 installs it, or point
+  them to https://bun.sh/.
+- If `node` is missing or < 22 → point them to https://nodejs.org/ (LTS).
 - If `git` is missing → https://git-scm.com/.
 
-Explain: "Node runs the app; git downloads it. That's all we need."
+Explain: "Bun runs the dashboard, Node runs the helper agent, git downloads it.
+That's all we need."
 
 ## 3. Install (one command)
 
@@ -53,7 +57,7 @@ Pick the user's OS and give them exactly one line. Explain it's re-runnable
   curl -fsSL https://raw.githubusercontent.com/rahmanef63/control-room/main/install.sh | bash
   ```
 
-What it does (tell them, briefly): "checks Node + git, downloads the project,
+What it does (tell them, briefly): "checks Bun + Node + git, downloads the project,
 creates a private config file with fresh random secrets, installs the parts,
 and sets up a `vps-cr` command." Nothing leaves their computer.
 

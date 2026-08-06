@@ -20,11 +20,13 @@ Get-Content $envFile | ForEach-Object {
   }
 }
 
+# bun only runs the npm-style script; the script itself launches node, because
+# node-pty streams no terminal data under the bun runtime.
 $agent = Join-Path $repo 'agent'
 if (Test-Path (Join-Path $agent 'dist\index.js')) {
   Write-Host "Agent starting on $($env:AGENT_HEALTH_HOST):$($env:AGENT_HEALTH_PORT) (prod build, shell=$($env:SHELL))"
-  npm --prefix $agent run start
+  bun run --cwd $agent start
 } else {
   Write-Host "Agent starting on $($env:AGENT_HEALTH_HOST):$($env:AGENT_HEALTH_PORT) (dev, shell=$($env:SHELL))"
-  npm --prefix $agent run dev
+  bun run --cwd $agent dev
 }

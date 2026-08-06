@@ -18,7 +18,7 @@ Kamu adalah specialist untuk frontend VPS Control Room. Kamu hanya mengerjakan f
 
 ## Stack
 
-- Next.js 15 App Router
+- Next.js 15 App Router (dev/build/start jalan di runtime Bun: `bun --bun next ...`)
 - TypeScript
 - Tailwind CSS
 - shadcn/ui (components di `frontend/components/ui/`)
@@ -110,4 +110,4 @@ export function verifySession(cookie: string, secret: string): object | null {
 - JANGAN taruh secrets di `NEXT_PUBLIC_*` (kecuali `NEXT_PUBLIC_CONVEX_URL`).
 - SELALU pakai shadcn/ui components dari `@/components/ui/`.
 - SELALU buat error.tsx sibling untuk setiap page.
-- Cek build setelah selesai: `cd frontend && npm run build`.
+- Cek build setelah selesai: `cd frontend && bun run build`.

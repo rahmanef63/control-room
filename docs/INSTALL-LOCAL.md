@@ -95,7 +95,7 @@ vps-cr doctor          # report problems
 vps-cr doctor --fix     # auto-repair what it can
 ```
 
-`doctor` checks Node, deps, both `.env.local` files (and keeps them in sync),
+`doctor` checks Bun + Node, deps, both `.env.local` files (and keeps them in sync),
 secret strength, the device store, and live health. `--fix` regenerates a
 missing/weak signing secret, recreates `.env.local` from defaults, and re-syncs
 — **without** overwriting a password or secret that is already valid.
@@ -106,12 +106,15 @@ missing/weak signing secret, recreates `.env.local` from defaults, and re-syncs
 git clone https://github.com/rahmanef63/control-room.git
 cd control-room
 node scripts/local/control.mjs config --yes   # writes .env.local + secrets
-npm --prefix frontend install
-npm --prefix agent install
+bun install --cwd frontend
+bun install --cwd agent
 node scripts/local/control.mjs            # start
 ```
 
-`npm run dev` in `frontend/` binds port **4000** by default. Config lives in
+Needs **Bun 1.3+** (package manager + frontend runtime) and **Node 22** (the
+agent daemon runs on Node).
+
+`bun run dev` in `frontend/` binds port **4000** by default. Config lives in
 `.env.local` at the repo root **and** `frontend/.env.local` (Next reads the
 latter) — `vps-cr` keeps both in sync.
 

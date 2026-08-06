@@ -54,8 +54,8 @@ agent owns host access behind an authenticated, loopback-bound gateway.
 
 | Path | Command | Time | Best for |
 |------|---------|------|----------|
-| 🤖 **AI-assisted** | `npx rahman-cr ai claude` | ~20 min | Paste prompt into Claude / Codex / Gemini, get walked through every step |
-| ⚡ **One-line** | `npx rahman-cr install --vps user@ip --domain X` | ~10 min | Already have SSH + Tailscale key + domain ready |
+| 🤖 **AI-assisted** | `bunx rahman-cr ai claude` | ~20 min | Paste prompt into Claude / Codex / Gemini, get walked through every step |
+| ⚡ **One-line** | `bunx rahman-cr install --vps user@ip --domain X` | ~10 min | Already have SSH + Tailscale key + domain ready |
 | 🛠️ **Manual** | follow [docs/ONBOARDING.md](docs/ONBOARDING.md) | ~30 min | Want to read each step before running it |
 | 💻 **Local (this PC)** | one line — see [docs/INSTALL-LOCAL.md](docs/INSTALL-LOCAL.md) | ~5 min | Run the whole thing on your laptop — no VPS, SSH, or domain |
 
@@ -251,7 +251,8 @@ session id stream the same buffer.
 ### One-time prerequisites on the VPS
 
 ```bash
-sudo apt-get install -y nodejs npm   # or via nvm — Node 22+
+sudo apt-get install -y nodejs        # or via nvm — Node 22+ (the agent daemon runs on Node)
+curl -fsSL https://bun.sh/install | bash   # Bun 1.3+ — package manager + frontend runtime
 sudo usermod -aG docker $USER         # if you want docker collector
 ```
 
@@ -263,8 +264,8 @@ cd control-room
 cp .env.example .env.local
 $EDITOR .env.local                    # fill CONTROL_ROOM_SECRET et al.
 
-npm --prefix frontend install
-npm --prefix agent install
+bun install --cwd frontend
+bun install --cwd agent
 ```
 
 ### systemd services
@@ -299,12 +300,12 @@ What it does (in order):
 3. `git fetch origin` → `git checkout <branch>` → restore the deploy-stamped
    `sw.js` → `git pull --ff-only origin <branch>` (fast-forward only; aborts on
    divergence rather than discarding local work).
-4. Preflight gate: `npm run test` (frontend unit tests). Skip with
+4. Preflight gate: `bun run test:all` (frontend typecheck + unit tests). Skip with
    `SKIP_FRONTEND_TESTS=1`.
 5. `scripts/bump-version.sh <commit12>` — stamps `sw.js`,
    `NEXT_PUBLIC_BUILD_ID`, and `/api/version`.
-6. Builds frontend (`npm run build`) into `.next-staging`.
-7. Builds agent (`npm run build`) only if any source under `agent/` changed
+6. Builds frontend (`bun run build`) into `.next-staging`.
+7. Builds agent (`bun run build`) only if any source under `agent/` changed
    since the last deploy stamp.
 8. Atomically promotes `.next-staging → .next` by restarting the frontend
    against the staged build; keeps `.next-previous` for one-shot rollback if

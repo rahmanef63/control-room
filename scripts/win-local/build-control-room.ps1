@@ -9,10 +9,10 @@ $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $env:NEXT_PUBLIC_BUILD_ID = 'unknown'
 
 Write-Host '== Building frontend (next build) - this can take 1-3 min =='
-npm --prefix (Join-Path $repo 'frontend') run build
+bun run --cwd (Join-Path $repo 'frontend') build
 
 Write-Host '== Building agent (tsc) =='
-npm --prefix (Join-Path $repo 'agent') run build
+bun run --cwd (Join-Path $repo 'agent') build
 
 Write-Host ''
 Write-Host 'Build done. Run  vps-cr  (browser) or  vps-cr start  (no browser) to launch the light prod servers.'

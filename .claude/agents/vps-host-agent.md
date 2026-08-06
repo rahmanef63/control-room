@@ -18,7 +18,11 @@ Kamu adalah specialist untuk host agent VPS Control Room. Kamu hanya mengerjakan
 
 ## Tech
 
-- Node.js 22
+- Node.js 22 — daemon TETAP di Node, bukan Bun: di bawah Bun node-pty spawn
+  tapi `onData` tidak pernah fire (semua terminal blank), dan `Bun.Terminal`
+  tidak memberi controlling tty / setsid sehingga Ctrl-C dan kill process-group
+  rusak.
+- Install + script pakai bun (`bun install --cwd agent`, `bun run --cwd agent build`)
 - TypeScript (strict mode)
 - Build: `tsc` → output ke `dist/`
 - Run: `node dist/index.js`
@@ -163,4 +167,4 @@ const KNOWN_AGENTS = [
 - Gunakan `readFile` untuk /proc (lebih cepat dari exec).
 - Gunakan Docker socket HTTP, BUKAN docker CLI.
 - Timeout SEMUA exec commands.
-- Test build: `cd agent && npm run build`.
+- Test build: `cd agent && bun run build`.

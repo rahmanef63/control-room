@@ -21,6 +21,14 @@ log() {
   printf '[%s] %s\n' "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" "$*"
 }
 
+# Resolve bun once. systemd/CI invoke this with a minimal PATH that usually
+# lacks ~/.bun/bin, so fall back to the default install location.
+BUN="${BUN:-$(command -v bun || echo "${HOME:-}/.bun/bin/bun")}"
+if [ ! -x "${BUN}" ]; then
+  log "bun not found at '${BUN}' (looked in PATH and \$HOME/.bun/bin) — install bun or set BUN=/path/to/bun"
+  exit 1
+fi
+
 require_file() {
   local path="$1"
   if [ ! -f "$path" ]; then
@@ -105,9 +113,17 @@ activate_frontend_build() {
   fi
   mv "${STAGED_NEXT_DIR}" "${LIVE_NEXT_DIR}"
 
-  if sudo systemctl start vps-control-room-frontend && sudo systemctl is-active --quiet vps-control-room-frontend; then
-    rm -rf "${PREVIOUS_NEXT_DIR}"
-    return
+  # Type=simple means `systemctl start` returns as soon as systemd forks, so an
+  # immediate is-active check races a process that dies milliseconds later
+  # (e.g. ExecStart's binary not on the unit's PATH -> exit 127 -> restart loop).
+  # It would report success and then delete PREVIOUS_NEXT_DIR, destroying the
+  # only rollback material. Let it settle, then require it to still be up.
+  if sudo systemctl start vps-control-room-frontend; then
+    sleep 8
+    if sudo systemctl is-active --quiet vps-control-room-frontend; then
+      rm -rf "${PREVIOUS_NEXT_DIR}"
+      return
+    fi
   fi
 
   log "Frontend failed to start after promotion, rolling back"
@@ -172,7 +188,7 @@ log "Stamped sw.js + build id: v${BUILD_ID_SHORT}"
 
 CHANGED_FILES="$(git diff --name-only "${PREVIOUS_COMMIT}" "${CURRENT_COMMIT}" || true)"
 LOCAL_AGENT_CHANGES="$(git status --porcelain -- agent scripts/deploy.sh convex frontend/app/api/terminals frontend/app/\(dashboard\)/terminals frontend/lib/server/terminal-gateway.ts frontend/next.config.ts || true)"
-LOCAL_CONVEX_CHANGES="$(git status --porcelain -- convex package.json package-lock.json || true)"
+LOCAL_CONVEX_CHANGES="$(git status --porcelain -- convex package.json bun.lock || true)"
 AGENT_RESTART_REQUIRED=0
 CONVEX_DEPLOY_REQUIRED=0
 LAST_AGENT_DEPLOYED_COMMIT="$(cat "${AGENT_STAMP_FILE}" 2>/dev/null || true)"
@@ -188,7 +204,7 @@ if printf '%s\n%s\n%s\n' "${CHANGED_FILES}" "${LOCAL_AGENT_CHANGES}" "${AGENT_CH
   AGENT_RESTART_REQUIRED=1
 fi
 
-if printf '%s\n%s\n' "${CHANGED_FILES}" "${LOCAL_CONVEX_CHANGES}" | grep -qE '(^| )convex/|(^| )package\.json|(^| )package-lock\.json'; then
+if printf '%s\n%s\n' "${CHANGED_FILES}" "${LOCAL_CONVEX_CHANGES}" | grep -qE '(^| )convex/|(^| )package\.json|(^| )bun\.lock'; then
   CONVEX_DEPLOY_REQUIRED=1
 fi
 
@@ -197,13 +213,13 @@ prune_frontend_static_snapshots
 
 log "Installing frontend deps"
 cd "${FRONTEND_DIR}"
-npm install
+"${BUN}" install
 
-# Preflight: typecheck + lint must pass before we ever touch the live build.
-# Failures abort early, leaving the running server untouched.
+# Preflight: typecheck + unit tests must pass before we ever touch the live
+# build. Failures abort early, leaving the running server untouched.
 if [ "${SKIP_FRONTEND_TESTS:-0}" != "1" ]; then
-  log "Running frontend tests (typecheck + lint)"
-  npm run test
+  log "Running frontend tests (typecheck + unit tests)"
+  "${BUN}" run test:all
 else
   log "Skipping frontend tests (SKIP_FRONTEND_TESTS=1)"
 fi
@@ -214,15 +230,15 @@ rm -rf "${STAGED_NEXT_DIR}"
 # A single on-box `next build` is the control room's share of the build-storm
 # that tripped the 2026-05-28 Hostinger CPU throttle; nicing it keeps the box
 # responsive (and patrol unblinded) while it builds.
-NEXT_DIST_DIR="$(basename "${STAGED_NEXT_DIR}")" nice -n 15 ionice -c2 -n7 npm run build
+NEXT_DIST_DIR="$(basename "${STAGED_NEXT_DIR}")" nice -n 15 ionice -c2 -n7 "${BUN}" run build
 cd "${REPO_DIR}"
 restore_frontend_static_snapshots
 
 if [ "${AGENT_RESTART_REQUIRED}" -eq 1 ]; then
   log "Installing and building agent"
   cd agent
-  npm install
-  npm run build
+  "${BUN}" install
+  "${BUN}" run build
   cd ..
   printf '%s\n' "${CURRENT_COMMIT}" > "${AGENT_STAMP_FILE}"
 else
@@ -236,8 +252,9 @@ elif [ "${CONVEX_DEPLOY_REQUIRED}" -eq 1 ]; then
   # The local self-hosted Convex endpoint uses a self-signed certificate.
   # Disable TLS verification for this deploy call so schema pushes remain
   # non-interactive during VPS rollouts.
+  # `bun x` is bunx; called via the resolved binary because PATH may lack ~/.bun/bin.
   NODE_TLS_REJECT_UNAUTHORIZED=0 \
-    npx convex deploy --env-file convex/.env.local --typecheck disable -y
+    "${BUN}" x convex deploy --env-file convex/.env.local --typecheck disable -y
 else
   log "Skipping Convex deploy (no relevant changes)"
 fi
@@ -249,6 +266,18 @@ CONTROL_ROOM_DOMAIN="${CONTROL_ROOM_DOMAIN:-}" \
   envsubst '${CONTROL_ROOM_DOMAIN}' \
   < "${REPO_DIR}/ops/traefik/vps-control-room.yml" \
   | sudo tee /etc/dokploy/traefik/dynamic/vps-control-room.yml > /dev/null
+
+# Regenerate the units from the repo BEFORE promoting the build. The unit files
+# encode the absolute bun path and the unit PATH; a unit written by an older
+# revision (e.g. the pre-bun `ExecStart=/usr/bin/npm run start`) would start a
+# shell that can't resolve bun and crash-loop, and the .next rollback below
+# cannot fix a unit-file problem. install-systemd.sh is idempotent and only
+# writes + daemon-reload + enable — it never starts or restarts anything.
+log "Regenerating systemd units"
+# APP_USER is pinned to whoever owns this deploy, not derived from SUDO_USER —
+# a CI runner invoking deploy.sh under a different account must not silently
+# rewrite the units' User=.
+sudo APP_USER="$(id -un)" BUN_BIN="${BUN}" bash "${REPO_DIR}/scripts/install-systemd.sh" > /dev/null
 
 log "Restarting systemd services"
 activate_frontend_build

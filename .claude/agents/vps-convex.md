@@ -143,4 +143,4 @@ export const updateCommandStatus = mutation({
 - Timestamp SELALU `Date.now()` (epoch ms).
 - Internal functions: `internalMutation`, `internalQuery` — untuk dipanggil dari cron/action, bukan dari client.
 - Public functions: `query`, `mutation` — dipanggil dari frontend/agent.
-- Test: `npx convex deploy --dry-run` setelah perubahan schema.
+- Test: `bunx convex deploy --dry-run` setelah perubahan schema.

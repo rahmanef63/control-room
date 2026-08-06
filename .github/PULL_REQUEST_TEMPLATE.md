@@ -37,8 +37,8 @@ Closes #
 
 - [ ] Branched from latest `main`
 - [ ] Conventional commit message (`type(scope): subject`)
-- [ ] `npm --prefix frontend run typecheck` passes
-- [ ] `npm --prefix agent run build` passes
+- [ ] `bun run --cwd frontend typecheck` passes
+- [ ] `bun run --cwd agent test:all` passes (typecheck + tests)
 - [ ] No new `console.log` left behind
 - [ ] No secrets, IPs, or PII in the diff or commit message
 - [ ] No new runtime dependency (or justified in "Why" above)

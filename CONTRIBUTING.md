@@ -20,13 +20,13 @@ cd control-room
 cp .env.example .env.local
 # edit CONTROL_ROOM_SECRET + CONTROL_ROOM_SESSION_SECRET to ANY 32+ char value
 
-# 3. Install deps (per-component, no monorepo)
-npm --prefix frontend install
-npm --prefix agent install
+# 3. Install deps (per-component, no monorepo) — needs Bun 1.3+ and Node 22
+bun install --cwd frontend
+bun install --cwd agent
 
 # 4. Run two terminals
-npm --prefix agent  run dev      # http://127.0.0.1:4001/health
-npm --prefix frontend run dev    # http://127.0.0.1:4000
+bun run --cwd agent  dev         # http://127.0.0.1:4001/health (runs on Node via tsx)
+bun run --cwd frontend dev       # http://127.0.0.1:4000
 
 # 5. Login with the secret you set in step 2
 ```
@@ -71,7 +71,7 @@ between `frontend/` and `agent/`. Share via `packages/contracts`.
 ## Code style
 
 - **TypeScript strict** — no `any` without a `// reason:` comment.
-- **ESLint** — `npm --prefix frontend run lint`. Don't disable rules
+- **ESLint** — `bun run --cwd frontend lint`. Don't disable rules
   globally; disable inline with reason.
 - **Tailwind** — prefer utility classes over `style={{}}`. Use the
   shadcn/ui primitives from `frontend/src/components/ui/`.
@@ -83,17 +83,18 @@ between `frontend/` and `agent/`. Share via `packages/contracts`.
 
 ## Testing
 
-The current test target is **typecheck-only** — fast and catches most
+The test target is **typecheck + `bun test`** — fast and catches most
 regressions:
 
 ```bash
-npm --prefix frontend run typecheck
-npm --prefix agent     run build      # tsc -p tsconfig.json
+bun run --cwd frontend typecheck
+bun run --cwd agent     build      # tsc -p tsconfig.json
 ```
 
-If you add Jest/Vitest, place specs next to the source as
-`*.test.ts(x)` and add a `test` script. Don't add coverage tooling
-yet — the codebase is small.
+Unit tests run under `bun test` (`bun run --cwd frontend test`,
+`bun run --cwd agent test`, or `test:all` to gate on `tsc` too) — it executes the existing `node:test` +
+`node:assert` specs as-is. Place new specs next to the source as
+`*.test.ts(x)`. Don't add coverage tooling yet — the codebase is small.
 
 **Manual smoke tests** for UI changes:
 1. Login with the dev secret.
@@ -148,7 +149,7 @@ CI runs typecheck on the self-hosted runner. Workflows are
 - Multi-user / multi-tenant features.
 - Anything that requires exposing the dashboard to the public internet.
 - New runtime dependencies (npm packages) without a strong reason.
-- Migrations away from npm to pnpm/yarn/bun.
+- Migrations away from bun to npm/pnpm/yarn.
 - Telemetry, analytics, or "phone home" code.
 
 ---

@@ -32,6 +32,9 @@ import { createInterface } from 'node:readline';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, '..', '..');
 const IS_WIN = platform() === 'win32';
+// Package manager + frontend runtime. Bun ships a real .exe on Windows (no
+// .cmd shim like npm), so this is the whole platform difference.
+const BUN = IS_WIN ? 'bun.exe' : 'bun';
 
 const ROOT_ENV = join(REPO, '.env.local');
 const FRONTEND_ENV = join(REPO, 'frontend', '.env.local');
@@ -216,9 +219,13 @@ async function doctor() {
   let problems = 0;
   const note = (line) => console.log('  ' + line);
 
-  // 1. Node
+  // 1. Runtimes — bun runs the frontend + tooling, node runs the agent daemon.
   const major = Number(process.versions.node.split('.')[0]);
   major >= 18 ? note(ok(`Node ${process.versions.node}`)) : (note(fail(`Node ${process.versions.node} — need >=18`)), problems++);
+  const bunVersion = spawnSync(BUN, ['--version'], { encoding: 'utf8' });
+  bunVersion.status === 0
+    ? note(ok(`Bun ${bunVersion.stdout.trim()}`))
+    : (note(fail('bun not found — install: https://bun.sh')), problems++);
 
   // 2. Repo layout
   const hasFront = existsSync(join(REPO, 'frontend'));
@@ -228,7 +235,7 @@ async function doctor() {
   // 3. deps installed
   for (const part of ['frontend', 'agent']) {
     if (existsSync(join(REPO, part, 'node_modules'))) note(ok(`${part} deps installed`));
-    else { note(fail(`${part}/node_modules missing — run: npm --prefix ${part} install`)); problems++; }
+    else { note(fail(`${part}/node_modules missing — run: bun install --cwd ${part}`)); problems++; }
   }
 
   // 4-6. env files + sync
@@ -376,10 +383,10 @@ async function config() {
   console.log(`\n  ${C.bold}Login password:${C.reset} ${C.green}${password}${C.reset}` +
     (generatedPw ? `  ${C.dim}(auto-generated — change with: vps-cr config)${C.reset}` : ''));
 
-  if ((flags.has('install') || (interactive && (await ask('Run npm install now? (y/N)', 'N')).toLowerCase().startsWith('y'))) && !flags.has('no-install')) {
+  if ((flags.has('install') || (interactive && (await ask('Run bun install now? (y/N)', 'N')).toLowerCase().startsWith('y'))) && !flags.has('no-install')) {
     for (const part of ['frontend', 'agent']) {
       console.log(`  ${C.dim}installing ${part} deps…${C.reset}`);
-      spawnSync(IS_WIN ? 'npm.cmd' : 'npm', ['--prefix', join(REPO, part), 'install'], { stdio: 'inherit', cwd: REPO });
+      spawnSync(BUN, ['install', '--cwd', join(REPO, part)], { stdio: 'inherit', cwd: REPO });
     }
   }
   // Local trust is on by default, so first login just needs the password above —
@@ -441,12 +448,11 @@ function hasProdBuild() {
 }
 
 function build() {
-  const npm = IS_WIN ? 'npm.cmd' : 'npm';
   const env = { ...process.env, NEXT_PUBLIC_BUILD_ID: 'unknown' };
   console.log('== Building frontend (next build) — 1-3 min ==');
-  spawnSync(npm, ['--prefix', join(REPO, 'frontend'), 'run', 'build'], { stdio: 'inherit', cwd: REPO, env });
+  spawnSync(BUN, ['run', '--cwd', join(REPO, 'frontend'), 'build'], { stdio: 'inherit', cwd: REPO, env });
   console.log('== Building agent (tsc) ==');
-  spawnSync(npm, ['--prefix', join(REPO, 'agent'), 'run', 'build'], { stdio: 'inherit', cwd: REPO, env });
+  spawnSync(BUN, ['run', '--cwd', join(REPO, 'agent'), 'build'], { stdio: 'inherit', cwd: REPO, env });
   console.log(ok('build done — `vps-cr` now launches the light prod servers'));
 }
 
@@ -458,12 +464,13 @@ function startServices() {
   const v = readEnv(ROOT_ENV);
   const port = v.CONTROL_ROOM_PORT || '4000';
   const env = { ...process.env, ...v, NEXT_PUBLIC_BUILD_ID: 'unknown' };
-  const npm = IS_WIN ? 'npm.cmd' : 'npm';
   const opts = { cwd: REPO, env, stdio: 'ignore', detached: true };
   const prod = hasProdBuild();
   const script = prod ? 'start' : 'dev';
-  const agent = spawn(npm, ['--prefix', join(REPO, 'agent'), 'run', script], opts);
-  const frontend = spawn(npm, ['--prefix', join(REPO, 'frontend'), 'run', script], opts);
+  // bun runs the scripts; the agent's own script keeps its daemon on node
+  // (node-pty streams no data under the bun runtime).
+  const agent = spawn(BUN, ['run', '--cwd', join(REPO, 'agent'), script], opts);
+  const frontend = spawn(BUN, ['run', '--cwd', join(REPO, 'frontend'), script], opts);
   agent.unref();
   frontend.unref();
   try { writeFileSync(RUN_FILE, JSON.stringify({ frontend: frontend.pid, agent: agent.pid, port }, null, 2)); } catch {}

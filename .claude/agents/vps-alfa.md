@@ -90,13 +90,13 @@ Setelah delegasi selesai dan kode ditulis, verifikasi:
 
 ```bash
 # Frontend
-cd frontend && npm run build
+cd frontend && bun run build
 
 # Agent
-cd agent && npm run build
+cd agent && bun run build
 
 # Convex (jika schema/function berubah)
-npx convex deploy --dry-run
+bunx convex deploy --dry-run
 ```
 
 ## Rules

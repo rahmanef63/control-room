@@ -5,8 +5,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts",
-    "test": "tsc && node --test 'dist/**/*.test.js'"
+    "dev": "bun run tsx src/index.ts",
+    "test": "bun test src",
+    "test:all": "tsc --noEmit && bun run test"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

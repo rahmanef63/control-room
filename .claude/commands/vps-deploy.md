@@ -10,19 +10,19 @@ REPO_DIR="<your-repo-path>"
 cd "$REPO_DIR"
 
 # 1. Install dependencies
-cd frontend && npm install && cd ..
-cd agent && npm install && cd ..
+bun install --cwd frontend
+bun install --cwd agent
 
 # 2. Setup env
 cp .env.example .env.local
 # Edit .env.local — isi semua secrets
 
 # 3. Build
-cd frontend && npm run build && cd ..
-cd agent && npm run build && cd ..
+bun run --cwd frontend build
+bun run --cwd agent build
 
 # 4. Deploy Convex schema
-npx convex deploy
+bunx convex deploy
 
 # 5. Setup permissions
 sudo usermod -aG docker "$USER"
@@ -49,11 +49,11 @@ cd <your-repo-path>
 git pull origin main
 
 # Build ulang
-cd frontend && npm install && npm run build && cd ..
-cd agent && npm install && npm run build && cd ..
+bun install --cwd frontend && bun run --cwd frontend build
+bun install --cwd agent && bun run --cwd agent build
 
 # Deploy Convex (jika schema/functions berubah)
-npx convex deploy
+bunx convex deploy
 
 # Restart services
 sudo systemctl restart vps-control-room-frontend
@@ -99,17 +99,17 @@ Lihat `scripts/install-systemd.sh` untuk isi unit files terbaru.
 
 ```bash
 # Dari root repo
-npx convex deploy
+bunx convex deploy
 
 # Jika perlu reset (HATI-HATI: hapus semua data!)
-# npx convex deploy --reset
+# bunx convex deploy --reset
 ```
 
 ## Checklist Sebelum Deploy
 
 1. [ ] `.env.local` sudah diisi semua required secrets
-2. [ ] `npm run build` sukses di frontend dan agent
-3. [ ] `npx convex deploy` sukses
+2. [ ] `bun run build` sukses di frontend dan agent
+3. [ ] `bunx convex deploy` sukses
 4. [ ] Docker socket accessible oleh app user
 5. [ ] sudoers entry sudah ada
 6. [ ] Tailscale connected dan IP benar

@@ -6,8 +6,8 @@ on their own VPS, end-to-end. Five phases, ~30 minutes total.
 | Phase | Time | Outcome |
 |-------|------|---------|
 | 1. Decide | 1 min | Confirm this tool fits your use case |
-| 2. Prep | 10 min | VPS, Node 22, Tailscale, domain ready |
-| 3. Install | 10 min | Clone, env, npm install, systemd up |
+| 2. Prep | 10 min | VPS, Bun + Node 22, Tailscale, domain ready |
+| 3. Install | 10 min | Clone, env, bun install, systemd up |
 | 4. Verify | 5 min | Health checks pass, login works, terminal spawns |
 | 5. Operate | ongoing | Deploy updates, rotate secrets, backup |
 
@@ -49,6 +49,7 @@ command allowlist (the security model is perimeter, not per-command).
 | Disk | 5 GB free | 10 GB+ |
 | CPU | 1 vCPU | 2 vCPU+ |
 | Node | v22.0 | v22 LTS latest |
+| Bun | 1.3.0 | latest 1.3.x |
 
 Good? Move to Phase 2. Not sure? Open an issue and describe your
 setup.
@@ -57,7 +58,10 @@ setup.
 
 ## Phase 2 — Prep
 
-### 2.1 Install Node 22
+### 2.1 Install Node 22 + Bun
+
+Both are required: bun is the package manager and the frontend runtime, Node 22
+runs the agent daemon (node-pty streams no data under Bun).
 
 ```bash
 # Via nvm (recommended — easier upgrades)
@@ -66,6 +70,9 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
 nvm install 22
 nvm use 22
 node -v   # → v22.x.x
+
+curl -fsSL https://bun.sh/install | bash
+bun -v    # → 1.3.x or newer
 ```
 
 ### 2.2 (Optional) Install Docker
@@ -158,12 +165,12 @@ Everything else has a sensible default.
 ### 3.3 Install dependencies
 
 ```bash
-npm --prefix frontend install
-npm --prefix agent    install
+bun install --cwd frontend
+bun install --cwd agent
 ```
 
-Per-component install is intentional — each has its own
-`package-lock.json`. There's no monorepo tool.
+Per-component install is intentional — each has its own `bun.lock`.
+There's no monorepo tool.
 
 ### 3.4 Install systemd services
 
@@ -186,7 +193,7 @@ bash scripts/deploy.sh main
 ```
 
 This will:
-1. Typecheck frontend (`npm test`)
+1. Typecheck + unit-test frontend (`bun run test:all`)
 2. Build agent (`tsc`)
 3. Build frontend (`next build`)
 4. Restart both systemd services
@@ -318,7 +325,7 @@ nvm install 22 --reinstall-packages-from=current
 nvm use 22
 nvm alias default 22
 # rebuild native deps
-npm --prefix agent rebuild
+bun install --cwd agent --force
 sudo systemctl restart vps-control-room-agent vps-control-room-frontend
 ```
 

@@ -43,8 +43,8 @@ spawned shell + start dir with the `SHELL` and `TERMINAL_DEFAULT_CWD` env vars.
 
 | Path | Command | Time | Best for |
 |------|---------|------|----------|
-| 🤖 AI-assisted | `npx rahman-cr ai claude` | ~20 min | First-timers, want guidance, paste into Claude/Codex/Gemini |
-| ⚡ One-line | `npx rahman-cr install --vps ... --domain ...` | ~10 min | Have all values ready, want minimum prompts |
+| 🤖 AI-assisted | `bunx rahman-cr ai claude` | ~20 min | First-timers, want guidance, paste into Claude/Codex/Gemini |
+| ⚡ One-line | `bunx rahman-cr install --vps ... --domain ...` | ~10 min | Have all values ready, want minimum prompts |
 | 🛠️ Manual | follow [ONBOARDING.md](./ONBOARDING.md) | ~30 min | Want to understand each step |
 | 💻 Local / dev | [Phase L below](#phase-l--local--dev-install-any-os-no-vps) | ~5 min | Run on your own laptop (any OS), no VPS/Tailscale/DNS |
 
@@ -60,12 +60,13 @@ SSH, Tailscale, DNS, and systemd entirely — jump to [Phase L](#phase-l--local-
 Run on **your laptop**, not the VPS.
 
 ```bash
-npx rahman-cr doctor
+bunx rahman-cr doctor
 ```
 
 Confirms:
 
-- [ ] Node 18+ (for `npx`)
+- [ ] Bun 1.3+ (for `bunx`) — `curl -fsSL https://bun.sh/install | bash`
+- [ ] Node 22 (the agent daemon runs on Node)
 - [ ] `ssh` client
 - [ ] `git`
 - [ ] `openssl` (for secret generation)
@@ -219,7 +220,7 @@ Three flavors. Pick the one matching your install path.
 ### 6a. AI-assisted
 
 ```bash
-npx rahman-cr ai claude    # or codex / gemini
+bunx rahman-cr ai claude    # or codex / gemini
 ```
 
 The CLI prints a structured prompt to stdout + clipboard. Paste it into
@@ -234,10 +235,10 @@ your AI. The AI will:
 
 ```bash
 # already on tailnet
-npx rahman-cr install --vps user@<ip> --domain control-room.<tailnet>.ts.net
+bunx rahman-cr install --vps user@<ip> --domain control-room.<tailnet>.ts.net
 
 # fresh VPS not on tailnet
-npx rahman-cr install \
+bunx rahman-cr install \
   --vps user@<ip> \
   --domain control-room.<tailnet>.ts.net \
   --tailscale-key tskey-auth-XXXX
@@ -286,9 +287,12 @@ Tailscale, DNS, systemd, or Convex. Good for development and for driving your
 ```bash
 git clone git@github.com:rahmanef63/control-room.git
 cd control-room
-npm --prefix frontend install
-npm --prefix agent install      # node-pty ships prebuilt binaries — no Visual Studio build tools needed
+bun install --cwd frontend
+bun install --cwd agent         # node-pty ships prebuilt binaries — no Visual Studio build tools needed
 ```
+
+> Needs **Bun 1.3+** and **Node 22**: bun installs and runs the frontend; the
+> agent daemon runs on Node (node-pty streams no data under Bun).
 
 > Pin note: `frontend/package.json` pins `next` to an exact version. Don't
 > loosen it to a `^` range — a newer 15.x patch changes how node-runtime
@@ -348,8 +352,8 @@ TERMINAL_DEFAULT_CWD=C:\Users\<you>\projects
 ### L.3 Run both processes
 
 ```bash
-npm --prefix agent run dev        # pty gateway + telemetry on :4001
-npm --prefix frontend run dev     # dashboard on :4000
+bun run --cwd agent dev           # pty gateway + telemetry on :4001 (runs on Node via tsx)
+bun run --cwd frontend dev        # dashboard on :4000
 ```
 
 Open `http://localhost:4000`, paste `CONTROL_ROOM_SECRET`, then approve the
@@ -357,7 +361,7 @@ device per [Phase 6.5](#phase-65--approve-your-device-first-login-always-lands-i
 
 > **Dev "new version" toast won't go away?** The dev build id changes on every
 > restart. Pin it to stop the reload prompt churning:
-> `NEXT_PUBLIC_BUILD_ID=unknown` (set it before `npm run dev`).
+> `NEXT_PUBLIC_BUILD_ID=unknown` (set it before `bun run dev`).
 
 ---
 

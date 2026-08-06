@@ -11,15 +11,16 @@ description: VPS Control Room project orchestrator for Gemini. Knows the full pr
 frontend/   Next.js 15 + Tailwind v4 + shadcn/ui
 convex/     Self-hosted Convex (7 tables: events, audit_log, agent_status,
             system_snapshot, alerts, commands, app_status)
-agent/      Node.js 22 TypeScript (collectors + executor)
+agent/      TypeScript, built with bun but the daemon RUNS ON NODE 22
+            (node-pty emits no data under Bun → blank terminals)
 skills/     si-coder deploy skill
 ```
 
 ## Build Commands
 
 ```bash
-cd frontend && npm run build        # frontend
-cd agent && npm run build           # agent (tsc)
+bun run --cwd frontend build        # frontend (bun --bun next build)
+bun run --cwd agent build           # agent (tsc)
 bash scripts/deploy.sh              # full production deploy
 ```
 

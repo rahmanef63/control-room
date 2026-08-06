@@ -10,12 +10,31 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # Detect the invoking user and resolve the repo root from the script's location.
-APP_USER="${SUDO_USER:-$(logname 2>/dev/null || echo "deploy")}"
+# APP_USER is overridable so deploy.sh can pin it instead of inheriting whatever
+# account happened to invoke sudo (a CI runner would otherwise rewrite User=).
+APP_USER="${APP_USER:-${SUDO_USER:-$(logname 2>/dev/null || echo "deploy")}}"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# systemd runs with a minimal PATH, so bake the ABSOLUTE bun path into the unit.
+# Prefer the app user's install (this script runs as root via sudo).
+APP_USER_HOME="$(getent passwd "${APP_USER}" | cut -d: -f6)"
+BUN_BIN="${BUN_BIN:-}"
+if [ -z "${BUN_BIN}" ] && [ -n "${APP_USER_HOME}" ] && [ -x "${APP_USER_HOME}/.bun/bin/bun" ]; then
+  BUN_BIN="${APP_USER_HOME}/.bun/bin/bun"
+fi
+if [ -z "${BUN_BIN}" ]; then
+  BUN_BIN="$(command -v bun || true)"
+fi
+if [ ! -x "${BUN_BIN}" ]; then
+  echo "Error: bun not found. Install bun for ${APP_USER} or set BUN_BIN=/path/to/bun." >&2
+  exit 1
+fi
+BUN_DIR="$(dirname "${BUN_BIN}")"
 
 echo "Installing VPS Control Room systemd services..."
 echo "  App user : ${APP_USER}"
 echo "  Repo dir : ${REPO_DIR}"
+echo "  Bun      : ${BUN_BIN}"
 
 # --- Frontend service ---
 
@@ -31,7 +50,9 @@ WorkingDirectory=${REPO_DIR}/frontend
 EnvironmentFile=${REPO_DIR}/.env.local
 Environment=PORT=4000
 Environment=HOSTNAME=0.0.0.0
-ExecStart=/usr/bin/npm run start -- --hostname 0.0.0.0 --port 4000
+Environment=PATH=${BUN_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# Frontend runs ON the bun runtime (--bun). Absolute bun path: systemd's PATH is minimal.
+ExecStart=${BUN_BIN} --bun node_modules/.bin/next start --hostname 0.0.0.0 --port 4000
 Restart=always
 RestartSec=5
 # Resource guards — the frontend can spike RAM under many panes / login storms.
@@ -68,6 +89,11 @@ Type=simple
 User=${APP_USER}
 WorkingDirectory=${REPO_DIR}/agent
 EnvironmentFile=${REPO_DIR}/.env.local
+# bun on PATH for everything the agent SPAWNS (pty panes, patrol subprocesses,
+# cron jobs) — non-interactive children never source .bashrc, so without this a
+# `bun run build` from a pane fails with command-not-found.
+Environment=PATH=${BUN_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# Stays on Node deliberately: under Bun, node-pty spawns but never emits data.
 ExecStart=/usr/bin/node ${REPO_DIR}/agent/dist/index.js
 Restart=always
 RestartSec=5
@@ -154,8 +180,8 @@ echo "Installation complete."
 echo ""
 echo "Next steps:"
 echo "  1. Ensure ${REPO_DIR}/.env.local is populated."
-echo "  2. Build the frontend:  cd frontend && npm run build"
-echo "  3. Build the agent:     cd agent && npm run build"
+echo "  2. Build the frontend:  cd frontend && bun install && bun run build"
+echo "  3. Build the agent:     cd agent && bun install && bun run build"
 echo "  4. Start services:"
 echo "       sudo systemctl start vps-control-room-frontend"
 echo "       sudo systemctl start vps-control-room-agent"

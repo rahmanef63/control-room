@@ -5,6 +5,7 @@ import fs from "fs";
 import * as pty from "node-pty";
 import type { IPty } from "node-pty";
 
+import { ScrollbackBuffer } from "./buffer.js";
 import { resolveTerminalLaunch } from "./profiles.js";
 import { appendLog } from "../state/log.js";
 import type {
@@ -19,14 +20,13 @@ type Subscriber = (event: TerminalGatewayEvent) => void;
 interface ManagedSession {
   session: TerminalSessionRecord;
   terminal: IPty;
-  buffer: string;
+  buffer: ScrollbackBuffer;
   subscribers: Set<Subscriber>;
   cleanupTimer: NodeJS.Timeout | null;
   innerAgentCachedAt: number;
   innerAgentRefreshing: boolean;
 }
 
-const MAX_BUFFER_CHARS = 250_000;
 const MAX_TERMINAL_SESSIONS = 16;
 const EXITED_SESSION_TTL_MS = 30 * 60 * 1000;
 const INNER_AGENT_TTL_MS = 15_000;
@@ -56,13 +56,6 @@ function readLiveCwd(pid: number): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-function truncateBuffer(buffer: string): string {
-  if (buffer.length <= MAX_BUFFER_CHARS) {
-    return buffer;
-  }
-  return buffer.slice(buffer.length - MAX_BUFFER_CHARS);
 }
 
 class TerminalManager {
@@ -150,7 +143,7 @@ class TerminalManager {
     const managed: ManagedSession = {
       session,
       terminal,
-      buffer: "",
+      buffer: new ScrollbackBuffer(),
       subscribers: new Set(),
       cleanupTimer: null,
       innerAgentCachedAt: 0,
@@ -165,7 +158,7 @@ class TerminalManager {
     });
 
     terminal.onData((data) => {
-      managed.buffer = truncateBuffer(managed.buffer + data);
+      managed.buffer.append(data);
       managed.session.updated_at = Date.now();
       this.broadcast(managed, {
         type: "output",
@@ -219,7 +212,7 @@ class TerminalManager {
     managed.subscribers.add(subscriber);
     subscriber({
       type: "bootstrap",
-      buffer: managed.buffer,
+      buffer: managed.buffer.toString(),
       session: cloneSession(managed.session),
     });
 
@@ -236,7 +229,7 @@ class TerminalManager {
     if (!managed) {
       throw new Error("Terminal session not found");
     }
-    const buffer = managed.buffer ?? "";
+    const buffer = managed.buffer.toString();
     const split = buffer.split(/\r?\n/);
     const tail = lines > 0 ? split.slice(-lines) : split;
     return { buffer, lines: tail };

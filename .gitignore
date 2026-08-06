@@ -32,10 +32,8 @@ id_ed25519*
 agent/var/
 var/
 
-# Lock files (per-component)
-frontend/package-lock.json
-agent/package-lock.json
-cli/package-lock.json
+# npm lockfiles — repo is bun-only; bun.lock IS committed
+package-lock.json
 
 # Next.js
 frontend/next-env.d.ts

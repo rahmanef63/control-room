@@ -54,7 +54,7 @@ $T help                              # full verb list
 $T term list
 $T term create --profile claude --cwd "$HOME/projects/example"
 $T term rename <sid> "build watcher"
-$T term send <sid> "npm run test"    # text + Enter, TUI-safe
+$T term send <sid> "bun run test"    # text + Enter, TUI-safe
 $T term buffer <sid> 40
 $T term close <sid>
 
@@ -315,7 +315,7 @@ Also `TaskStop` the Monitor.
   The agent's patrol scheduler also gates at `PATROL_LOAD_GATE`, but you must
   respect cadence for direct actions. Never nudge while a build is running.
 - **Never auto-fire `policy.heavyCmds`** (`git push`, `next build`,
-  `npm/pnpm/yarn build`, `docker build`, `convex deploy`, …). A `git push`
+  `bun/npm/pnpm/yarn build`, `docker build`, `convex deploy`, …). A `git push`
   triggers the sc-git pre-push hook → a full on-box `next build`, and because
   pty panes live in the agent's cgroup, that build is charged to the agent and
   stalls EVERY terminal (2026-05-28: 84% memory-stall, typing froze). If a

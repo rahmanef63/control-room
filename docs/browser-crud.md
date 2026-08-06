@@ -61,7 +61,7 @@ curl -s -X POST http://127.0.0.1:4001/browser/crud \
 
 ## Eval
 
-`agent/src/browser/client.test.ts` (run via `npm test` in `agent/`): unit tests
+`agent/src/browser/client.test.ts` (run via `bun run --cwd agent test`): unit tests
 the request shaping (correct os-vps route, token header, no secret leak) and the
 flow control. A live create→read→update→delete smoke test runs only when
 `BROWSER_CRUD_TARGET` + `OS_AGENT_TOKEN` are set.
