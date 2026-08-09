@@ -41,10 +41,14 @@ export default function LoginPage() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // The owner of this box IS the admin, so hand them the exact command instead
+  // of a bare id they then have to look up how to use.
+  const approveCommand = pendingId ? `vps-cr acc ${pendingId}` : '';
+
   async function copyId() {
     if (!pendingId) return;
     try {
-      await navigator.clipboard.writeText(pendingId);
+      await navigator.clipboard.writeText(approveCommand);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -193,22 +197,30 @@ export default function LoginPage() {
                     New device — approval required
                   </div>
                   <p className="text-[13px] leading-5 text-amber-100/80">
-                    Password accepted, but this device isn&apos;t trusted yet. Copy the device id
-                    below and send it to the admin to approve it. Then sign in again.
+                    Password accepted, but this device isn&apos;t trusted yet. Run this on the VPS
+                    (or any shell with the repo), then sign in again.
                   </p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 truncate rounded-lg border border-amber-500/30 bg-black/30 px-2 py-1.5 font-mono text-[11px] text-amber-50">
-                      {pendingId}
+                  {/* break-all, not truncate: a hidden half of the id is useless to
+                      someone retyping it on a phone. */}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <code className="flex-1 break-all rounded-lg border border-amber-500/30 bg-black/30 px-2 py-1.5 font-mono text-[11px] text-amber-50">
+                      {approveCommand}
                     </code>
                     <button
                       type="button"
                       onClick={() => void copyId()}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-400/15 px-2.5 py-1.5 text-[12px] font-medium text-amber-50"
+                      className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-amber-400/40 bg-amber-400/15 px-2.5 py-1.5 text-[12px] font-medium text-amber-50"
                     >
                       {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      {copied ? 'Copied' : 'Copy id'}
+                      {copied ? 'Copied' : 'Copy command'}
                     </button>
                   </div>
+                  <p className="text-[11px] leading-4 text-amber-100/60">
+                    No <code className="font-mono">vps-cr</code> on PATH? From the repo root:{' '}
+                    <code className="font-mono break-all">
+                      node scripts/approve-device.js {pendingId}
+                    </code>
+                  </p>
                 </div>
               ) : null}
 
