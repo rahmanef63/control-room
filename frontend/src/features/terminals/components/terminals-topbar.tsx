@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bookmark,
   Boxes,
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react';
 
 import type { LauncherTab } from '@/features/terminals/components/launcher-drawer';
+import { useIsMobile } from '@/features/terminals/hooks/use-media-query';
 import { AlfaPatrolButton } from '@/features/terminals/components/patrol/alfa-patrol-button';
 import { SendKeysMenu } from '@/features/terminals/components/terminals-broadcast';
 import type { GridCols, ViewMode } from '@/features/terminals/hooks/use-terminal-preferences';
@@ -76,6 +78,9 @@ function TerminalsTopbarComponent({
   // Mobile only: the action strip becomes a drawer behind a burger. Desktop
   // ignores this flag entirely — there the strip is always laid out inline.
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // SSR-safe: false until mounted, so the server renders the desktop path and
+  // hydration matches.
+  const isMobile = useIsMobile();
   const newMenuRef = useRef<HTMLDivElement | null>(null);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -127,34 +132,8 @@ function TerminalsTopbarComponent({
     if (viewMode !== mode) onToggleViewMode();
   }
 
-  return (
-    <header className="terminal-topbar">
-      <span className="topbar-identity" aria-hidden="true">
-        <TerminalSquare className="h-4 w-4 text-sky-300" />
-      </span>
-
-      <button
-        type="button"
-        className="topbar-burger"
-        onClick={() => setDrawerOpen(true)}
-        aria-label="Open toolbar"
-        aria-haspopup="dialog"
-        aria-expanded={drawerOpen}
-        aria-controls="topbar-actions"
-      >
-        <Menu className="h-4 w-4" />
-      </button>
-
-      {drawerOpen ? (
-        <button
-          type="button"
-          className="topbar-drawer-backdrop"
-          aria-label="Close toolbar"
-          onClick={() => setDrawerOpen(false)}
-        />
-      ) : null}
-
-      <div id="topbar-actions" className="topbar-actions" data-open={drawerOpen || undefined}>
+  const actions = (
+    <div id="topbar-actions" className="topbar-actions" data-open={drawerOpen || undefined}>
         <div className="topbar-split" ref={newMenuRef}>
           <button
             type="button"
@@ -347,8 +326,51 @@ function TerminalsTopbarComponent({
               </button>
             </div>
           ) : null}
-        </div>
       </div>
+    </div>
+  );
+
+  return (
+    <header className="terminal-topbar">
+      <span className="topbar-identity" aria-hidden="true">
+        <TerminalSquare className="h-4 w-4 text-sky-300" />
+      </span>
+
+      <button
+        type="button"
+        className="topbar-burger"
+        onClick={() => setDrawerOpen(true)}
+        aria-label="Open toolbar"
+        aria-haspopup="dialog"
+        aria-expanded={drawerOpen}
+        aria-controls="topbar-actions"
+      >
+        <Menu className="h-4 w-4" />
+      </button>
+
+      {/* On mobile the strip is a drawer, and it MUST leave this header to be
+          one. `.terminal-topbar` sets backdrop-filter, which makes it a
+          containing block for position:fixed descendants — a fixed drawer
+          nested here resolves top/bottom against the 51px bar, not the
+          viewport, and its overflow-y then clips the contents down to roughly
+          one visible row. Portalling to <body> puts it at layout level, immune
+          to this and to any ancestor that later grows a transform/filter. */}
+      {isMobile
+        ? createPortal(
+            <>
+              {drawerOpen ? (
+                <button
+                  type="button"
+                  className="topbar-drawer-backdrop"
+                  aria-label="Close toolbar"
+                  onClick={() => setDrawerOpen(false)}
+                />
+              ) : null}
+              {actions}
+            </>,
+            document.body
+          )
+        : actions}
     </header>
   );
 }
