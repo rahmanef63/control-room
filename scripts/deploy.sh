@@ -176,6 +176,15 @@ git restore frontend/public/sw.js 2>/dev/null || git checkout -- frontend/public
 git pull --ff-only origin "${BRANCH}"
 CURRENT_COMMIT="$(git rev-parse HEAD)"
 
+# Put vps-cr on PATH. Only install.sh (the LOCAL installer) ever created this
+# symlink, so on a VPS checkout the CLI shipped in bin/ was unreachable — and
+# it owns the device-approval commands you need exactly when you are locked out
+# of the dashboard. Idempotent; ln -sfn re-points it if the repo moved.
+if [ -x "${REPO_DIR}/bin/vps-cr" ] && [ -n "${HOME:-}" ]; then
+  mkdir -p "${HOME}/.local/bin"
+  ln -sfn "${REPO_DIR}/bin/vps-cr" "${HOME}/.local/bin/vps-cr"
+fi
+
 # Stamp SW cache keys + Next.js build id with the SAME 12-char commit slice
 # so every layer (SW cache name, NEXT_PUBLIC_BUILD_ID baked into the bundle,
 # /api/version response) reports the identical id. Makes "which build is
