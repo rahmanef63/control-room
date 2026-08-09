@@ -11,6 +11,7 @@ import {
   Grid2x2,
   History,
   LogOut,
+  Menu,
   Plus,
   Rows,
   Settings,
@@ -72,6 +73,9 @@ function TerminalsTopbarComponent({
   onLogout,
 }: TerminalsTopbarProps) {
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
+  // Mobile only: the action strip becomes a drawer behind a burger. Desktop
+  // ignores this flag entirely — there the strip is always laid out inline.
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const newMenuRef = useRef<HTMLDivElement | null>(null);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -96,9 +100,26 @@ function TerminalsTopbarComponent({
     };
   }, [openMenu]);
 
-  function launch(tab: LauncherTab) {
+  useEffect(() => {
+    if (!drawerOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setDrawerOpen(false);
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
+
+  /** Every action inside the drawer also dismisses it — on a phone the drawer
+   *  covers the terminals you are acting on, so leaving it open hides the
+   *  result of the tap. */
+  function act(run: () => void) {
     setOpenMenu(null);
-    onOpenLauncher(tab);
+    setDrawerOpen(false);
+    run();
+  }
+
+  function launch(tab: LauncherTab) {
+    act(() => onOpenLauncher(tab));
   }
 
   /** onToggleViewMode flips; clicking the already-active segment must no-op. */
@@ -112,7 +133,28 @@ function TerminalsTopbarComponent({
         <TerminalSquare className="h-4 w-4 text-sky-300" />
       </span>
 
-      <div className="topbar-actions">
+      <button
+        type="button"
+        className="topbar-burger"
+        onClick={() => setDrawerOpen(true)}
+        aria-label="Open toolbar"
+        aria-haspopup="dialog"
+        aria-expanded={drawerOpen}
+        aria-controls="topbar-actions"
+      >
+        <Menu className="h-4 w-4" />
+      </button>
+
+      {drawerOpen ? (
+        <button
+          type="button"
+          className="topbar-drawer-backdrop"
+          aria-label="Close toolbar"
+          onClick={() => setDrawerOpen(false)}
+        />
+      ) : null}
+
+      <div id="topbar-actions" className="topbar-actions" data-open={drawerOpen || undefined}>
         <div className="topbar-split" ref={newMenuRef}>
           <button
             type="button"
@@ -237,13 +279,13 @@ function TerminalsTopbarComponent({
           <AlfaPatrolButton
             patrolActiveCount={patrolActiveCount}
             pendingPingsCount={patrolPendingCount}
-            onClick={onOpenAlfaPatrol}
+            onClick={() => act(onOpenAlfaPatrol)}
           />
         </span>
 
         <button
           type="button"
-          onClick={onOpenOverview}
+          onClick={() => act(onOpenOverview)}
           className="topbar-icon-button"
           title="Host metrics"
         >
@@ -253,7 +295,7 @@ function TerminalsTopbarComponent({
 
         <button
           type="button"
-          onClick={onOpenSettings}
+          onClick={() => act(onOpenSettings)}
           className="topbar-icon-button"
           title="Settings"
         >
@@ -288,10 +330,7 @@ function TerminalsTopbarComponent({
                 type="button"
                 role="menuitem"
                 className="topbar-menu-item"
-                onClick={() => {
-                  setOpenMenu(null);
-                  onOpenHistory();
-                }}
+                onClick={() => act(onOpenHistory)}
               >
                 <History className="h-4 w-4" />
                 <span>Reopen a terminal…</span>
@@ -301,10 +340,7 @@ function TerminalsTopbarComponent({
                 role="menuitem"
                 className="topbar-menu-item"
                 data-tone="danger"
-                onClick={() => {
-                  setOpenMenu(null);
-                  onLogout();
-                }}
+                onClick={() => act(onLogout)}
               >
                 <LogOut className="h-4 w-4" />
                 <span>Sign out</span>

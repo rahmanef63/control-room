@@ -1,10 +1,17 @@
 /* Terminal topbar — labelled controls, split "New" launcher, account menu.
-   Every control in this bar shows a word: the previous icon-only strip forced
-   users to guess what 19 identical circles did. Nothing here is hidden behind a
-   media query — at narrow widths the action strip scrolls instead, so no rule
-   below may rely on a `display:none` that a later same-specificity rule can win
-   against (that cascade collision is what left the old kebab visible but
-   inert). */
+   Every control shows a word: the previous icon-only strip forced users to
+   guess what 19 identical circles did.
+
+   Desktop lays the strip out inline. At <=768px it becomes a right-hand drawer
+   behind a burger, matching every other overlay in the app — the labels come
+   along, so nothing ends up behind a tooltip on the platform that has no hover.
+
+   The drawer IS toggled by a media query, which is the pattern that broke the
+   old kebab, so the rule is: a control's visibility may only be decided by
+   rules that all share its own unique class name. `.topbar-burger` and
+   `.topbar-drawer-backdrop` each have exactly two, and neither reuses
+   `.topbar-icon-button` — sharing that class is what let an unrelated later
+   rule win and strand the kebab visible-but-inert on desktop. */
 @layer base {
   .topbar-identity {
     display: inline-flex;
@@ -152,6 +159,18 @@
     background: rgba(56, 189, 248, 0.14);
   }
 
+  /* Burger is mobile-only. It deliberately does NOT reuse .topbar-icon-button:
+     sharing that class is what let an unrelated rule override
+     .topbar-more-trigger's display and strand the old kebab on desktop. Its
+     visibility is decided by exactly two rules, both named .topbar-burger. */
+  .topbar-burger {
+    display: none;
+  }
+
+  .topbar-drawer-backdrop {
+    display: none;
+  }
+
   .topbar-patrol {
     display: inline-flex;
     flex: 0 0 auto;
@@ -291,23 +310,95 @@
       flex-wrap: nowrap;
     }
 
-    /* Labels stay readable at every width — the strip scrolls sideways instead
-       of collapsing into a hidden overflow menu. */
-    .topbar-actions {
-      flex: 1 1 auto;
-      justify-content: flex-start;
-      overflow-x: auto;
-      overscroll-behavior-x: contain;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
+    .topbar-burger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      margin-left: auto;
+      height: 2rem;
+      width: 2rem;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+      background: color-mix(in srgb, var(--card) 60%, transparent);
+      color: var(--foreground);
     }
 
-    .topbar-actions::-webkit-scrollbar {
-      display: none;
+    .topbar-drawer-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 59;
+      border: 0;
+      background: rgba(8, 12, 20, 0.6);
+    }
+
+    /* The action strip becomes a right-hand drawer, matching every other
+       overlay in the app (.settings-panel et al). Controls stack full-width and
+       keep the labels they already carry, so nothing is behind a tooltip. */
+    .topbar-actions {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: auto;
+      z-index: 60;
+      width: min(19rem, 86vw);
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      gap: 0.4rem;
+      padding: calc(0.9rem + var(--safe-top, 0px)) 0.9rem
+        calc(1.2rem + var(--safe-bottom, 0px)) 0.9rem;
+      background: var(--card);
+      border-left: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      transform: translateX(100%);
+      visibility: hidden;
+      transition: transform 180ms ease, visibility 180ms ease;
+    }
+
+    .topbar-actions[data-open] {
+      transform: none;
+      visibility: visible;
     }
 
     .topbar-actions > * {
       flex: 0 0 auto;
+      width: 100%;
+    }
+
+    /* Full-width rows read as a list, not as a cramped icon row. */
+    .topbar-actions .topbar-icon-button,
+    .topbar-actions .new-terminal-trigger,
+    .topbar-actions .topbar-broadcast-trigger,
+    .topbar-actions .alfa-patrol-trigger {
+      width: 100%;
+      justify-content: flex-start;
+      border-radius: 0.6rem;
+    }
+
+    .topbar-actions .topbar-split {
+      display: flex;
+    }
+
+    .topbar-actions .topbar-split-main {
+      flex: 1 1 auto;
+    }
+
+    .topbar-actions .topbar-split-caret {
+      flex: 0 0 auto;
+      width: 2.5rem;
+    }
+
+    .topbar-actions .topbar-segmented {
+      width: 100%;
+    }
+
+    .topbar-actions .topbar-segment {
+      flex: 1 1 0;
+      justify-content: center;
     }
 
     .terminal-topbar .topbar-icon-button,
@@ -340,19 +431,18 @@
       width: 0.95rem;
     }
 
-    /* A horizontal scroll container clips absolutely positioned children, so
-       the menus anchor to the viewport here — same trick the broadcast popover
-       already uses. */
+    /* Inside the drawer the submenus can anchor to their own trigger again —
+       they scroll with the drawer instead of being pinned to the viewport, so
+       they stay attached to the row that opened them. */
     .topbar-menu,
     .topbar-menu[data-align='end'] {
-      position: fixed;
-      top: calc(3.3rem + var(--safe-top, 0px));
-      right: 0.6rem;
-      left: auto;
-      min-width: 13rem;
-      max-width: calc(100vw - 1.2rem);
-      max-height: calc(100dvh - 6rem);
-      overflow-y: auto;
+      position: absolute;
+      top: calc(100% + 0.3rem);
+      right: 0;
+      left: 0;
+      width: auto;
+      min-width: 0;
+      max-width: none;
     }
   }
 }
