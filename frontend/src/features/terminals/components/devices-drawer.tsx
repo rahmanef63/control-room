@@ -101,14 +101,29 @@ export function DevicesDrawer({ open, onOpenChange }: DevicesDrawerProps) {
                         {relativeTime(d.lastSeen)}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      disabled={busy === id}
-                      onClick={() => void act(() => approve(id, d.label), id)}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1.5 text-[12px] font-medium text-emerald-100 disabled:opacity-50"
-                    >
-                      <Check className="h-3.5 w-3.5" /> Approve
-                    </button>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {/* Dismiss reuses revoke: revokeDevice() already deletes the
+                          pending record too, so no new endpoint is needed. It
+                          clears the request, it does not blocklist the device —
+                          the same id reappears here if it retries the password. */}
+                      <button
+                        type="button"
+                        disabled={busy === id}
+                        onClick={() => void act(() => revoke(id), id)}
+                        title="Clear this request. The device can ask again."
+                        className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground disabled:opacity-50"
+                      >
+                        <X className="h-3.5 w-3.5" /> Dismiss
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy === id}
+                        onClick={() => void act(() => approve(id, d.label), id)}
+                        className="inline-flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1.5 text-[12px] font-medium text-emerald-100 disabled:opacity-50"
+                      >
+                        <Check className="h-3.5 w-3.5" /> Approve
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>

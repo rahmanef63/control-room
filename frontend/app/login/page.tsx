@@ -42,8 +42,11 @@ export default function LoginPage() {
   const [copied, setCopied] = useState(false);
 
   // The owner of this box IS the admin, so hand them the exact command instead
-  // of a bare id they then have to look up how to use.
-  const approveCommand = pendingId ? `vps-cr acc ${pendingId}` : '';
+  // of a bare id they then have to look up how to use. Lead with the script,
+  // NOT `vps-cr acc` — vps-cr only exists once the local installer has put it
+  // on PATH, and it is absent on a plain VPS checkout (the exact machine whose
+  // owner is most likely to be reading this).
+  const approveCommand = pendingId ? `node scripts/approve-device.js ${pendingId}` : '';
 
   async function copyId() {
     if (!pendingId) return;
@@ -197,8 +200,9 @@ export default function LoginPage() {
                     New device — approval required
                   </div>
                   <p className="text-[13px] leading-5 text-amber-100/80">
-                    Password accepted, but this device isn&apos;t trusted yet. Run this on the VPS
-                    (or any shell with the repo), then sign in again.
+                    Password accepted, but this device isn&apos;t trusted yet. Run this from the
+                    repo root on the VPS, then sign in again — or approve it from the Devices
+                    drawer on a device that is already signed in.
                   </p>
                   {/* break-all, not truncate: a hidden half of the id is useless to
                       someone retyping it on a phone. */}
@@ -216,10 +220,8 @@ export default function LoginPage() {
                     </button>
                   </div>
                   <p className="text-[11px] leading-4 text-amber-100/60">
-                    No <code className="font-mono">vps-cr</code> on PATH? From the repo root:{' '}
-                    <code className="font-mono break-all">
-                      node scripts/approve-device.js {pendingId}
-                    </code>
+                    Local install with the CLI on PATH?{' '}
+                    <code className="font-mono break-all">vps-cr acc {pendingId}</code>
                   </p>
                 </div>
               ) : null}
