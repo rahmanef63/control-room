@@ -116,8 +116,14 @@ RestartSec=5
 # asymmetry, not the app, was why "opening a few panes" hit a wall. On a 31 GB
 # box these numbers put the web terminal in the same league as ssh while still
 # refusing to let a runaway take the host down with it.
-MemoryHigh=18G
-MemoryMax=24G
+# Budget arithmetic, not vibes: 31 GB box. Reserve ~9 GB for the host, docker,
+# dokploy, n8n, sshd and page cache, and 4 GB for the frontend unit -> the agent
+# may hold at most ~18 GB. MemoryHigh is the number that actually bites day to
+# day (throttle + reclaim); MemoryMax is the emergency stop. Keeping Max under
+# the host's headroom means a runaway is OOM-killed INSIDE this cgroup instead
+# of dragging the whole VPS into global reclaim.
+MemoryHigh=14G
+MemoryMax=18G
 # MemorySwapMax is the swap-bomb backstop (2026-06-21 incident): an orphaned pane
 # kicked off 6 parallel `next build`, which exceeded RAM and spilled UNBOUNDED
 # into the host's 8G swap (swap=infinity here) — stalling the WHOLE VPS at 99%
