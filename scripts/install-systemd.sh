@@ -58,8 +58,12 @@ RestartSec=5
 # Resource guards — the frontend can spike RAM under many panes / login storms.
 # MemoryHigh throttles + reclaims before the hard MemoryMax backstop; CPUWeight
 # raises scheduling priority so the UI stays responsive under host contention.
-MemoryHigh=1536M
-MemoryMax=2G
+# Sized for the per-pane cost: each open pane holds an SSE stream plus a `ws`
+# client in THIS process, and ws queues unsent frames off-heap (see the
+# MAX_WS_BUFFER_BYTES note in agent/src/terminal/gateway/socket.ts). 1.5G/2G was
+# tight enough that a full grid of panes ran against the ceiling.
+MemoryHigh=3G
+MemoryMax=4G
 CPUWeight=800
 StandardOutput=journal
 StandardError=journal
@@ -106,8 +110,14 @@ RestartSec=5
 # So these limits are GENEROUS — they only backstop a true runaway (won't let
 # the agent eat all 31G and OOM the host), not throttle normal interactive use.
 # High CPUWeight keeps patrol + health API scheduled when the box is contended.
-MemoryHigh=10G
-MemoryMax=16G
+# Sizing (2026-08-09): a pane running Claude Code / Codex costs ~0.5-1 GB RSS,
+# so the OLD 8G effective ceiling throttled at roughly a dozen panes — while the
+# SAME command over ssh lands in user.slice, which is MemoryMax=infinity. That
+# asymmetry, not the app, was why "opening a few panes" hit a wall. On a 31 GB
+# box these numbers put the web terminal in the same league as ssh while still
+# refusing to let a runaway take the host down with it.
+MemoryHigh=18G
+MemoryMax=24G
 # MemorySwapMax is the swap-bomb backstop (2026-06-21 incident): an orphaned pane
 # kicked off 6 parallel `next build`, which exceeded RAM and spilled UNBOUNDED
 # into the host's 8G swap (swap=infinity here) — stalling the WHOLE VPS at 99%
@@ -162,6 +172,19 @@ EOF
 echo "  Created /etc/systemd/system/vps-control-room-cleanup.timer"
 
 # --- Reload and enable ---
+
+# Drop `systemctl set-property` leftovers. Those land in /etc/systemd/system.control
+# and OVERRIDE the unit files written above, so a limit tuned live during an
+# incident silently outranks this script forever — the repo says one number and
+# the box runs another. This script is the source of truth; anything set-property
+# left behind is stale by definition.
+for unit in frontend agent cleanup; do
+  ctl="/etc/systemd/system.control/vps-control-room-${unit}.service.d"
+  if [ -d "${ctl}" ]; then
+    rm -rf "${ctl}"
+    echo "  Removed stale set-property overrides: ${ctl}"
+  fi
+done
 
 systemctl daemon-reload
 echo "  Ran systemctl daemon-reload"
