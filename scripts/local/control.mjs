@@ -52,7 +52,9 @@ const fail = (s) => `${C.red}✗${C.reset} ${s}`;
 
 // ---- args ----------------------------------------------------------------
 const rawArgs = process.argv.slice(2);
-const cmd = (rawArgs[0] || 'help').replace(/^--/, '').toLowerCase();
+// Strip any leading dashes, not just `--`, so the reflex `vps-cr -h` lands on
+// help instead of "unknown command: -h".
+const cmd = (rawArgs[0] || 'help').replace(/^-+/, '').toLowerCase();
 const flags = new Set(rawArgs.filter((a) => a.startsWith('--')).map((a) => a.replace(/^--/, '')));
 const positional = rawArgs.slice(1).filter((a) => !a.startsWith('--'));
 function flagValue(name) {
