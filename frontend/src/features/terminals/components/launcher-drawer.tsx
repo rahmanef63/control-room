@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Cpu, Folder, Rocket, TerminalSquare, X, Zap } from 'lucide-react';
+import { Bookmark, ChevronDown, Cpu, Folder, Rocket, SlidersHorizontal, TerminalSquare, X, Zap } from 'lucide-react';
 
 import type { RuntimeEnvironmentSummary, RuntimeResolvedAgentProfile } from '@/shared/types/contracts';
 import { TerminalProfileIcon } from '@/features/terminals/components/terminal-profile-icon';
 import type { TerminalProfileOption } from '@/features/terminals/components/launcher-card';
+import type { TerminalTemplate } from '@/features/templates/types';
 
-export type LauncherTab = 'base' | 'agents' | 'envs';
+export type LauncherTab = 'base' | 'agents' | 'envs' | 'saved';
 
 export interface LauncherDrawerProps {
   open: boolean;
@@ -17,6 +18,7 @@ export interface LauncherDrawerProps {
   profiles: TerminalProfileOption[];
   environments: RuntimeEnvironmentSummary[];
   agentProfiles: RuntimeResolvedAgentProfile[];
+  templates: TerminalTemplate[];
   creatingKey: string | null;
   onLaunchProfile: (profileKey: TerminalProfileOption['profile']) => void;
   onLaunchAgent: (
@@ -24,6 +26,10 @@ export interface LauncherDrawerProps {
     options: { dangerouslyAllow?: boolean; useActiveDir?: boolean }
   ) => void;
   onLaunchEnvironment: (environmentId: string) => void;
+  onLaunchTemplate: (template: TerminalTemplate) => void;
+  /* Saved tab launches templates inline; creating/editing/deleting them still
+     lives in TemplatesDrawer, which is the only place that owns the CRUD form. */
+  onManageTemplates: () => void;
 }
 
 export function LauncherDrawer({
@@ -34,10 +40,13 @@ export function LauncherDrawer({
   profiles,
   environments,
   agentProfiles,
+  templates,
   creatingKey,
   onLaunchProfile,
   onLaunchAgent,
   onLaunchEnvironment,
+  onLaunchTemplate,
+  onManageTemplates,
 }: LauncherDrawerProps) {
   const [useActiveDir, setUseActiveDir] = useState(false);
   const [openAgentMenu, setOpenAgentMenu] = useState<string | null>(null);
@@ -77,6 +86,16 @@ export function LauncherDrawer({
     close();
   }
 
+  function handleLaunchTemplate(template: TerminalTemplate) {
+    onLaunchTemplate(template);
+    close();
+  }
+
+  function handleManageTemplates() {
+    onManageTemplates();
+    close();
+  }
+
   if (!open) return null;
 
   return (
@@ -91,7 +110,7 @@ export function LauncherDrawer({
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 px-4 py-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">Launch terminal</p>
-                <p className="text-[11px] text-muted-foreground">Pick a preset or environment to open a new pane.</p>
+                <p className="text-[11px] text-muted-foreground">Pick a preset, environment, or saved launch to open a new pane.</p>
               </div>
               <button
                 type="button"
@@ -112,6 +131,9 @@ export function LauncherDrawer({
               </TabButton>
               <TabButton active={tab === 'envs'} onClick={() => onTabChange('envs')} icon={<Folder className="h-3.5 w-3.5" />}>
                 Envs
+              </TabButton>
+              <TabButton active={tab === 'saved'} onClick={() => onTabChange('saved')} icon={<Bookmark className="h-3.5 w-3.5" />}>
+                Saved
               </TabButton>
             </div>
 
@@ -285,6 +307,60 @@ export function LauncherDrawer({
                   )}
                 </div>
               ) : null}
+
+              {tab === 'saved' ? (
+                <div className="space-y-3">
+                  <div className="grid gap-2">
+                    {templates.length === 0 ? (
+                      <EmptyRow label="No saved launches yet. Save a running terminal in Manage to reuse it here." />
+                    ) : (
+                      templates.map((template) => {
+                        const busy = creatingKey === `template:${template.id}`;
+                        const profile = template.profile ?? 'shell';
+                        const detail =
+                          template.description || template.cwd || template.initialCommand || 'Saved launch';
+                        return (
+                          <button
+                            key={template.id}
+                            type="button"
+                            onClick={() => handleLaunchTemplate(template)}
+                            disabled={busy}
+                            data-profile={profile}
+                            className="launch-row"
+                          >
+                            <span
+                              className="launch-row-icon"
+                              /* Template colour is the only visual key users assign
+                                 themselves — keep it visible in the launcher too. */
+                              style={template.color ? { color: template.color } : undefined}
+                            >
+                              <TerminalProfileIcon profile={profile} />
+                            </span>
+                            <span className="min-w-0 flex-1 text-left">
+                              <span className="block truncate text-sm font-semibold text-foreground">
+                                {busy ? 'Launching…' : template.name}
+                              </span>
+                              <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                                {detail}
+                              </span>
+                            </span>
+                            <span className="dashboard-chip shrink-0">{profile}</span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleManageTemplates}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border/60 bg-background/60 px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:text-foreground"
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    Manage saved launches
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -306,7 +382,10 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+      aria-pressed={active}
+      /* px tightened from 3 to 2 when the strip went from 3 tabs to 4 — labels
+         must stay readable at 360px, never truncate to icon-only. */
+      className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-2 py-2 text-xs font-semibold transition ${
         active
           ? 'border-sky-500/40 bg-sky-500/10 text-sky-100'
           : 'border-border/60 bg-background/60 text-muted-foreground hover:text-foreground'

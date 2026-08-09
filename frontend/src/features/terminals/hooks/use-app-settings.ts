@@ -16,8 +16,6 @@ export interface NotificationSettings {
 
 export interface SoftKeyboardSettings {
   visibility: Record<SoftKeyboardKey, boolean>;
-  /** Show keyboard in grid (show-all) view. Mobile defaults true via media query, desktop default = this. */
-  showInGrid: boolean;
   /** Master hide override — when true, hide keyboard everywhere. */
   hideKeyboard: boolean;
 }
@@ -41,7 +39,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   softKeyboard: {
     visibility: defaultVisibility(),
-    showInGrid: false,
     hideKeyboard: false,
   },
 };
@@ -57,7 +54,6 @@ function mergeSettings(input: Partial<AppSettings>): AppSettings {
     notifications: { ...DEFAULT_SETTINGS.notifications, ...(input.notifications ?? {}) },
     softKeyboard: {
       visibility,
-      showInGrid: input.softKeyboard?.showInGrid ?? DEFAULT_SETTINGS.softKeyboard.showInGrid,
       hideKeyboard: input.softKeyboard?.hideKeyboard ?? DEFAULT_SETTINGS.softKeyboard.hideKeyboard,
     },
   };
@@ -72,7 +68,6 @@ export interface UseAppSettingsResult {
   updateNotifications: (patch: Partial<NotificationSettings>) => void;
   updateSoftKeyboard: (patch: Partial<SoftKeyboardSettings>) => void;
   setSoftKeyVisible: (key: SoftKeyboardKey, visible: boolean) => void;
-  toggleGridKeyboard: () => void;
   toggleHideKeyboard: () => void;
   resetDefaults: () => void;
 }
@@ -115,13 +110,6 @@ export function useAppSettings(): UseAppSettingsResult {
     }));
   }, []);
 
-  const toggleGridKeyboard = useCallback(() => {
-    setSettings((current) => ({
-      ...current,
-      softKeyboard: { ...current.softKeyboard, showInGrid: !current.softKeyboard.showInGrid },
-    }));
-  }, []);
-
   const toggleHideKeyboard = useCallback(() => {
     setSettings((current) => ({
       ...current,
@@ -136,7 +124,6 @@ export function useAppSettings(): UseAppSettingsResult {
     updateNotifications,
     updateSoftKeyboard,
     setSoftKeyVisible,
-    toggleGridKeyboard,
     toggleHideKeyboard,
     resetDefaults,
   };

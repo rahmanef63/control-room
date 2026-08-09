@@ -33,10 +33,9 @@
     display: none !important;
   }
 
-  /* On desktop, only render keyboard on the active/focused slot to avoid
-     clutter when many panes are tiled. App settings can flip showInGrid via
-     `[data-platform='desktop'] [data-active='false']` style overrides if
-     desired (handled in app settings). For now, every pane renders its own. */
+  /* Every pane renders its own soft keyboard; the only user-facing switch is
+     the master hide toggle in Settings → Terminals. (A per-view "show in grid"
+     setting existed here once but was never wired to a rule — removed.) */
 
   .kbd-row {
     display: flex;

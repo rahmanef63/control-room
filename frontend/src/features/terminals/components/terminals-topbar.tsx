@@ -1,116 +1,92 @@
 'use client';
 
 import { memo, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import {
   Bookmark,
-  Clock,
+  Boxes,
+  ChevronDown,
+  CircleUser,
   Cpu,
-  Download,
-  DownloadCloud,
   Gauge,
-  Globe,
   Grid2x2,
   History,
-  Keyboard,
-  KeyboardOff,
   LogOut,
-  MoreVertical,
   Plus,
-  RefreshCw,
   Rows,
   Settings,
-  ShieldCheck,
   TerminalSquare,
-  UploadCloud,
 } from 'lucide-react';
 
 import type { LauncherTab } from '@/features/terminals/components/launcher-drawer';
 import { AlfaPatrolButton } from '@/features/terminals/components/patrol/alfa-patrol-button';
-import { BroadcastDropdown } from '@/features/terminals/components/terminals-broadcast';
+import { SendKeysMenu } from '@/features/terminals/components/terminals-broadcast';
 import type { GridCols, ViewMode } from '@/features/terminals/hooks/use-terminal-preferences';
-import { DEFAULT_FONT_SIZE } from '@/features/terminals/lib/utils';
 import type { TerminalSession } from '@/shared/types/contracts';
 
 interface TerminalsTopbarProps {
   sessions: TerminalSession[];
   agentProfileCount: number;
+
+  onOpenLauncher: (tab: LauncherTab) => void;
+
   viewMode: ViewMode;
   gridCols: GridCols;
-  broadcast: boolean;
-  canInstall: boolean;
-  keyboardHidden: boolean;
-  onOpenLauncher: (tab: LauncherTab) => void;
   onToggleViewMode: () => void;
   onGridColsChange: (value: GridCols) => void;
-  onToggleBroadcast: () => void;
+
+  broadcast: boolean;
   broadcastTargets: Set<string>;
   onBroadcastTargetsChange: (next: Set<string>) => void;
-  fontSizes: Record<string, number>;
-  onFontSizeChange: (sessionId: string, size: number) => void;
-  onToggleKeyboardHidden: () => void;
-  onOpenSettings: () => void;
-  onOpenCrons: () => void;
-  onOpenTemplates: () => void;
-  onOpenHistory: () => void;
-  onOpenDevices: () => void;
-  onOpenOverview: () => void;
-  onOpenAlfaPatrol: () => void;
+
   patrolActiveCount: number;
   patrolPendingCount: number;
-  onInstall: () => void;
-  onExportBackup: () => void;
-  onImportBackup: () => void;
-  onRefresh: () => void;
+  onOpenAlfaPatrol: () => void;
+
+  onOpenOverview: () => void;
+  onOpenSettings: () => void;
+
+  onOpenHistory: () => void;
   onLogout: () => void;
 }
+
+/** Only one topbar menu may be open at a time — they overlap on mobile. */
+type OpenMenu = 'new' | 'account' | null;
 
 function TerminalsTopbarComponent({
   sessions,
   agentProfileCount,
+  onOpenLauncher,
   viewMode,
   gridCols,
-  broadcast,
-  canInstall,
-  keyboardHidden,
-  onOpenLauncher,
   onToggleViewMode,
   onGridColsChange,
-  onToggleBroadcast,
+  broadcast,
   broadcastTargets,
   onBroadcastTargetsChange,
-  fontSizes,
-  onFontSizeChange,
-  onToggleKeyboardHidden,
-  onOpenSettings,
-  onOpenCrons,
-  onOpenTemplates,
-  onOpenHistory,
-  onOpenDevices,
-  onOpenOverview,
-  onOpenAlfaPatrol,
   patrolActiveCount,
   patrolPendingCount,
-  onInstall,
-  onExportBackup,
-  onImportBackup,
-  onRefresh,
+  onOpenAlfaPatrol,
+  onOpenOverview,
+  onOpenSettings,
+  onOpenHistory,
   onLogout,
 }: TerminalsTopbarProps) {
-  const runningCount = sessions.filter((s) => s.status === 'running').length;
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreRef = useRef<HTMLDivElement | null>(null);
+  const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
+  const newMenuRef = useRef<HTMLDivElement | null>(null);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
+  // Dismiss on outside click / Escape — the behaviour the deleted kebab had.
+  // Scoped to the wrapper of the *open* menu so a click on any other topbar
+  // control both closes the menu and still reaches that control.
   useEffect(() => {
-    if (!moreOpen) return;
-    function onDoc(e: MouseEvent) {
-      if (!moreRef.current) return;
-      if (!moreRef.current.contains(e.target as Node)) {
-        setMoreOpen(false);
-      }
+    if (!openMenu) return;
+    const wrapper = openMenu === 'new' ? newMenuRef.current : accountMenuRef.current;
+    function onDoc(event: MouseEvent) {
+      if (!wrapper) return;
+      if (!wrapper.contains(event.target as Node)) setOpenMenu(null);
     }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setMoreOpen(false);
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpenMenu(null);
     }
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
@@ -118,293 +94,223 @@ function TerminalsTopbarComponent({
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
     };
-  }, [moreOpen]);
+  }, [openMenu]);
 
-  function close() {
-    setMoreOpen(false);
+  function launch(tab: LauncherTab) {
+    setOpenMenu(null);
+    onOpenLauncher(tab);
+  }
+
+  /** onToggleViewMode flips; clicking the already-active segment must no-op. */
+  function selectView(mode: ViewMode) {
+    if (viewMode !== mode) onToggleViewMode();
   }
 
   return (
     <header className="terminal-topbar">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/60 bg-card/70">
-          <TerminalSquare className="h-4 w-4 text-sky-300" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            VPS Terminals
-          </p>
-          <p className="truncate text-xs text-foreground">
-            {sessions.length} pane{sessions.length === 1 ? '' : 's'} · {runningCount} running
-          </p>
-        </div>
-      </div>
+      <span className="topbar-identity" aria-hidden="true">
+        <TerminalSquare className="h-4 w-4 text-sky-300" />
+      </span>
 
-      <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => onOpenLauncher('base')}
-          className="new-terminal-trigger"
-          aria-label="New terminal"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">New</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onOpenLauncher('agents')}
-          className="ai-terminal-trigger"
-          aria-label="Launch AI agent"
-          title="Launch AI agent"
-        >
-          <Cpu className="h-4 w-4" />
-          <span className="hidden sm:inline">AI</span>
-          {agentProfileCount > 0 ? (
-            <span className="ai-terminal-badge">{agentProfileCount}</span>
-          ) : null}
-        </button>
-
-        <AlfaPatrolButton
-          patrolActiveCount={patrolActiveCount}
-          pendingPingsCount={patrolPendingCount}
-          onClick={onOpenAlfaPatrol}
-        />
-
-        <button
-          type="button"
-          onClick={onToggleKeyboardHidden}
-          className="topbar-icon-button"
-          title={keyboardHidden ? 'Show soft keyboard' : 'Hide soft keyboard'}
-          aria-label={keyboardHidden ? 'Show soft keyboard' : 'Hide soft keyboard'}
-          data-tone={keyboardHidden ? 'danger' : undefined}
-        >
-          {keyboardHidden ? (
-            <KeyboardOff className="h-4 w-4" />
-          ) : (
-            <Keyboard className="h-4 w-4" />
-          )}
-        </button>
-
-        <div className="topbar-more-wrapper" ref={moreRef}>
+      <div className="topbar-actions">
+        <div className="topbar-split" ref={newMenuRef}>
           <button
             type="button"
-            onClick={() => setMoreOpen((value) => !value)}
-            className="topbar-icon-button topbar-more-trigger"
-            aria-label="More actions"
-            aria-haspopup="menu"
-            aria-controls="topbar-more-menu"
-            aria-expanded={moreOpen}
-            title="More"
+            onClick={() => launch('base')}
+            className="new-terminal-trigger topbar-split-main"
           >
-            <MoreVertical className="h-4 w-4" />
+            <Plus className="h-4 w-4" />
+            <span>New</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpenMenu((value) => (value === 'new' ? null : 'new'))}
+            className="new-terminal-trigger topbar-split-caret"
+            aria-label="Choose what to launch"
+            aria-haspopup="menu"
+            aria-controls="topbar-new-menu"
+            aria-expanded={openMenu === 'new'}
+            data-open={openMenu === 'new' || undefined}
+          >
+            <ChevronDown className="topbar-caret h-3.5 w-3.5" />
           </button>
 
-          <div id="topbar-more-menu" role="menu" className="topbar-secondary" data-open={moreOpen ? 'true' : undefined}>
-            {sessions.length > 1 ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onToggleViewMode();
-                    close();
-                  }}
-                  className="topbar-icon-button"
-                  title={viewMode === 'grid' ? 'Minimize to single view' : 'Show all terminals'}
-                  aria-label={viewMode === 'grid' ? 'Minimize to single view' : 'Show all terminals'}
-                  data-tone={viewMode === 'grid' ? 'accent' : undefined}
-                >
-                  {viewMode === 'grid' ? (
-                    <Rows className="h-4 w-4" />
-                  ) : (
-                    <Grid2x2 className="h-4 w-4" />
-                  )}
-                  <span className="topbar-label">
-                    {viewMode === 'grid' ? 'Single view' : 'Show all'}
-                  </span>
-                </button>
-                {viewMode === 'grid' ? (
-                  <select
-                    value={gridCols}
-                    onChange={(event) => onGridColsChange(event.target.value as GridCols)}
-                    className="grid-cols-select"
-                    aria-label="Terminals per row"
-                    title="Terminals per row"
-                  >
-                    <option value="auto">Auto</option>
-                    <option value="1">1 / row</option>
-                    <option value="2">2 / row</option>
-                    <option value="3">3 / row</option>
-                    <option value="4">4 / row</option>
-                  </select>
-                ) : null}
-                <BroadcastDropdown
-                  sessions={sessions}
-                  broadcast={broadcast}
-                  onToggleBroadcast={onToggleBroadcast}
-                  broadcastTargets={broadcastTargets}
-                  onBroadcastTargetsChange={onBroadcastTargetsChange}
-                  fontSizes={fontSizes}
-                  onFontSizeChange={onFontSizeChange}
-                  defaultFontSize={DEFAULT_FONT_SIZE}
-                />
-              </>
-            ) : null}
-            {canInstall ? (
+          {openMenu === 'new' ? (
+            <div id="topbar-new-menu" role="menu" className="topbar-menu">
               <button
                 type="button"
-                onClick={() => {
-                  onInstall();
-                  close();
-                }}
-                className="topbar-icon-button"
-                title="Install as app"
-                aria-label="Install app"
+                role="menuitem"
+                className="topbar-menu-item"
+                onClick={() => launch('base')}
               >
-                <Download className="h-4 w-4" />
-                <span className="topbar-label">Install</span>
+                <TerminalSquare className="h-4 w-4" />
+                <span>Base shell</span>
               </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="topbar-menu-item"
+                onClick={() => launch('agents')}
+              >
+                <Cpu className="h-4 w-4" />
+                <span>AI agents</span>
+                {/* Inventory count of configured profiles, not unread news —
+                    it belongs on this row, not on the whole New button. */}
+                {agentProfileCount > 0 ? (
+                  <span className="ai-terminal-badge">{agentProfileCount}</span>
+                ) : null}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="topbar-menu-item"
+                onClick={() => launch('envs')}
+              >
+                <Boxes className="h-4 w-4" />
+                <span>Environments</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="topbar-menu-item"
+                onClick={() => launch('saved')}
+              >
+                <Bookmark className="h-4 w-4" />
+                <span>Saved</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        {sessions.length > 1 ? (
+          <>
+            <div className="topbar-segmented" role="group" aria-label="Pane layout">
+              <button
+                type="button"
+                className="topbar-segment"
+                data-active={viewMode === 'grid' || undefined}
+                aria-pressed={viewMode === 'grid'}
+                onClick={() => selectView('grid')}
+                title="Show all terminals"
+              >
+                <Grid2x2 className="h-3.5 w-3.5" />
+                <span>Grid</span>
+              </button>
+              <button
+                type="button"
+                className="topbar-segment"
+                data-active={viewMode !== 'grid' || undefined}
+                aria-pressed={viewMode !== 'grid'}
+                onClick={() => selectView('single')}
+                title="Single view"
+              >
+                <Rows className="h-3.5 w-3.5" />
+                <span>Single</span>
+              </button>
+            </div>
+            {viewMode === 'grid' ? (
+              <select
+                value={gridCols}
+                onChange={(event) => onGridColsChange(event.target.value as GridCols)}
+                className="grid-cols-select"
+                aria-label="Terminals per row"
+                title="Terminals per row"
+              >
+                <option value="auto">Auto</option>
+                <option value="1">1 / row</option>
+                <option value="2">2 / row</option>
+                <option value="3">3 / row</option>
+                <option value="4">4 / row</option>
+              </select>
             ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                onOpenOverview();
-                close();
-              }}
-              className="topbar-icon-button"
-              title="System overview"
-              aria-label="Open system overview"
+          </>
+        ) : null}
+
+        <SendKeysMenu
+          sessions={sessions}
+          broadcast={broadcast}
+          broadcastTargets={broadcastTargets}
+          onBroadcastTargetsChange={onBroadcastTargetsChange}
+        />
+
+        <span className="topbar-patrol">
+          <AlfaPatrolButton
+            patrolActiveCount={patrolActiveCount}
+            pendingPingsCount={patrolPendingCount}
+            onClick={onOpenAlfaPatrol}
+          />
+        </span>
+
+        <button
+          type="button"
+          onClick={onOpenOverview}
+          className="topbar-icon-button"
+          title="Host metrics"
+        >
+          <Gauge className="h-4 w-4" />
+          <span className="topbar-label">Host metrics</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="topbar-icon-button"
+          title="Settings"
+        >
+          <Settings className="h-4 w-4" />
+          <span className="topbar-label">Settings</span>
+        </button>
+
+        <div className="topbar-account" ref={accountMenuRef}>
+          <button
+            type="button"
+            onClick={() => setOpenMenu((value) => (value === 'account' ? null : 'account'))}
+            className="topbar-icon-button topbar-account-trigger"
+            aria-haspopup="menu"
+            aria-controls="topbar-account-menu"
+            aria-expanded={openMenu === 'account'}
+            data-open={openMenu === 'account' || undefined}
+            title="Account"
+          >
+            <CircleUser className="h-4 w-4" />
+            <span className="topbar-label">Account</span>
+            <ChevronDown className="topbar-caret h-3 w-3" />
+          </button>
+
+          {openMenu === 'account' ? (
+            <div
+              id="topbar-account-menu"
+              role="menu"
+              className="topbar-menu"
+              data-align="end"
             >
-              <Gauge className="h-4 w-4" />
-              <span className="topbar-label">Overview</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onOpenHistory();
-                close();
-              }}
-              className="topbar-icon-button"
-              title="Terminal history"
-              aria-label="Open terminal history"
-            >
-              <History className="h-4 w-4" />
-              <span className="topbar-label">History</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onOpenDevices();
-                close();
-              }}
-              className="topbar-icon-button"
-              title="Trusted devices"
-              aria-label="Open trusted devices"
-            >
-              <ShieldCheck className="h-4 w-4" />
-              <span className="topbar-label">Devices</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onOpenTemplates();
-                close();
-              }}
-              className="topbar-icon-button"
-              title="Templates"
-              aria-label="Open templates"
-            >
-              <Bookmark className="h-4 w-4" />
-              <span className="topbar-label">Templates</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onOpenCrons();
-                close();
-              }}
-              className="topbar-icon-button"
-              title="Cron jobs"
-              aria-label="Open cron jobs"
-            >
-              <Clock className="h-4 w-4" />
-              <span className="topbar-label">Cron jobs</span>
-            </button>
-            <Link
-              href="/browser"
-              onClick={() => close()}
-              className="topbar-icon-button"
-              title="Browser CRUD"
-              aria-label="Open browser CRUD"
-            >
-              <Globe className="h-4 w-4" />
-              <span className="topbar-label">Browser</span>
-            </Link>
-            <button
-              type="button"
-              onClick={() => {
-                onOpenSettings();
-                close();
-              }}
-              className="topbar-icon-button"
-              title="Settings"
-              aria-label="Open settings"
-            >
-              <Settings className="h-4 w-4" />
-              <span className="topbar-label">Settings</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onRefresh();
-                close();
-              }}
-              className="topbar-icon-button"
-              title="Refresh"
-              aria-label="Refresh"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span className="topbar-label">Refresh</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onExportBackup();
-                close();
-              }}
-              className="topbar-icon-button"
-              title="Export backup"
-              aria-label="Export backup"
-            >
-              <DownloadCloud className="h-4 w-4" />
-              <span className="topbar-label">Export backup</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onImportBackup();
-                close();
-              }}
-              className="topbar-icon-button"
-              title="Import backup"
-              aria-label="Import backup"
-            >
-              <UploadCloud className="h-4 w-4" />
-              <span className="topbar-label">Import backup</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onLogout();
-                close();
-              }}
-              className="topbar-icon-button"
-              title="Sign out"
-              aria-label="Sign out"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="topbar-label">Sign out</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                role="menuitem"
+                className="topbar-menu-item"
+                onClick={() => {
+                  setOpenMenu(null);
+                  onOpenHistory();
+                }}
+              >
+                <History className="h-4 w-4" />
+                <span>Reopen a terminal…</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="topbar-menu-item"
+                data-tone="danger"
+                onClick={() => {
+                  setOpenMenu(null);
+                  onLogout();
+                }}
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Sign out</span>
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     </header>

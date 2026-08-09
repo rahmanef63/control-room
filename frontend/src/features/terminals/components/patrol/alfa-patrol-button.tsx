@@ -30,6 +30,10 @@ export function AlfaPatrolButton({
       aria-label={label}
     >
       <Icon className="h-4 w-4" />
+      {/* Real text, not CSS generated content: a ::after label can't be
+          selected, translated, or found by in-page search, and "a shield you
+          have to hover" was exactly the guessing this toolbar pass removed. */}
+      <span className="alfa-patrol-trigger-label">Patrol</span>
       {active ? <span className="alfa-patrol-trigger-count">{patrolActiveCount}</span> : null}
       {pendingPingsCount > 0 ? (
         <span className="alfa-patrol-trigger-pending" aria-label={`${pendingPingsCount} pending pings`}>

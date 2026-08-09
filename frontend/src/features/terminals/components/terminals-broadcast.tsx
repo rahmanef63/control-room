@@ -1,62 +1,49 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Minus, Paintbrush, Plus, RadioTower, Shuffle } from 'lucide-react';
+import { ChevronDown, Keyboard } from 'lucide-react';
 
-import {
-  SESSION_COLOR_PALETTE,
-  useSessionColors,
-} from '@/features/terminals/hooks/use-session-colors';
-import { clampFontSize, MAX_FONT_SIZE, MIN_FONT_SIZE } from '@/features/terminals/lib/utils';
 import type { TerminalSession } from '@/shared/types/contracts';
 
-interface BroadcastDropdownProps {
+interface SendKeysMenuProps {
   sessions: TerminalSession[];
   broadcast: boolean;
-  onToggleBroadcast: () => void;
   broadcastTargets: Set<string>;
   onBroadcastTargetsChange: (next: Set<string>) => void;
-  fontSizes: Record<string, number>;
-  onFontSizeChange: (sessionId: string, size: number) => void;
-  defaultFontSize: number;
-  /** When true the row collapses into a square icon — used on the mobile
-   *  "More" dropdown where buttons are full-width pills. */
+  /** Full-width pill layout instead of the inline bar chip (`[data-compact]`
+   *  in broadcast.css) — for stacked/narrow containers. */
   compact?: boolean;
 }
 
 /**
- * Broadcast dropdown — scopes input fan-out to a checkbox-selected set of
- * panes, and exposes zoom + color batch controls that apply to that set.
+ * Send-keys menu — types once, delivers to several panes at once.
  *
  *   ┌──────────────────────────────────────────────┐
- *   │ Broadcast input ✓ (toggle ALL panes / off)   │
- *   │ Targets:                                     │
+ *   │ ● Sending your typing to 2 panes — click…    │
+ *   │ Type in any pane; every ticked pane gets it. │
+ *   │ SEND TO                          [All][None] │
  *   │  ☐ rahman design                             │
  *   │  ☑ zianinn                                   │
- *   │  ☐ Rr                                        │
- *   │ Quick:  [All] [None]  · 2 selected           │
- *   │ Zoom:   [−] [+]                              │
- *   │ Color:  ◻ ◼ ◼ ◼ ◼ … (palette swatches)       │
+ *   │  ☑ Rr                                        │
  *   └──────────────────────────────────────────────┘
  *
- * Empty target set + broadcast on = legacy fan-out-to-every-running-pane
- * (preserved so the previous one-button workflow still works).
+ * The ticked set IS the state, not a filter on top of a flag: screen.tsx
+ * derives armed from `broadcastTargets.size`, so arming fills the set and
+ * disarming empties it. There is deliberately no separate boolean to keep in
+ * sync — the legacy `broadcast` preference is still written to storage for
+ * backwards compat but nothing reads it (see the `void broadcast` note in
+ * screen.tsx), so mirroring it here would only create a second, drifting
+ * source of truth for one piece of state.
  */
-export function BroadcastDropdown({
+export function SendKeysMenu({
   sessions,
   broadcast,
-  onToggleBroadcast,
   broadcastTargets,
   onBroadcastTargetsChange,
-  fontSizes,
-  onFontSizeChange,
-  defaultFontSize,
   compact = false,
-}: BroadcastDropdownProps) {
+}: SendKeysMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
-  const { setColor } = useSessionColors();
-  void onToggleBroadcast; // checkbox set is the single source of truth — toggle no longer wired
 
   useEffect(() => {
     if (!open) return;
@@ -78,6 +65,10 @@ export function BroadcastDropdown({
   const selectedCount = broadcastTargets.size;
   const fanoutCount = selectedCount === 0 ? running.length : selectedCount;
 
+  function panes(count: number) {
+    return `${count} pane${count === 1 ? '' : 's'}`;
+  }
+
   function toggleTarget(id: string) {
     const next = new Set(broadcastTargets);
     if (next.has(id)) next.delete(id);
@@ -93,40 +84,20 @@ export function BroadcastDropdown({
     onBroadcastTargetsChange(new Set());
   }
 
-  /** Targets that should receive zoom / color batch ops. */
-  function batchTargetIds(): string[] {
-    if (broadcastTargets.size > 0) return Array.from(broadcastTargets);
-    return running.map((s) => s.id);
-  }
-
-  function applyZoom(delta: number) {
-    for (const id of batchTargetIds()) {
-      const current = fontSizes[id] ?? defaultFontSize;
-      onFontSizeChange(id, clampFontSize(current + delta));
+  /** Arm = every running pane receives typing unless a narrower set is ticked. */
+  function setArmed(next: boolean) {
+    if (next) {
+      if (selectedCount === 0) selectAll();
+    } else {
+      selectNone();
     }
   }
 
-  function applyColor(color: string) {
-    for (const id of batchTargetIds()) setColor(id, color);
-  }
-
-  /**
-   * Give each target a random palette color, with no duplicates within
-   * the batch unless the batch is bigger than the palette. Picks a fresh
-   * shuffle each click — so re-clicking re-randomises.
-   */
-  function applyRandomColor() {
-    const ids = batchTargetIds();
-    if (ids.length === 0) return;
-    const pool = [...SESSION_COLOR_PALETTE];
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    ids.forEach((id, index) => {
-      setColor(id, pool[index % pool.length]);
-    });
-  }
+  const armSummary = broadcast
+    ? `Sending your typing to ${panes(fanoutCount)} — click to stop`
+    : selectedCount > 0
+      ? `Off — click to start sending to ${panes(selectedCount)}`
+      : `Off — click to start sending to all ${panes(running.length)}`;
 
   return (
     <div ref={ref} className="topbar-broadcast">
@@ -138,15 +109,19 @@ export function BroadcastDropdown({
         data-open={open || undefined}
         title={
           broadcast
-            ? `Broadcasting to ${fanoutCount} pane${fanoutCount === 1 ? '' : 's'}`
-            : 'Broadcast / batch control'
+            ? `Your typing goes to ${panes(fanoutCount)} at once`
+            : 'Send keys — type once, several panes receive it'
         }
-        aria-label="Broadcast and batch controls"
+        aria-label={
+          broadcast
+            ? `Send keys — currently typing into ${panes(fanoutCount)}`
+            : 'Send keys to several panes at once'
+        }
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <RadioTower className="h-4 w-4" />
-        <span className="topbar-label">Broadcast</span>
+        <Keyboard className="h-4 w-4" />
+        <span className="topbar-label">Send keys</span>
         {selectedCount > 0 ? (
           <span className="topbar-broadcast-badge">{selectedCount}</span>
         ) : null}
@@ -157,20 +132,28 @@ export function BroadcastDropdown({
         <div
           className="topbar-broadcast-popover"
           role="dialog"
-          aria-label="Broadcast and batch controls"
+          aria-label="Send keys to several panes at once"
         >
-          <div className="topbar-broadcast-status" data-active={broadcast || undefined}>
+          <button
+            type="button"
+            className="topbar-broadcast-status text-left"
+            data-active={broadcast || undefined}
+            aria-pressed={broadcast}
+            disabled={!broadcast && running.length === 0}
+            onClick={() => setArmed(!broadcast)}
+          >
             <span className="topbar-broadcast-status-dot" />
-            <span className="topbar-broadcast-status-text">
-              {broadcast
-                ? `Broadcasting → ${fanoutCount} pane${fanoutCount === 1 ? '' : 's'}`
-                : 'Broadcast off — tick a target to enable'}
-            </span>
-          </div>
+            <span className="topbar-broadcast-status-text">{armSummary}</span>
+          </button>
+
+          <p className="topbar-broadcast-hint">
+            Type in any pane and the same keystrokes are delivered to every ticked pane —
+            one command, several shells.
+          </p>
 
           <div className="topbar-broadcast-section">
             <div className="topbar-broadcast-section-head">
-              <span className="topbar-broadcast-eyebrow">Targets</span>
+              <span className="topbar-broadcast-eyebrow">Send to</span>
               <div className="topbar-broadcast-quick">
                 <button type="button" onClick={selectAll}>All</button>
                 <button type="button" onClick={selectNone}>None</button>
@@ -204,57 +187,9 @@ export function BroadcastDropdown({
             )}
             <p className="topbar-broadcast-hint">
               {selectedCount === 0
-                ? 'No selection — zoom/color/broadcast apply to every running pane.'
-                : `${selectedCount} selected — zoom/color/broadcast scope to this set.`}
+                ? 'Nothing ticked — your typing stays in the pane you are using.'
+                : `${panes(selectedCount)} ticked, plus whichever pane you type in.`}
             </p>
-          </div>
-
-          <div className="topbar-broadcast-section">
-            <span className="topbar-broadcast-eyebrow">Zoom</span>
-            <div className="topbar-broadcast-zoom">
-              <button
-                type="button"
-                onClick={() => applyZoom(-1)}
-                title={`Zoom out (min ${MIN_FONT_SIZE}px)`}
-              >
-                <Minus className="h-3.5 w-3.5" /> Smaller
-              </button>
-              <button
-                type="button"
-                onClick={() => applyZoom(1)}
-                title={`Zoom in (max ${MAX_FONT_SIZE}px)`}
-              >
-                <Plus className="h-3.5 w-3.5" /> Larger
-              </button>
-            </div>
-          </div>
-
-          <div className="topbar-broadcast-section">
-            <div className="topbar-broadcast-section-head">
-              <span className="topbar-broadcast-eyebrow">
-                <Paintbrush className="inline h-3 w-3" /> Color
-              </span>
-              <button
-                type="button"
-                className="topbar-broadcast-random"
-                onClick={applyRandomColor}
-                title="Random palette pick per target (re-click reshuffles)"
-              >
-                <Shuffle className="h-3 w-3" /> Random
-              </button>
-            </div>
-            <div className="topbar-broadcast-palette">
-              {SESSION_COLOR_PALETTE.map((swatch) => (
-                <button
-                  key={swatch}
-                  type="button"
-                  className="topbar-broadcast-swatch"
-                  style={{ background: swatch }}
-                  title={`Apply ${swatch}`}
-                  onClick={() => applyColor(swatch)}
-                />
-              ))}
-            </div>
           </div>
         </div>
       ) : null}

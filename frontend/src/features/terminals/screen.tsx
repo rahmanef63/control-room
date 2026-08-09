@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import { useCrons } from '@/features/crons/hooks/use-crons';
 import { useTemplates } from '@/features/templates/hooks/use-templates';
+import type { TerminalTemplate } from '@/features/templates/types';
 import type { LauncherTab } from '@/features/terminals/components/launcher-drawer';
 import { SessionTabs } from '@/features/terminals/components/session-tabs';
 import { TerminalsMain } from '@/features/terminals/components/terminals-main';
@@ -51,6 +52,7 @@ const OverviewDrawer = dynamic(
   { ssr: false }
 );
 import { useAppSettings } from '@/features/terminals/hooks/use-app-settings';
+import { useDevices } from '@/features/terminals/hooks/use-devices';
 import { useFullscreen } from '@/features/terminals/hooks/use-fullscreen';
 import { useIsMobile } from '@/features/terminals/hooks/use-media-query';
 import { useAlfaWatchers, type AlfaWatcher } from '@/features/terminals/hooks/use-alfa-watchers';
@@ -102,6 +104,10 @@ export default function TerminalsPage() {
 
   const cronsState = useCrons(cronsOpen);
   const templatesState = useTemplates();
+  // Sign-in approvals live behind Settings → Security, and the badge is the
+  // only thing that needs the count. Poll while that drawer is open instead of
+  // on every dashboard load — a badge is not worth a fetch on boot.
+  const devicesState = useDevices(settingsOpen);
 
   const {
     profiles,
@@ -135,21 +141,21 @@ export default function TerminalsPage() {
     setViewMode,
     gridCols,
     setGridCols,
-    broadcast,
-    setBroadcast,
     broadcastTargets,
     setBroadcastTargets,
   } = preferences;
 
-  // Checkbox-driven broadcast: an empty target set means broadcast is OFF.
-  // Selecting any checkbox flips broadcast ON for that exact set. The
-  // source pane is always included in the fan-out so its own keystrokes
-  // still reach its PTY (the source skips the local POST path when
-  // broadcasting — see TerminalPane onData). The legacy "broadcast to
-  // every running pane" toggle is reachable via the dropdown's "All"
-  // shortcut, which checks every running pane.
+  // Checkbox-driven send-keys: an empty target set means it is OFF. Ticking any
+  // pane turns it ON for exactly that set. The source pane is always included in
+  // the fan-out so its own keystrokes still reach its PTY (the source skips the
+  // local POST path when fanning out — see TerminalPane onData). "Send to every
+  // running pane" is the menu's "All" shortcut, which ticks them all.
+  //
+  // The target set is the ONLY source of truth. `preferences.broadcast` is a
+  // legacy boolean still persisted for storage compat but read by nothing —
+  // keeping a second flag in sync with the set was plumbing that could only
+  // drift, so the toggle chain into the toolbar was removed.
   const broadcastEnabled = broadcastTargets.size > 0;
-  void broadcast; // legacy toggle retained on preferences for storage compat
   const broadcastInputScoped = useCallback(
     (data: string, sourceId?: string) => {
       if (broadcastTargets.size === 0) return;
@@ -323,6 +329,7 @@ export default function TerminalsPage() {
   // Stable handlers for the chrome (topbar / workspace tabs), so those
   // memoized components skip the re-render caused by every activity tick.
   const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const openCrons = useCallback(() => setCronsOpen(true), []);
   const openTemplates = useCallback(() => setTemplatesOpen(true), []);
   const openHistory = useCallback(() => setHistoryOpen(true), []);
@@ -333,16 +340,27 @@ export default function TerminalsPage() {
     () => setViewMode((mode) => (mode === 'grid' ? 'single' : 'grid')),
     [setViewMode]
   );
-  const handleToggleBroadcast = useCallback(() => setBroadcast((value) => !value), [setBroadcast]);
   const handleInstall = useCallback(() => void install(), [install]);
-  const handleRefresh = useCallback(() => router.refresh(), [router]);
-  const { createWorkspace } = workspaces;
+  const { createWorkspace, setActive: setActiveWorkspace } = workspaces;
   const handleCreateWorkspace = useCallback(() => void createWorkspace(), [createWorkspace]);
 
   const openLauncher = useCallback((tab: LauncherTab) => {
     setLauncherTab(tab);
     setLauncherOpen(true);
   }, []);
+
+  // Shared by the launcher's Saved tab and the templates drawer: a template
+  // pinned to another workspace has to switch there first, or the new pane
+  // spawns into a workspace that immediately filters it out of view.
+  const handleLaunchTemplate = useCallback(
+    (template: TerminalTemplate) => {
+      if (template.workspaceId && template.workspaceId !== workspaces.activeId) {
+        setActiveWorkspace(template.workspaceId);
+      }
+      void launchTemplate(template);
+    },
+    [launchTemplate, setActiveWorkspace, workspaces.activeId]
+  );
 
   const handleLogout = useCallback(async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -400,33 +418,20 @@ export default function TerminalsPage() {
       <TerminalsTopbar
         sessions={sessions}
         agentProfileCount={agentProfiles.length}
+        onOpenLauncher={openLauncher}
         viewMode={viewMode}
         gridCols={gridCols}
-        broadcast={broadcastEnabled}
-        canInstall={canInstall}
-        keyboardHidden={appSettings.settings.softKeyboard.hideKeyboard}
-        onOpenLauncher={openLauncher}
         onToggleViewMode={handleToggleViewMode}
         onGridColsChange={setGridCols}
-        onToggleBroadcast={handleToggleBroadcast}
+        broadcast={broadcastEnabled}
         broadcastTargets={broadcastTargets}
         onBroadcastTargetsChange={setBroadcastTargets}
-        fontSizes={fontSizes}
-        onFontSizeChange={setFontSize}
-        onToggleKeyboardHidden={appSettings.toggleHideKeyboard}
-        onOpenSettings={openSettings}
-        onOpenCrons={openCrons}
-        onOpenTemplates={openTemplates}
-        onOpenHistory={openHistory}
-        onOpenDevices={openDevices}
-        onOpenOverview={openOverview}
-        onOpenAlfaPatrol={openAlfaPatrol}
         patrolActiveCount={patrolActiveCount}
         patrolPendingCount={patrolPings.pendingCount}
-        onInstall={handleInstall}
-        onExportBackup={handleExportBackup}
-        onImportBackup={handleImportBackupClick}
-        onRefresh={handleRefresh}
+        onOpenAlfaPatrol={openAlfaPatrol}
+        onOpenOverview={openOverview}
+        onOpenSettings={openSettings}
+        onOpenHistory={openHistory}
         onLogout={handleLogoutClick}
       />
 
@@ -491,6 +496,7 @@ export default function TerminalsPage() {
         profiles={profiles}
         environments={environments}
         agentProfiles={agentProfiles}
+        templates={templatesState.templates}
         creatingKey={creatingKey}
         onLaunchProfile={(profileKey) =>
           void createSession({ profile: profileKey }, `profile:${profileKey}`)
@@ -501,6 +507,8 @@ export default function TerminalsPage() {
         onLaunchEnvironment={(environmentId) =>
           void createSession({ profile: 'shell', environmentId }, `env:${environmentId}`)
         }
+        onLaunchTemplate={handleLaunchTemplate}
+        onManageTemplates={openTemplates}
       />
 
       <DevicesDrawer open={devicesOpen} onOpenChange={setDevicesOpen} />
@@ -521,10 +529,17 @@ export default function TerminalsPage() {
         open={settingsOpen}
         notifications={appSettings.settings.notifications}
         softKeyboard={appSettings.settings.softKeyboard}
-        onClose={() => setSettingsOpen(false)}
+        devicesPendingCount={devicesState.pendingCount}
+        canInstall={canInstall}
+        onClose={closeSettings}
         onUpdateNotifications={appSettings.updateNotifications}
         onUpdateSoftKeyboard={appSettings.updateSoftKeyboard}
         onSetSoftKeyVisible={appSettings.setSoftKeyVisible}
+        onOpenCrons={openCrons}
+        onOpenDevices={openDevices}
+        onExportBackup={handleExportBackup}
+        onImportBackup={handleImportBackupClick}
+        onInstall={handleInstall}
         onResetDefaults={appSettings.resetDefaults}
       />
 
@@ -562,10 +577,7 @@ export default function TerminalsPage() {
         onDelete={templatesState.deleteTemplate}
         onDuplicate={templatesState.duplicateTemplate}
         onLaunch={(template) => {
-          if (template.workspaceId && template.workspaceId !== workspaces.activeId) {
-            workspaces.setActive(template.workspaceId);
-          }
-          void launchTemplate(template);
+          handleLaunchTemplate(template);
           setTemplatesOpen(false);
         }}
       />

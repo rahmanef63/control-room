@@ -146,6 +146,83 @@
     color: var(--foreground);
   }
 
+  /* Rows that take you somewhere (another drawer, another page) or fire a
+     one-shot action. Deliberately unlike .settings-row: the trailing chevron —
+     never a checkbox — is what tells you this leaves the panel instead of
+     flipping a setting in place. */
+  .settings-nav-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--card) 60%, transparent);
+    color: var(--foreground);
+    font-size: 0.78rem;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .settings-nav-row:hover {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+
+  .settings-nav-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  .settings-nav-title {
+    font-weight: 600;
+  }
+
+  .settings-nav-sub {
+    font-size: 0.68rem;
+    line-height: 1.35;
+    color: var(--muted-foreground);
+  }
+
+  .settings-nav-badge {
+    margin-left: auto;
+    flex: none;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--primary) 85%, transparent);
+    color: var(--primary-foreground);
+    font-size: 0.65rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .settings-nav-chevron {
+    margin-left: auto;
+    flex: none;
+    opacity: 0.5;
+  }
+
+  /* A badge already claimed the auto margin; keep the chevron glued to it. */
+  .settings-nav-badge + .settings-nav-chevron {
+    margin-left: 0;
+  }
+
+  .settings-nav-row[data-danger='true'] {
+    border-color: color-mix(in srgb, var(--destructive) 45%, transparent);
+    background: color-mix(in srgb, var(--destructive) 10%, transparent);
+    color: var(--destructive);
+  }
+
+  .settings-nav-row[data-danger='true'] .settings-nav-sub {
+    color: color-mix(in srgb, var(--destructive) 80%, var(--foreground));
+  }
+
+  .settings-nav-row[data-danger='true']:hover {
+    background: color-mix(in srgb, var(--destructive) 18%, transparent);
+  }
+
   .settings-footer {
     margin-top: auto;
     padding-top: 0.6rem;

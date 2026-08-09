@@ -91,6 +91,14 @@
     color: var(--muted-foreground);
   }
 
+  /* With no running panes there is nothing to arm, so the pill is disabled —
+     it has to stop LOOKING clickable too, or it reads as a control that
+     silently ignores you. */
+  .topbar-broadcast-status:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
   .topbar-broadcast-status-dot {
     height: 0.5rem;
     width: 0.5rem;
@@ -216,74 +224,5 @@
     font-size: 0.62rem;
     color: var(--muted-foreground);
     line-height: 1.35;
-  }
-
-  .topbar-broadcast-zoom {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.35rem;
-  }
-
-  .topbar-broadcast-zoom button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.3rem;
-    padding: 0.35rem 0.6rem;
-    border-radius: 0.5rem;
-    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-    background: color-mix(in srgb, var(--card) 70%, transparent);
-    color: var(--foreground);
-    font-size: 0.72rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 120ms ease, border-color 120ms ease;
-  }
-
-  .topbar-broadcast-zoom button:hover {
-    background: color-mix(in srgb, var(--accent) 60%, transparent);
-    border-color: color-mix(in srgb, var(--border) 100%, transparent);
-  }
-
-  .topbar-broadcast-random {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.15rem 0.5rem;
-    border-radius: 0.4rem;
-    border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
-    background: color-mix(in srgb, var(--card) 70%, transparent);
-    color: var(--muted-foreground);
-    font-size: 0.62rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    cursor: pointer;
-    transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
-  }
-
-  .topbar-broadcast-random:hover {
-    color: var(--foreground);
-    border-color: rgba(125, 211, 252, 0.5);
-    background: rgba(56, 189, 248, 0.12);
-  }
-
-  .topbar-broadcast-palette {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 0.3rem;
-  }
-
-  .topbar-broadcast-swatch {
-    height: 1.6rem;
-    border-radius: 0.4rem;
-    border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
-    cursor: pointer;
-    transition: transform 120ms ease, box-shadow 120ms ease;
-  }
-
-  .topbar-broadcast-swatch:hover {
-    transform: scale(1.06);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   }
 }

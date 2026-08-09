@@ -1,101 +1,28 @@
-/* Terminal topbar — icon buttons, "More" dropdown, primary triggers. */
+/* Terminal topbar — labelled controls, split "New" launcher, account menu.
+   Every control in this bar shows a word: the previous icon-only strip forced
+   users to guess what 19 identical circles did. Nothing here is hidden behind a
+   media query — at narrow widths the action strip scrolls instead, so no rule
+   below may rely on a `display:none` that a later same-specificity rule can win
+   against (that cascade collision is what left the old kebab visible but
+   inert). */
 @layer base {
-  /* "More" menu wrapper — desktop renders inline, mobile becomes dropdown */
-  .topbar-more-wrapper {
-    position: relative;
+  .topbar-identity {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
+    justify-content: center;
+    flex: 0 0 auto;
+    height: 2.25rem;
+    width: 2.25rem;
+    border-radius: 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    background: color-mix(in srgb, var(--card) 70%, transparent);
   }
 
-  .topbar-more-trigger {
-    display: none;
-  }
-
-  .topbar-secondary {
+  .topbar-actions {
     display: flex;
     align-items: center;
     gap: 0.4rem;
-  }
-
-  /* Hide labels everywhere by default; revealed only in mobile dropdown */
-  .topbar-label {
-    display: none;
-  }
-
-  @media (max-width: 768px) {
-    .terminal-topbar {
-      gap: 0.35rem;
-      padding: 0.4rem 0.55rem;
-      flex-wrap: nowrap;
-    }
-    .terminal-topbar .topbar-icon-button,
-    .terminal-topbar .new-terminal-trigger,
-    .terminal-topbar .ai-terminal-trigger {
-      height: 2rem;
-      width: 2rem;
-      padding: 0;
-    }
-    .terminal-topbar .new-terminal-trigger,
-    .terminal-topbar .ai-terminal-trigger {
-      width: auto;
-      padding: 0 0.5rem;
-    }
-    .terminal-topbar .topbar-icon-button svg,
-    .terminal-topbar .new-terminal-trigger svg,
-    .terminal-topbar .ai-terminal-trigger svg {
-      height: 0.95rem;
-      width: 0.95rem;
-    }
-
-    .topbar-more-trigger {
-      display: inline-flex;
-    }
-
-    .topbar-secondary {
-      position: absolute;
-      top: calc(100% + 0.45rem);
-      right: 0;
-      left: auto;
-      display: none;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0.3rem;
-      background: color-mix(in srgb, var(--card) 96%, transparent);
-      border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-      border-radius: 0.7rem;
-      padding: 0.45rem;
-      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
-      z-index: 50;
-      width: max-content;
-      min-width: 12rem;
-      max-width: calc(100vw - 1.2rem);
-      max-height: calc(100dvh - 8rem);
-      overflow-y: auto;
-      backdrop-filter: blur(14px);
-    }
-
-    .topbar-secondary[data-open='true'] {
-      display: flex;
-    }
-
-    .topbar-secondary .topbar-icon-button,
-    .topbar-secondary .grid-cols-select {
-      width: 100% !important;
-      height: 2.4rem !important;
-      justify-content: flex-start !important;
-      padding: 0 0.7rem !important;
-      border-radius: 0.5rem !important;
-      gap: 0.55rem !important;
-    }
-
-    .topbar-secondary .topbar-label {
-      display: inline;
-      font-size: 0.78rem;
-      font-weight: 500;
-      color: var(--foreground);
-      white-space: nowrap;
-    }
+    min-width: 0;
   }
 
   .topbar-icon-button {
@@ -111,23 +38,193 @@
     transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease;
   }
 
+  /* Inside the topbar every button carries a label, so the fixed square from
+     .topbar-icon-button (shared with drawer close buttons, which stay square)
+     relaxes into a pill that hugs its word. */
+  .terminal-topbar .topbar-icon-button {
+    width: auto;
+    min-width: 2.25rem;
+    gap: 0.4rem;
+    padding: 0 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .topbar-label {
+    white-space: nowrap;
+  }
+
   .topbar-icon-button:hover {
     color: var(--foreground);
     border-color: color-mix(in srgb, var(--border) 100%, transparent);
   }
 
   .topbar-icon-button:focus-visible,
-  .topbar-more-trigger:focus-visible,
+  .topbar-segment:focus-visible,
+  .topbar-menu-item:focus-visible,
   .new-terminal-trigger:focus-visible,
   .ai-terminal-trigger:focus-visible {
     outline: 2px solid var(--ring, #38bdf8);
     outline-offset: 2px;
   }
 
-  .topbar-icon-button[data-tone='accent'] {
+  .topbar-icon-button[data-tone='accent'],
+  .topbar-icon-button[data-open] {
     color: rgba(125, 211, 252, 0.98);
     border-color: rgba(125, 211, 252, 0.5);
     background: rgba(56, 189, 248, 0.12);
+  }
+
+  .topbar-caret {
+    opacity: 0.7;
+    transition: transform 140ms ease, opacity 140ms ease;
+  }
+
+  .topbar-split-caret[data-open] .topbar-caret,
+  .topbar-account-trigger[data-open] .topbar-caret {
+    opacity: 1;
+    transform: rotate(180deg);
+  }
+
+  /* Split launcher: body opens the base tab, caret picks a tab. */
+  .topbar-split {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+  }
+
+  .topbar-split-main {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    padding-right: 0.6rem;
+  }
+
+  .topbar-split-caret {
+    margin-left: 1px;
+    padding: 0 0.5rem;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .topbar-split-caret[data-open] {
+    background: rgba(96, 165, 250, 0.28);
+  }
+
+  /* The two halves must not lift independently — they read as one control. */
+  .topbar-split .new-terminal-trigger:hover {
+    transform: none;
+  }
+
+  /* Labelled segmented control — replaces the icon-only view toggle. */
+  .topbar-segmented {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 0.15rem;
+    height: 2.25rem;
+    padding: 0.15rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    background: color-mix(in srgb, var(--card) 60%, transparent);
+  }
+
+  .topbar-segment {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 100%;
+    padding: 0 0.6rem;
+    border-radius: 999px;
+    color: var(--muted-foreground);
+    font-size: 0.74rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: color 140ms ease, background-color 140ms ease;
+  }
+
+  .topbar-segment:hover {
+    color: var(--foreground);
+  }
+
+  .topbar-segment[data-active] {
+    color: rgba(125, 211, 252, 0.98);
+    background: rgba(56, 189, 248, 0.14);
+  }
+
+  .topbar-patrol {
+    display: inline-flex;
+    flex: 0 0 auto;
+  }
+
+  .topbar-patrol .alfa-patrol-trigger-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* Account cluster — the only exit, parked at the far right behind a rule. */
+  .topbar-account {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    margin-left: 0.25rem;
+    padding-left: 0.6rem;
+    border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+
+  .topbar-menu {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 12rem;
+    padding: 0.35rem;
+    border-radius: 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    background: color-mix(in srgb, var(--card) 97%, transparent);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(14px);
+  }
+
+  .topbar-menu[data-align='end'] {
+    left: auto;
+    right: 0;
+  }
+
+  .topbar-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    height: 2.3rem;
+    padding: 0 0.6rem;
+    border-radius: 0.5rem;
+    color: var(--foreground);
+    font-size: 0.78rem;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .topbar-menu-item:hover {
+    background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+
+  .topbar-menu-item[data-tone='danger'] {
+    color: rgba(251, 113, 133, 0.95);
+  }
+
+  .topbar-menu-item[data-tone='danger']:hover {
+    background: rgba(251, 113, 133, 0.14);
+  }
+
+  .topbar-menu-item .ai-terminal-badge {
+    margin-left: auto;
   }
 
   .new-terminal-trigger {
@@ -185,5 +282,77 @@
     font-size: 0.65rem;
     font-weight: 700;
     line-height: 1;
+  }
+
+  @media (max-width: 768px) {
+    .terminal-topbar {
+      gap: 0.4rem;
+      padding: 0.4rem 0.55rem;
+      flex-wrap: nowrap;
+    }
+
+    /* Labels stay readable at every width — the strip scrolls sideways instead
+       of collapsing into a hidden overflow menu. */
+    .topbar-actions {
+      flex: 1 1 auto;
+      justify-content: flex-start;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .topbar-actions::-webkit-scrollbar {
+      display: none;
+    }
+
+    .topbar-actions > * {
+      flex: 0 0 auto;
+    }
+
+    .terminal-topbar .topbar-icon-button,
+    .terminal-topbar .new-terminal-trigger {
+      height: 2rem;
+      padding: 0 0.55rem;
+      font-size: 0.72rem;
+      gap: 0.3rem;
+    }
+
+    .terminal-topbar .topbar-identity,
+    .terminal-topbar .topbar-segmented,
+    .terminal-topbar .grid-cols-select {
+      height: 2rem;
+    }
+
+    .terminal-topbar .topbar-identity {
+      width: 2rem;
+      border-radius: 0.6rem;
+    }
+
+    .terminal-topbar .topbar-segment {
+      padding: 0 0.45rem;
+      font-size: 0.7rem;
+    }
+
+    .terminal-topbar .topbar-icon-button svg,
+    .terminal-topbar .new-terminal-trigger svg {
+      height: 0.95rem;
+      width: 0.95rem;
+    }
+
+    /* A horizontal scroll container clips absolutely positioned children, so
+       the menus anchor to the viewport here — same trick the broadcast popover
+       already uses. */
+    .topbar-menu,
+    .topbar-menu[data-align='end'] {
+      position: fixed;
+      top: calc(3.3rem + var(--safe-top, 0px));
+      right: 0.6rem;
+      left: auto;
+      min-width: 13rem;
+      max-width: calc(100vw - 1.2rem);
+      max-height: calc(100dvh - 6rem);
+      overflow-y: auto;
+    }
   }
 }
