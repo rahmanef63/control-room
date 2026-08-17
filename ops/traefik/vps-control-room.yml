@@ -1,3 +1,8 @@
+# Local deviation from upstream, kept deliberately — see the two comments below.
+# The upstream `/ws/terminals` routers to :4001 are dropped: no browser code ever
+# opens a WebSocket (terminal output reaches the browser as SSE from
+# frontend/app/api/terminals/[id]/stream/route.ts, which dials the agent over
+# loopback). Publishing that path would only expose the privileged agent gateway.
 http:
   routers:
     vps-control-room-router:
@@ -25,6 +30,13 @@ http:
   services:
     vps-control-room-service:
       loadBalancer:
+        # 172.30.1.1 is docker_gwbridge on this host — the address the Traefik
+        # container reaches the host on. Upstream ships 172.17.0.1 (the default
+        # docker0 gateway); this box has docker0 on 172.30.0.1 and no 172.17.x
+        # interface at all, so the upstream value 502s. Same address mso.yml uses.
         servers:
-          - url: http://172.17.0.1:4000
+          - url: http://172.30.1.1:4000
+        # Required: middleware.ts and the login route scope the session cookie to
+        # NEXT_PUBLIC_APP_HOST. If Traefik overwrote Host with the backend IP the
+        # cookie would be dropped and login would loop.
         passHostHeader: true
