@@ -1,0 +1,59 @@
+@import 'tailwindcss';
+
+/*
+ * Ported from frontend/app/globals.css + src/shared/platform/tokens.css.
+ * Only the base dark cockpit theme + fonts are carried over here — the ~25
+ * feature-specific stylesheets under frontend/app/styles/ (drawers, pane
+ * menus, alfa patrol/registry, keyboard) are NOT ported yet. See
+ * README-MIGRATION.md for the exact backlog list.
+ */
+
+@font-face {
+	font-family: 'Space Grotesk';
+	src: local('Space Grotesk');
+	font-display: swap;
+}
+
+:root {
+	--bg: #0b1220;
+	--surface: #111a2c;
+	--surface-2: #16213a;
+	--border: rgba(255, 255, 255, 0.1);
+	--ink: #e6ebf5;
+	--ink-muted: #94a3b8;
+	--accent: #22d3ee;
+	--accent-2: #fb923c;
+	--danger: #f87171;
+	--warning: #fbbf24;
+	--radius: 0.625rem;
+	--font-sans:
+		'Space Grotesk', -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	height: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--ink);
+	font-family: var(--font-sans);
+	-webkit-font-smoothing: antialiased;
+}
+
+.glass-panel {
+	background: rgba(17, 26, 44, 0.72);
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
+}
+
+::selection {
+	background: rgba(34, 211, 238, 0.28);
+}
