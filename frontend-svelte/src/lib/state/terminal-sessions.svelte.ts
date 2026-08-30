@@ -64,6 +64,32 @@ class TerminalSessionsState {
 		}
 	}
 
+	async duplicate(source: TerminalSession): Promise<TerminalSession | null> {
+		let live = source;
+		try {
+			const fresh = await fetch(`/api/terminals/${encodeURIComponent(source.id)}`);
+			if (fresh.ok) {
+				const payload = (await fresh.json()) as { session?: TerminalSession };
+				if (payload.session) live = payload.session;
+			}
+		} catch {
+			// Fall back to the last session snapshot already held by the client.
+		}
+
+		const created = await this.create({
+			profile: live.profile,
+			cwd: live.cwd,
+			...(live.agent_profile_id ? { agentProfileId: live.agent_profile_id } : {}),
+			...(live.environment_id ? { environmentId: live.environment_id } : {})
+		});
+		if (!created) return null;
+
+		if (live.title && live.title !== created.title) {
+			await this.rename(created.id, live.title);
+		}
+		return this.sessions.find((session) => session.id === created.id) ?? created;
+	}
+
 	async close(id: string): Promise<void> {
 		this.error = null;
 		try {
