@@ -86,13 +86,15 @@
 	<div
 		class="devices-backdrop"
 		role="presentation"
-		onclick={() => onOpenChange(false)}
+		onclick={(event) => {
+			if (event.target === event.currentTarget) onOpenChange(false);
+		}}
 	>
 		<div
 			role="dialog"
+			tabindex="-1"
 			aria-modal="true"
 			aria-label="Trusted devices"
-			onclick={(event) => event.stopPropagation()}
 			class="devices-sheet"
 		>
 			<div class="devices-header">

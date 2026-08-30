@@ -50,8 +50,11 @@ class TerminalSessionsState {
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(request)
 			});
-			if (!res.ok) throw new Error(`Failed to create terminal (${res.status})`);
-			const session = (await res.json()) as TerminalSession;
+			const payload = (await res.json()) as { session?: TerminalSession; error?: string };
+			if (!res.ok || !payload.session) {
+				throw new Error(payload.error ?? `Failed to create terminal (${res.status})`);
+			}
+			const session = payload.session;
 			this.sessions = [...this.sessions, session];
 			this.activeId = session.id;
 			return session;
@@ -82,9 +85,9 @@ class TerminalSessionsState {
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ title })
 		});
-		if (!res.ok) return;
-		const updated = (await res.json()) as TerminalSession;
-		this.sessions = this.sessions.map((s) => (s.id === id ? updated : s));
+		const payload = (await res.json()) as { session?: TerminalSession };
+		if (!res.ok || !payload.session) return;
+		this.sessions = this.sessions.map((s) => (s.id === id ? payload.session! : s));
 	}
 
 	setActive(id: string): void {

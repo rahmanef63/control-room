@@ -7,7 +7,7 @@
     "dev": "vite dev --port 4000",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node build/index.js",
+    "start": "bun build/index.js",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint .",
     "test": "bun test src"

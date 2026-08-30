@@ -1,46 +1,69 @@
 # frontend-svelte — migration status
 
-This is the SvelteKit replacement for `frontend/` (Next.js 15 + React 19),
-built per the migration plan. It is **not yet feature-complete** — see the
-backlog below — but the core vertical slice is real, working code: auth,
-proxy routes, and one fully live terminal pane (SSE streaming + input +
-resize), not stubs.
+This is the SvelteKit replacement for `frontend/` (Next.js 15 + React 19).
+The original vertical slice from PR #7 has already been merged to `main`; the
+current continuation work lives on `migrate/svelte-continue`. The old Next
+frontend remains the production/default deployment until feature parity is
+high enough for an explicit cutover.
 
-## ⚠️ Never actually built — do this first
+The migration is still **frontend-only**. `agent/` remains Node 22 + node-pty
+and its HTTP/WebSocket contracts are unchanged.
 
-The sandbox this was written in has no network access to `registry.npmjs.org`
-(network egress allowlist), so **none of this has been through
-`bun install`, `svelte-check`, or `vite build`**. Every file was written by
-hand against the official Svelte 5 / SvelteKit docs and cross-checked against
-the original `frontend/` source it replaces, but it has not compiled once.
-Before anything else:
+## Verified on the real VPS — 2026-08-31
+
+The earlier warning that this app had never compiled is obsolete. The Svelte
+frontend is now installed, checked, built, and exercised against the real
+agent on a parallel loopback port without touching the live Next service.
+
+Verified gates:
+
+- `bun install` succeeds with Svelte 5 / SvelteKit 2 / adapter-node.
+- `bun test` — 5/5 terminal-upload helper tests pass.
+- `bun run check` — **0 errors, 0 warnings**.
+- `bun run build` — production adapter-node build succeeds.
+- Official Svelte MCP `svelte-autofixer` reports no issues on the changed
+  Svelte files. Remaining suggestions are only intentional external side
+  effects such as localStorage/network synchronization and xterm DOM binding.
+- Real-agent core smoke passes: login/401 guard, list/create/delete terminal,
+  resize, SSE output, input, and rename.
+- Real-agent binary-upload smoke passes end to end: browser-facing Svelte route
+  -> agent file write -> PTY `cat` -> output observed again over SSE.
+- Chrome-headless browser smoke passes the client layer that HTTP-only tests
+  cannot cover: terminal creation through the rune state object, workspace
+  creation, two panes in one workspace, grid mode, and two live xterm mounts.
+  The test intercepts `/api/state/workspaces`, so it does not mutate the
+  operator's durable workspace state.
+
+No production cutover has happened. The existing Next frontend stays on its
+current service/port, and the agent source is not modified by this migration.
+
+### Running the adapter-node build in parallel
 
 ```sh
 cd frontend-svelte
 bun install
-bun run check   # svelte-check — expect to fix a handful of type errors
-bun run build   # vite build via adapter-node
-bun run dev     # manual smoke test against a real or local agent
+bun test
+bun run check
+bun run build
+
+# Example parallel preview. BODY_SIZE_LIMIT must exceed the agent's 25 MiB
+# upload cap; adapter-node's default is too small for terminal uploads.
+PORT=4002 \
+HOST=127.0.0.1 \
+ORIGIN=http://127.0.0.1:4002 \
+BODY_SIZE_LIMIT=30M \
+bun --env-file=../.env.local build/index.js
 ```
 
-Copy `../.env.example` (or your existing `.env.local`) — the env var names
-are unchanged: `CONTROL_ROOM_SECRET`, `CONTROL_ROOM_SESSION_SECRET`,
-`AGENT_GATEWAY_SECRET`, `SESSION_EXPIRY_HOURS`, `TERMINAL_GATEWAY_URL`
-(defaults to `http://127.0.0.1:4001`, same as before). Two client-exposed
-vars rename per SvelteKit's `PUBLIC_` prefix convention (Vite only inlines
-vars prefixed `PUBLIC_`, not `NEXT_PUBLIC_`): `NEXT_PUBLIC_APP_URL` →
-`PUBLIC_APP_URL`, `NEXT_PUBLIC_APP_HOST` → `PUBLIC_APP_HOST` — neither is
-wired into this app yet (no metadataBase/OG usage ported), so add them when
-that lands.
+When a parallel worktree is used, point `AUTH_DEVICE_STORE` at the same
+`agent/var/auth-devices.json` as the live checkout so both frontends use the
+same trusted-device registry. A normal in-repo cutover does not need that
+override.
 
-Per `CLAUDE.md`, this project runs on **Bun**, not Node, for the frontend
-process (`bun --bun next …` today). `bun run build && bun build/index.js`
-should work the same way for the adapter-node output here — SvelteKit's
-Node adapter output is plain Node-compatible JS — but this has not been
-verified either, for the same npm-egress reason as everything else in this
-file. The **agent stays on Node** either way (see CLAUDE.md's "Runtime
-split" note on why `node-pty` doesn't work under Bun) — this migration
-never touches `agent/`.
+Client-exposed variables use SvelteKit's `PUBLIC_` prefix. Build-id stamping
+and the final `PUBLIC_BUILD_ID`/cache-header deployment wiring are still in the
+backlog below; do not switch the systemd/deploy default until those gates and
+the remaining UI parity work are complete.
 
 ## What changed vs. the plan: no custom WebSocket server needed
 
@@ -69,6 +92,7 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `app/api/{health,version,overview}/route.ts` | `src/routes/api/**/+server.ts` |
 | `app/api/state/[key]/route.ts` | `src/routes/api/state/[key]/+server.ts` |
 | `app/api/terminals/**/route.ts` (list/create/get/delete/patch/input/resize/stream/buffer) | `src/routes/api/terminals/**/+server.ts` |
+| `app/api/terminals/[id]/upload/route.ts` + `features/terminals/lib/upload.ts` | `src/routes/api/terminals/[id]/upload/+server.ts` + `src/lib/features/terminals/upload.ts` — raw binary proxy, 25 MiB guard, safe shell-path quoting, drag/drop and pasted-image upload |
 | `app/login/page.tsx` | `src/routes/login/+page.svelte` (simplified visual — see backlog) |
 | `app/layout.tsx` (partial) | `src/routes/+layout.svelte` |
 | `shared/pwa/register-service-worker.tsx` | `src/lib/pwa/register-service-worker.ts` |
@@ -76,7 +100,9 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `public/sw.js`, `offline.html`, `favicon.ico`, `og-card.png`, screenshots | copied byte-for-byte to `static/` |
 | `use-terminal-sessions.ts` (736 lines, subset) | `src/lib/state/terminal-sessions.svelte.ts` — list/create/close/rename only |
 | `use-pane-terminal.ts` + `terminal-pane.tsx` (subset) | `src/lib/features/terminals/Terminal.svelte` — xterm+webgl, SSE bootstrap/output/status/error, input, resize, reconnect-with-backoff |
-| `screen.tsx` + `session-tabs.tsx` (subset) | `src/routes/+page.svelte` — session tabs, new/close shell, single active pane |
+| `screen.tsx` + `session-tabs.tsx` (core) | `src/routes/+page.svelte` — workspace-scoped session tabs, create/close shell, single/grid modes, responsive multi-pane grid |
+| `use-workspaces.ts` + `workspace-tabs.tsx` | `src/lib/features/terminals/use-workspaces.svelte.ts` + `WorkspaceTabs.svelte` — local-first + remote agent-state sync, create/rename/delete/select workspace, session assignment |
+| `use-terminal-preferences.ts` (core) | `src/lib/features/terminals/use-terminal-preferences.svelte.ts` — font-size map, single/grid mode, grid columns; broadcast preferences remain backlog |
 | `components/ui/{button,badge}.tsx` | `src/lib/components/ui/{button,badge}/` (hand-written shadcn-svelte style) |
 | `shared/runtime/force-fresh-reload.ts` | `src/lib/pwa/force-fresh-reload.ts` (verbatim — plain browser APIs, no framework code) |
 | `shared/pwa/version-guard.tsx` | `src/lib/pwa/version-guard.svelte` — polls `/api/version`, prompts hard-refresh on new build; reads `PUBLIC_BUILD_ID` via `$env/dynamic/public` so dev doesn't require it set |
@@ -103,18 +129,20 @@ guessed at — it's simply not written yet.
 - [ ] Real PWA icons: `app/icon.tsx` / `apple-icon.tsx` generate PNGs dynamically — export static files from a built Next app (or regenerate) into `static/icons/`; `manifest.webmanifest` already points at the expected paths
 
 **Terminal feature depth** (the big one — `use-pane-terminal.ts` alone is 662 lines)
-- [ ] File upload / drag-drop onto a pane (`lib/upload.ts`, `use-pane-terminal.ts` upload handling)
+- [x] File upload / drag-drop/pasted-image upload onto a pane, including 25 MiB client guard, safe shell-path insertion, unit tests, and real-agent E2E verification
 - [ ] RTT latency measurement + display
 - [ ] Activity/idle-state detection (`working` / `asking` / `planning` / `waiting` / `done` labels)
 - [ ] Cross-pane broadcast input (`terminals-broadcast.tsx`, `use-terminal-sessions.ts` broadcast slice)
 - [ ] In-place pane rename, pinch-zoom font sizing
-- [ ] Multi-workspace grid + `workspace-tabs.tsx`, `terminals-main.tsx`, `terminals-topbar.tsx`
+- [x] Core multi-workspace state + workspace tabs + session assignment + single/grid rendering + configurable 1–4/auto columns
+- [ ] Full `terminals-main.tsx` / `terminals-topbar.tsx` parity: pane move menus, row-stretch polish, launcher/broadcast/patrol controls, history overlays, and the remaining compact chrome
 - [ ] Pane chrome: `pane-header.tsx`, `pane-actions-menu.tsx`, `pane-menu-cluster.tsx`, `pane-scroll-rail.tsx`, `pane-soft-keyboard.tsx`, `pane-conn-badge.tsx`, `pane-activity-chip.tsx`, `pane-error-boundary.tsx`, `readonly-terminal-view.tsx`, `terminal-profile-icon.tsx`, `session-color-picker.tsx`
 - [ ] `launcher-card.tsx`, `launcher-drawer.tsx` — AI agent launch flow (Claude/Codex/Gemini/OpenClaw profiles)
 - [ ] `use-alfa-watchers.ts`, `patrol/*` (4 components) — alfa patrol/registry feature, plus `app/api/alfa/watchers/**` and `app/api/patrol/pending/**` routes
 - [x] ~~`use-devices.ts`, `devices-drawer.tsx` — device approval UI~~ ported this round, see the table above
 - [x] ~~`use-fullscreen.ts`, `use-wake-lock.ts`, `use-app-settings.ts`~~ ported this round as logic-only modules, see the table above — **not wired into any UI yet**: there's no fullscreen button, wake-lock toggle, or settings drawer in `+page.svelte`, so these three currently have zero consumers. Wire them up when pane chrome / a settings drawer lands.
-- [ ] `use-media-query.ts`, `use-terminal-preferences.ts`, `use-session-colors.ts`, `use-workspaces.ts`, `use-pane-agent-overrides.ts`
+- [x] `use-workspaces.ts` and core `use-terminal-preferences.ts` (font size + view mode + grid columns)
+- [ ] `use-media-query.ts`, broadcast-target slice of `use-terminal-preferences.ts`, `use-session-colors.ts`, `use-pane-agent-overrides.ts`
 - [ ] `sessions/storage.ts`, `sessions/types.ts`, `lib/backup.ts` — cross-browser workspace persistence (the agent-JSON sync described in PRD §5.2); `lib/local-storage.ts` itself is ported (see table above), these are the higher-level pieces built on top of it
 - [ ] `history-drawer.tsx`, `overview-drawer.tsx`, `settings-drawer.tsx`
 - [ ] `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts`

@@ -10,6 +10,7 @@
 	// README-MIGRATION.md) — version-guard.svelte already covers the same
 	// underlying problem (a tab stuck on a stale build) with its own
 	// poll-and-prompt mechanism, so this is a smaller gap than it looks.
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 </script>
 
@@ -21,7 +22,7 @@
 	{#if page.status}
 		<p class="error-page__status">Status: {page.status}</p>
 	{/if}
-	<a href="/" class="error-page__link">Back to terminals</a>
+	<a href={resolve('/')} class="error-page__link">Back to terminals</a>
 </div>
 
 <style>

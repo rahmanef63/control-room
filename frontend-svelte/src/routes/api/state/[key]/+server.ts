@@ -14,12 +14,12 @@ export const GET: RequestHandler = async (event) => {
 };
 
 export const PUT: RequestHandler = async (event) => {
-	// Body read first — mirrors the original's ordering (a Next-specific body-
-	// clone race under 15.5). SvelteKit's Request doesn't have that bug, but
-	// keeping the same order is harmless and keeps this a faithful port.
-	const body = await event.request.text();
 	const denied = await requireSession(event);
 	if (denied) return denied;
+
+	// SvelteKit's Web Request body remains readable after async auth checks, so
+	// the Next 15.5 body-before-await workaround is deliberately not carried over.
+	const body = await event.request.text();
 	const response = await terminalGatewayFetch(`/state/${encodeURIComponent(event.params.key!)}`, {
 		method: 'PUT',
 		headers: { 'Content-Type': 'application/json' },

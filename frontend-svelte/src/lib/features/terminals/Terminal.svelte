@@ -7,17 +7,21 @@
 	// (bootstrap/output/status/error), keystroke → POST input, resize →
 	// POST resize, reconnect-with-backoff.
 	//
-	// NOT ported yet (see README-MIGRATION.md backlog): file upload/drag-drop,
-	// RTT latency measurement, activity/idle-state detection, cross-pane
-	// broadcast input, in-place rename, pinch-zoom font sizing. The original
+	// Ported in the continuation slice: raw-binary upload proxy, file drag/drop,
+	// pasted images, 25 MiB client guard, and safe shell-path insertion.
+	// NOT ported yet (see README-MIGRATION.md backlog): RTT latency measurement,
+	// activity/idle-state detection, cross-pane broadcast input, in-place rename,
+	// pinch-zoom font sizing. The original
 	// hook is 662 lines; this covers the part that makes a pane usable at
 	// all, not the full feature set.
 	import { onDestroy, onMount } from 'svelte';
+	import { Loader2, UploadCloud } from 'lucide-svelte';
 	import { FitAddon } from '@xterm/addon-fit';
 	import { WebglAddon } from '@xterm/addon-webgl';
 	import { Terminal as XTerm } from '@xterm/xterm';
 	import '@xterm/xterm/css/xterm.css';
 
+	import { filesFromDrop, partitionBySize, quoteShellPath } from '$lib/features/terminals/upload';
 	import {
 		clampFontSize,
 		DEFAULT_FONT_SIZE,
@@ -30,11 +34,12 @@
 
 	interface Props {
 		session: TerminalSession;
+		active?: boolean;
 		fontSize?: number;
 		onUpdate?: (session: TerminalSession) => void;
 	}
 
-	let { session, fontSize = DEFAULT_FONT_SIZE, onUpdate }: Props = $props();
+	let { session, active = true, fontSize = DEFAULT_FONT_SIZE, onUpdate }: Props = $props();
 
 	let containerEl: HTMLDivElement;
 	let term: XTerm | null = null;
@@ -44,9 +49,14 @@
 	let reconnectAttempts = 0;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	let destroyed = false;
+	let mounted = false;
+	let started = false;
 
 	let connectionState = $state<ConnectionState>('connecting');
 	let lastError = $state<string | null>(null);
+	let dragOver = $state(false);
+	let uploading = $state(false);
+	let canSendInput = $derived(session.status === 'running');
 
 	function tryLoadWebgl(t: XTerm): void {
 		try {
@@ -64,6 +74,90 @@
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ cols, rows })
 		});
+	}
+
+	async function postInput(data: string): Promise<void> {
+		try {
+			const response = await fetch(`/api/terminals/${encodeURIComponent(session.id)}/input`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ data })
+			});
+			if (!response.ok) throw new Error('Terminal input failed');
+		} catch {
+			lastError = 'Terminal request failed';
+		}
+	}
+
+	function sendInput(data: string): void {
+		if (!canSendInput) return;
+		void postInput(data);
+		term?.focus();
+	}
+
+	async function uploadFiles(rawFiles: File[]): Promise<void> {
+		if (!canSendInput || rawFiles.length === 0) return;
+		lastError = null;
+
+		const { ok: files, tooBig } = partitionBySize(rawFiles);
+		if (tooBig.length > 0) {
+			lastError = `Too big (max 25 MiB): ${tooBig.map((file) => file.name).join(', ')}`;
+		}
+		if (files.length === 0) return;
+
+		uploading = true;
+		try {
+			const paths: string[] = [];
+			for (const file of files) {
+				try {
+					const response = await fetch(
+						`/api/terminals/${encodeURIComponent(session.id)}/upload?name=${encodeURIComponent(file.name)}`,
+						{
+							method: 'POST',
+							headers: { 'Content-Type': 'application/octet-stream' },
+							body: file
+						}
+					);
+					const payload = (await response.json().catch(() => ({}))) as {
+						path?: string;
+						error?: string;
+					};
+					if (!response.ok || !payload.path) {
+						lastError = payload.error ?? `Upload failed: ${file.name}`;
+						continue;
+					}
+					paths.push(payload.path);
+				} catch {
+					lastError = `Upload failed: ${file.name}`;
+				}
+			}
+
+			if (paths.length > 0) sendInput(`${paths.map(quoteShellPath).join(' ')} `);
+		} finally {
+			uploading = false;
+		}
+	}
+
+	function handleDrop(dataTransfer: DataTransfer): void {
+		const { files, skippedDirs } = filesFromDrop(dataTransfer);
+		if (skippedDirs.length > 0) {
+			lastError = `Folders not supported: ${skippedDirs.join(', ')}`;
+		}
+		if (files.length > 0) void uploadFiles(files);
+	}
+
+	function handlePaste(data: DataTransfer | null): boolean {
+		if (!data || !canSendInput) return false;
+		const images: File[] = [];
+		for (const item of Array.from(data.items)) {
+			if (item.kind === 'file' && item.type.startsWith('image/')) {
+				const file = item.getAsFile();
+				if (file) images.push(file);
+			}
+		}
+		if (images.length === 0) return false;
+		void uploadFiles(images);
+		return true;
 	}
 
 	function resizeTerminal(): void {
@@ -152,7 +246,9 @@
 		});
 	}
 
-	onMount(() => {
+	function startTerminal(): void {
+		if (!mounted || started || !containerEl) return;
+		started = true;
 		term = new XTerm({
 			scrollback: TERMINAL_SCROLLBACK,
 			fontSize: clampFontSize(fontSize),
@@ -170,19 +266,17 @@
 		tryLoadWebgl(term);
 		resizeTerminal();
 
-		term.onData((data) => {
-			if (session.status !== 'running') return;
-			void fetch(`/api/terminals/${encodeURIComponent(session.id)}/input`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ data })
-			});
-		});
+		term.onData((data) => sendInput(data));
 
 		resizeObserver = new ResizeObserver(() => resizeTerminal());
 		resizeObserver.observe(containerEl);
 
 		connectStream();
+	}
+
+	onMount(() => {
+		mounted = true;
+		if (active) startTerminal();
 	});
 
 	onDestroy(() => {
@@ -193,9 +287,15 @@
 		term?.dispose();
 	});
 
-	// Re-render at the new size if the caller changes fontSize after mount.
+	// Defer heavy xterm/WebGL/SSE initialization until the pane is first shown.
+	// Once armed it stays alive across workspace/view switches, preserving scrollback.
 	$effect(() => {
-		if (term) term.options.fontSize = clampFontSize(fontSize);
+		if (active && mounted) startTerminal();
+	});
+
+	let resolvedFontSize = $derived(clampFontSize(fontSize));
+	$effect(() => {
+		if (term) term.options.fontSize = resolvedFontSize;
 	});
 </script>
 
@@ -206,7 +306,42 @@
 	{#if lastError}
 		<div class="terminal-pane__error">{lastError}</div>
 	{/if}
-	<div class="terminal-pane__surface" bind:this={containerEl}></div>
+	<div
+		class="terminal-pane__screen"
+		role="presentation"
+		onpaste={(event) => {
+			if (handlePaste(event.clipboardData)) event.preventDefault();
+		}}
+		ondragover={(event) => {
+			if (!canSendInput || !event.dataTransfer?.types.includes('Files')) return;
+			event.preventDefault();
+			event.dataTransfer.dropEffect = 'copy';
+			dragOver = true;
+		}}
+		ondragleave={(event) => {
+			const next = event.relatedTarget;
+			if (!(next instanceof Node) || !event.currentTarget.contains(next)) dragOver = false;
+		}}
+		ondrop={(event) => {
+			if (!event.dataTransfer?.types.includes('Files')) return;
+			event.preventDefault();
+			dragOver = false;
+			handleDrop(event.dataTransfer);
+		}}
+	>
+		<div class="terminal-pane__surface" bind:this={containerEl}></div>
+		{#if dragOver || uploading}
+			<div class="terminal-pane__drop-overlay" aria-live="polite">
+				{#if uploading}
+					<Loader2 size={24} class="terminal-pane__spinner" />
+					<span>Uploading…</span>
+				{:else}
+					<UploadCloud size={24} />
+					<span>Drop to upload — path is inserted at the prompt</span>
+				{/if}
+			</div>
+		{/if}
+	</div>
 </div>
 
 <style>
@@ -220,10 +355,39 @@
 		border-radius: var(--radius);
 		overflow: hidden;
 	}
-	.terminal-pane__surface {
+	.terminal-pane__screen {
+		position: relative;
 		flex: 1;
 		min-height: 0;
+	}
+	.terminal-pane__surface {
+		height: 100%;
+		min-height: 0;
 		padding: 8px;
+	}
+	.terminal-pane__drop-overlay {
+		position: absolute;
+		inset: 8px;
+		z-index: 3;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		pointer-events: none;
+		border: 1px dashed rgba(125, 211, 252, 0.7);
+		border-radius: calc(var(--radius) - 2px);
+		background: rgba(8, 18, 32, 0.88);
+		color: #bae6fd;
+		font-size: 13px;
+		font-weight: 600;
+	}
+	:global(.terminal-pane__spinner) {
+		animation: terminal-spin 0.8s linear infinite;
+	}
+	@keyframes terminal-spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 	.terminal-pane__status {
 		position: absolute;

@@ -8,6 +8,7 @@
 	// full two-column marketing layout is left for a follow-up pass (see
 	// README-MIGRATION.md).
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
 
 	const DEVICE_ID_KEY = 'vps.device.id';
@@ -92,7 +93,7 @@
 			});
 
 			if (res.ok) {
-				await goto('/', { invalidateAll: true });
+				await goto(resolve('/'), { invalidateAll: true });
 			} else if (res.status === 403) {
 				const payload = (await res.json().catch(() => ({}))) as { deviceId?: string };
 				pendingId = payload.deviceId ?? getOrCreateDeviceId();
@@ -132,7 +133,6 @@
 				placeholder="Enter control room secret…"
 				required
 				autocomplete="current-password"
-				autofocus
 			/>
 
 			{#if error}
