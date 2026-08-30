@@ -5,12 +5,14 @@
 
 	import DevicesDrawer from '$lib/components/devices-drawer.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import PaneChrome from '$lib/features/terminals/PaneChrome.svelte';
 	import Terminal from '$lib/features/terminals/Terminal.svelte';
 	import WorkspaceTabs from '$lib/features/terminals/WorkspaceTabs.svelte';
 	import {
 		useTerminalPreferences,
 		type GridCols
 	} from '$lib/features/terminals/use-terminal-preferences.svelte';
+	import { DEFAULT_FONT_SIZE } from '$lib/features/terminals/types';
 	import { useWorkspaces } from '$lib/features/terminals/use-workspaces.svelte';
 	import { terminalSessions } from '$lib/state/terminal-sessions.svelte';
 
@@ -55,6 +57,21 @@
 	async function closeSession(id: string): Promise<void> {
 		await terminalSessions.close(id);
 		workspaces.unassignSession(id);
+	}
+
+	async function duplicateSession(session: (typeof terminalSessions.sessions)[number]): Promise<void> {
+		const workspaceId = workspaces.resolveSessionWorkspace(session.id);
+		const duplicated = await terminalSessions.duplicate(session);
+		if (duplicated) workspaces.assignSession(duplicated.id, workspaceId);
+	}
+
+	function moveSession(sessionId: string, workspaceId: string): void {
+		workspaces.assignSession(sessionId, workspaceId);
+	}
+
+	function focusSession(sessionId: string): void {
+		terminalSessions.setActive(sessionId);
+		preferences.setViewMode('single');
 	}
 
 	function selectWorkspace(id: string): void {
@@ -186,16 +203,34 @@
 					{@const active = paneIsActive(session.id)}
 					<div
 						class="terminal-slot"
+						data-session-id={session.id}
 						data-workspace-visible={workspaceVisible}
 						data-active={active}
 						aria-hidden={!workspaceVisible || !active}
 					>
-						<Terminal
-							{session}
-							active={workspaceVisible && active}
-							fontSize={preferences.fontSizes[session.id]}
-							onUpdate={(updated) => terminalSessions.patchFromStream(updated)}
-						/>
+						<div class="pane-frame">
+							<PaneChrome
+								{session}
+								workspaces={workspaces.workspaces}
+								currentWorkspaceId={workspaces.resolveSessionWorkspace(session.id)}
+								fontSize={preferences.fontSizes[session.id] ?? DEFAULT_FONT_SIZE}
+								viewMode={preferences.viewMode}
+								onRename={(id, title) => terminalSessions.rename(id, title)}
+								onDuplicate={duplicateSession}
+								onMoveToWorkspace={moveSession}
+								onFontSizeChange={preferences.setFontSize}
+								onFocus={focusSession}
+								onClose={closeSession}
+							/>
+							<div class="pane-terminal-host">
+								<Terminal
+									{session}
+									active={workspaceVisible && active}
+									fontSize={preferences.fontSizes[session.id] ?? DEFAULT_FONT_SIZE}
+									onUpdate={(updated) => terminalSessions.patchFromStream(updated)}
+								/>
+							</div>
+						</div>
 					</div>
 				{/each}
 			</div>
@@ -362,6 +397,21 @@
 	}
 	.terminal-slot {
 		min-width: 0;
+		min-height: 0;
+	}
+	.pane-frame {
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+		height: 100%;
+		min-height: 0;
+		overflow: hidden;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: #0b1220;
+	}
+	.pane-terminal-host {
+		flex: 1 1 auto;
 		min-height: 0;
 	}
 	.terminal-slot[data-workspace-visible='false'],
