@@ -82,6 +82,10 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `shared/pwa/version-guard.tsx` | `src/lib/pwa/version-guard.svelte` — polls `/api/version`, prompts hard-refresh on new build; reads `PUBLIC_BUILD_ID` via `$env/dynamic/public` so dev doesn't require it set |
 | `features/terminals/hooks/use-devices.ts` + `components/devices-drawer.tsx` | `src/lib/features/terminals/devices.ts` (fetch helpers) + `src/lib/components/devices-drawer.svelte` (runes state + polling while open) — wired into `+page.svelte`'s topbar as a "Devices" button |
 | `app/error.tsx` | `src/routes/+error.svelte` (uses `page` from `$app/state`, the runes replacement for `$app/stores`'s `$page`) |
+| `features/terminals/lib/local-storage.ts` | `src/lib/local-storage.ts` (verbatim) |
+| `features/terminals/hooks/use-fullscreen.ts` | `src/lib/features/terminals/use-fullscreen.svelte.ts` — not wired into any component yet, no fullscreen button exists in `+page.svelte` |
+| `features/terminals/hooks/use-wake-lock.ts` | `src/lib/features/terminals/use-wake-lock.svelte.ts` — takes `active: () => boolean` instead of a plain prop, since runes have no dependency array; not wired in yet |
+| `features/terminals/hooks/use-app-settings.ts` | `src/lib/features/terminals/use-app-settings.svelte.ts` — not wired in yet, no settings drawer exists |
 
 ## Backlog — not ported yet
 
@@ -109,8 +113,9 @@ guessed at — it's simply not written yet.
 - [ ] `launcher-card.tsx`, `launcher-drawer.tsx` — AI agent launch flow (Claude/Codex/Gemini/OpenClaw profiles)
 - [ ] `use-alfa-watchers.ts`, `patrol/*` (4 components) — alfa patrol/registry feature, plus `app/api/alfa/watchers/**` and `app/api/patrol/pending/**` routes
 - [x] ~~`use-devices.ts`, `devices-drawer.tsx` — device approval UI~~ ported this round, see the table above
-- [ ] `use-fullscreen.ts`, `use-media-query.ts`, `use-wake-lock.ts`, `use-app-settings.ts`, `use-terminal-preferences.ts`, `use-session-colors.ts`, `use-workspaces.ts`, `use-pane-agent-overrides.ts`
-- [ ] `sessions/storage.ts`, `sessions/types.ts`, `lib/backup.ts`, `lib/local-storage.ts` — cross-browser workspace persistence (the agent-JSON sync described in PRD §5.2)
+- [x] ~~`use-fullscreen.ts`, `use-wake-lock.ts`, `use-app-settings.ts`~~ ported this round as logic-only modules, see the table above — **not wired into any UI yet**: there's no fullscreen button, wake-lock toggle, or settings drawer in `+page.svelte`, so these three currently have zero consumers. Wire them up when pane chrome / a settings drawer lands.
+- [ ] `use-media-query.ts`, `use-terminal-preferences.ts`, `use-session-colors.ts`, `use-workspaces.ts`, `use-pane-agent-overrides.ts`
+- [ ] `sessions/storage.ts`, `sessions/types.ts`, `lib/backup.ts` — cross-browser workspace persistence (the agent-JSON sync described in PRD §5.2); `lib/local-storage.ts` itself is ported (see table above), these are the higher-level pieces built on top of it
 - [ ] `history-drawer.tsx`, `overview-drawer.tsx`, `settings-drawer.tsx`
 - [ ] `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts`
 
