@@ -78,6 +78,10 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `use-pane-terminal.ts` + `terminal-pane.tsx` (subset) | `src/lib/features/terminals/Terminal.svelte` — xterm+webgl, SSE bootstrap/output/status/error, input, resize, reconnect-with-backoff |
 | `screen.tsx` + `session-tabs.tsx` (subset) | `src/routes/+page.svelte` — session tabs, new/close shell, single active pane |
 | `components/ui/{button,badge}.tsx` | `src/lib/components/ui/{button,badge}/` (hand-written shadcn-svelte style) |
+| `shared/runtime/force-fresh-reload.ts` | `src/lib/pwa/force-fresh-reload.ts` (verbatim — plain browser APIs, no framework code) |
+| `shared/pwa/version-guard.tsx` | `src/lib/pwa/version-guard.svelte` — polls `/api/version`, prompts hard-refresh on new build; reads `PUBLIC_BUILD_ID` via `$env/dynamic/public` so dev doesn't require it set |
+| `features/terminals/hooks/use-devices.ts` + `components/devices-drawer.tsx` | `src/lib/features/terminals/devices.ts` (fetch helpers) + `src/lib/components/devices-drawer.svelte` (runes state + polling while open) — wired into `+page.svelte`'s topbar as a "Devices" button |
+| `app/error.tsx` | `src/routes/+error.svelte` (uses `page` from `$app/state`, the runes replacement for `$app/stores`'s `$page`) |
 
 ## Backlog — not ported yet
 
@@ -86,12 +90,12 @@ guessed at — it's simply not written yet.
 
 **Auth/UI polish**
 - [ ] `app/login/page.tsx` full two-column marketing layout (icons, feature cards) — current port is the functional form only
-- [ ] `shared/pwa/version-guard.tsx` — polls `/api/version`, prompts reload on new build
 - [ ] `shared/pwa/use-pwa-install.ts` — install prompt handling
 - [ ] `shared/platform/*` (detect.ts, platform-provider.tsx, theme.ts, tokens.css) — per-OS skin
-- [ ] `shared/runtime/*` (chunk-load-recovery*, early-asset-recovery-script, force-fresh-reload)
-- [ ] `shared/components/error-boundary.tsx` → Svelte error boundary equivalent
-- [ ] `app/{error,global-error,not-found}.tsx` → `+error.svelte`
+- [ ] `shared/runtime/chunk-load-recovery*`, `early-asset-recovery-script` — stale-JS-chunk recovery after a redeploy; no direct SvelteKit equivalent identified yet, see the note in `+error.svelte`. `version-guard.svelte` (now ported) covers the same underlying "tab stuck on an old build" problem from a different angle, so this is lower priority than it looked originally.
+- [ ] `shared/components/error-boundary.tsx` → a component-level (not just route-level) Svelte error-boundary pattern, for wrapping individual panes so one crash doesn't blank the whole page — `pane-error-boundary.tsx` is the concrete use site, tracked below under terminal feature depth.
+- [ ] `app/global-error.tsx`, `app/not-found.tsx` → `+error.svelte` (added this round) covers the general case; a dedicated 404 look and the full-`<html>`-replace critical-error path from `global-error.tsx` are not differentiated yet.
+- [ ] Build-id stamping for `PUBLIC_BUILD_ID` at deploy time (equivalent of `next.config.ts`'s `generateBuildId`/`env` stamping) and the `Cache-Control` header rules from the same file (`no-cache` for HTML/`sw.js`, `immutable` for hashed static assets) — `version-guard.svelte` and `api/version/+server.ts` both assume `PUBLIC_BUILD_ID` is set, but nothing in `frontend-svelte/` sets it yet or replicates the header rules; needs a `hooks.server.ts` addition or adapter-node config, not done in this pass.
 - [ ] Real PWA icons: `app/icon.tsx` / `apple-icon.tsx` generate PNGs dynamically — export static files from a built Next app (or regenerate) into `static/icons/`; `manifest.webmanifest` already points at the expected paths
 
 **Terminal feature depth** (the big one — `use-pane-terminal.ts` alone is 662 lines)
@@ -104,7 +108,7 @@ guessed at — it's simply not written yet.
 - [ ] Pane chrome: `pane-header.tsx`, `pane-actions-menu.tsx`, `pane-menu-cluster.tsx`, `pane-scroll-rail.tsx`, `pane-soft-keyboard.tsx`, `pane-conn-badge.tsx`, `pane-activity-chip.tsx`, `pane-error-boundary.tsx`, `readonly-terminal-view.tsx`, `terminal-profile-icon.tsx`, `session-color-picker.tsx`
 - [ ] `launcher-card.tsx`, `launcher-drawer.tsx` — AI agent launch flow (Claude/Codex/Gemini/OpenClaw profiles)
 - [ ] `use-alfa-watchers.ts`, `patrol/*` (4 components) — alfa patrol/registry feature, plus `app/api/alfa/watchers/**` and `app/api/patrol/pending/**` routes
-- [ ] `use-devices.ts`, `devices-drawer.tsx` — device approval UI (backend `/api/auth/devices` is already ported)
+- [x] ~~`use-devices.ts`, `devices-drawer.tsx` — device approval UI~~ ported this round, see the table above
 - [ ] `use-fullscreen.ts`, `use-media-query.ts`, `use-wake-lock.ts`, `use-app-settings.ts`, `use-terminal-preferences.ts`, `use-session-colors.ts`, `use-workspaces.ts`, `use-pane-agent-overrides.ts`
 - [ ] `sessions/storage.ts`, `sessions/types.ts`, `lib/backup.ts`, `lib/local-storage.ts` — cross-browser workspace persistence (the agent-JSON sync described in PRD §5.2)
 - [ ] `history-drawer.tsx`, `overview-drawer.tsx`, `settings-drawer.tsx`

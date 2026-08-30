@@ -7,10 +7,14 @@
 	// broadcast are NOT here yet — see README-MIGRATION.md for the tracked
 	// backlog of every file this still needs.
 	import { onMount } from 'svelte';
+	import { ShieldCheck } from 'lucide-svelte';
 
 	import { Button } from '$lib/components/ui/button';
+	import DevicesDrawer from '$lib/components/devices-drawer.svelte';
 	import Terminal from '$lib/features/terminals/Terminal.svelte';
 	import { terminalSessions } from '$lib/state/terminal-sessions.svelte';
+
+	let devicesOpen = $state(false);
 
 	onMount(() => {
 		void terminalSessions.refresh();
@@ -63,8 +67,13 @@
 			{/each}
 			<Button variant="ghost" size="sm" onclick={newShell}>+ New shell</Button>
 		</div>
+		<Button variant="outline" size="sm" onclick={() => (devicesOpen = true)}>
+			<ShieldCheck size={14} /> Devices
+		</Button>
 		<Button variant="outline" size="sm" onclick={logout}>Sign out</Button>
 	</header>
+
+	<DevicesDrawer open={devicesOpen} onOpenChange={(v) => (devicesOpen = v)} />
 
 	<main class="stage">
 		{#if terminalSessions.loading && terminalSessions.sessions.length === 0}

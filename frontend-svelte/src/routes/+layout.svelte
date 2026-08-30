@@ -3,6 +3,7 @@
 
 	import '../app.css';
 	import { registerServiceWorker } from '$lib/pwa/register-service-worker';
+	import VersionGuard from '$lib/pwa/version-guard.svelte';
 
 	let { children } = $props();
 
@@ -28,3 +29,5 @@
 </svelte:head>
 
 {@render children?.()}
+
+<VersionGuard />
