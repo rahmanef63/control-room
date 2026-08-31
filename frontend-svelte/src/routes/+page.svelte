@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
-	import { Grid2X2, Rows3, ShieldCheck } from 'lucide-svelte';
+	import { Grid2X2, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
 
 	import DevicesDrawer from '$lib/components/devices-drawer.svelte';
+	import SettingsDrawer from '$lib/components/settings-drawer.svelte';
 	import InstallAppControl from '$lib/pwa/InstallAppControl.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import BroadcastMenu from '$lib/features/terminals/BroadcastMenu.svelte';
@@ -17,17 +18,21 @@
 		type GridCols
 	} from '$lib/features/terminals/use-terminal-preferences.svelte';
 	import { DEFAULT_FONT_SIZE } from '$lib/features/terminals/types';
+	import { useAppSettings } from '$lib/features/terminals/use-app-settings.svelte';
 	import { useFullscreen } from '$lib/features/terminals/use-fullscreen.svelte';
 	import {
 		resolveSessionVisualState,
 		type TerminalTelemetry
 	} from '$lib/features/terminals/telemetry';
+	import { useWakeLock } from '$lib/features/terminals/use-wake-lock.svelte';
 	import { useWorkspaces } from '$lib/features/terminals/use-workspaces.svelte';
 	import { terminalSessions } from '$lib/state/terminal-sessions.svelte';
 
 	const workspaces = useWorkspaces();
 	const preferences = useTerminalPreferences();
 	const fullscreen = useFullscreen();
+	const appSettings = useAppSettings();
+	useWakeLock(() => terminalSessions.runningCount > 0);
 	const broadcastInputQueue = new OrderedTerminalInputQueue(async (id, data) => {
 		const response = await fetch(`/api/terminals/${encodeURIComponent(id)}/input`, {
 			method: 'POST',
@@ -37,6 +42,7 @@
 		if (!response.ok) throw new Error(`Broadcast input failed: ${response.status}`);
 	});
 	let devicesOpen = $state(false);
+	let settingsOpen = $state(false);
 	let paneTelemetry = $state<Record<string, TerminalTelemetry>>({});
 
 	let activeWorkspaceSessions = $derived.by(() =>
@@ -256,6 +262,9 @@
 
 			<InstallAppControl />
 
+			<Button variant="outline" size="sm" onclick={() => (settingsOpen = true)} aria-label="Open settings">
+				<Settings2 size={14} /> Settings
+			</Button>
 			<Button variant="outline" size="sm" onclick={() => (devicesOpen = true)}>
 				<ShieldCheck size={14} /> Devices
 			</Button>
@@ -263,6 +272,14 @@
 		</div>
 	</header>
 
+	<SettingsDrawer
+		open={settingsOpen}
+		notifications={appSettings.settings.notifications}
+		onOpenChange={(value) => (settingsOpen = value)}
+		onUpdateNotifications={appSettings.updateNotifications}
+		onOpenDevices={() => (devicesOpen = true)}
+		onResetDefaults={appSettings.resetDefaults}
+	/>
 	<DevicesDrawer open={devicesOpen} onOpenChange={(value) => (devicesOpen = value)} />
 
 	<main class="terminal-stage">
@@ -289,7 +306,10 @@
 						data-active={active}
 						aria-hidden={!workspaceVisible || !active}
 					>
-						<div class="pane-frame">
+						<div
+							class="pane-frame"
+							data-heartbeat={appSettings.settings.notifications.heartbeatGlow && telemetry?.activityState === 'working' || undefined}
+						>
 							<PaneChrome
 								{session}
 								workspaces={workspaces.workspaces}
@@ -534,6 +554,14 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		background: #0b1220;
+	}
+	.pane-frame[data-heartbeat='true'],
+	:global(html[data-heartbeat-test='on']) .pane-frame {
+		animation: pane-heartbeat 1.35s ease-in-out infinite;
+	}
+	@keyframes pane-heartbeat {
+		0%, 100% { box-shadow: 0 0 0 0 rgb(56 189 248 / 0); }
+		50% { box-shadow: 0 0 0 2px rgb(56 189 248 / 0.48), 0 0 24px rgb(56 189 248 / 0.2); }
 	}
 	.pane-broadcast-banner {
 		border-bottom: 1px solid rgb(251 113 133 / 0.22);

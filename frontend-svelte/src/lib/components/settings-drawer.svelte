@@ -1,0 +1,220 @@
+<script lang="ts">
+	import { RotateCcw, Settings2, ShieldCheck, X } from 'lucide-svelte';
+
+	import { Button } from '$lib/components/ui/button';
+	import type {
+		NotificationSettings
+	} from '$lib/features/terminals/use-app-settings.svelte';
+
+	interface Props {
+		open: boolean;
+		notifications: NotificationSettings;
+		onOpenChange: (open: boolean) => void;
+		onUpdateNotifications: (patch: Partial<NotificationSettings>) => void;
+		onOpenDevices: () => void;
+		onResetDefaults: () => void;
+	}
+
+	let {
+		open,
+		notifications,
+		onOpenChange,
+		onUpdateNotifications,
+		onOpenDevices,
+		onResetDefaults
+	}: Props = $props();
+
+
+	function testHeartbeat(): void {
+		document.documentElement.setAttribute('data-heartbeat-test', 'on');
+		window.setTimeout(() => document.documentElement.removeAttribute('data-heartbeat-test'), 4000);
+	}
+
+	function openDevices(): void {
+		onOpenChange(false);
+		onOpenDevices();
+	}
+</script>
+
+<svelte:window
+	onkeydown={(event) => {
+		if (open && event.key === 'Escape') onOpenChange(false);
+	}}
+/>
+
+{#if open}
+	<div
+		class="settings-backdrop"
+		role="presentation"
+		onclick={(event) => {
+			if (event.target === event.currentTarget) onOpenChange(false);
+		}}
+	>
+		<div
+			class="settings-sheet"
+			role="dialog"
+			aria-modal="true"
+			aria-label="Settings"
+			tabindex="-1"
+		>
+			<header class="settings-header">
+				<div class="settings-title">
+					<Settings2 size={16} />
+					<div>
+						<h2>Settings</h2>
+						<p>Terminal behavior and security</p>
+					</div>
+				</div>
+				<button type="button" class="settings-close" onclick={() => onOpenChange(false)} aria-label="Close settings">
+					<X size={16} />
+				</button>
+			</header>
+
+			<div class="settings-body">
+				<section class="settings-section">
+					<div class="settings-section__head">
+						<h3>Terminal activity</h3>
+						<span>Visual feedback</span>
+					</div>
+					<label class="settings-row">
+						<span>
+							<strong>Heartbeat glow</strong>
+							<small>Pulse the pane edge while an AI agent is working.</small>
+						</span>
+						<input
+							type="checkbox"
+							checked={notifications.heartbeatGlow}
+							onchange={(event) => onUpdateNotifications({ heartbeatGlow: event.currentTarget.checked })}
+						/>
+					</label>
+					<Button variant="outline" size="sm" onclick={testHeartbeat}>Test heartbeat</Button>
+				</section>
+
+				<section class="settings-section">
+					<div class="settings-section__head">
+						<h3>Screen</h3>
+						<span>Automatic</span>
+					</div>
+					<div class="settings-copy-row">
+						<strong>Keep screen awake while a terminal is running</strong>
+						<small>
+							Uses the browser Screen Wake Lock API when supported. It releases automatically when no live terminal remains.
+						</small>
+					</div>
+				</section>
+
+				<section class="settings-section">
+					<div class="settings-section__head">
+						<h3>Security</h3>
+						<span>Sign-in</span>
+					</div>
+					<button type="button" class="settings-nav" onclick={openDevices}>
+						<ShieldCheck size={15} />
+						<span>
+							<strong>Trusted devices</strong>
+							<small>Approve or revoke devices that can sign in.</small>
+						</span>
+						<span aria-hidden="true">›</span>
+					</button>
+				</section>
+			</div>
+
+			<footer class="settings-footer">
+				<Button variant="ghost" size="sm" onclick={onResetDefaults}>
+					<RotateCcw size={13} /> Reset defaults
+				</Button>
+			</footer>
+		</div>
+	</div>
+{/if}
+
+<style>
+	.settings-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 110;
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+		background: rgb(4 8 16 / 0.62);
+		backdrop-filter: blur(8px);
+	}
+	.settings-sheet {
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+		max-width: 31rem;
+		max-height: min(88dvh, 720px);
+		overflow: hidden;
+		border: 1px solid var(--border);
+		border-radius: 1.2rem 1.2rem 0 0;
+		background: color-mix(in srgb, var(--surface) 97%, #07101d);
+		box-shadow: 0 -20px 60px rgb(0 0 0 / 0.38);
+	}
+	.settings-header,
+	.settings-footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 12px 14px;
+	}
+	.settings-header { border-bottom: 1px solid var(--border); }
+	.settings-footer { justify-content: flex-end; border-top: 1px solid var(--border); }
+	.settings-title { display: flex; align-items: center; gap: 9px; color: var(--accent); }
+	.settings-title h2 { margin: 0; color: var(--ink); font-size: 0.88rem; }
+	.settings-title p { margin: 1px 0 0; color: var(--ink-muted); font-size: 0.67rem; }
+	.settings-close {
+		display: grid;
+		place-items: center;
+		width: 30px;
+		height: 30px;
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--ink-muted);
+		cursor: pointer;
+	}
+	.settings-body { display: grid; gap: 10px; overflow-y: auto; padding: 12px; }
+	.settings-section {
+		display: grid;
+		gap: 9px;
+		border: 1px solid var(--border);
+		border-radius: 11px;
+		background: var(--surface-2);
+		padding: 11px;
+	}
+	.settings-section__head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+	.settings-section__head h3 { margin: 0; color: var(--ink); font-size: 0.74rem; }
+	.settings-section__head > span { color: var(--ink-muted); font-size: 0.62rem; }
+	.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+	.settings-row > span,
+	.settings-copy-row,
+	.settings-nav > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
+	.settings-row strong,
+	.settings-copy-row strong,
+	.settings-nav strong { color: var(--ink); font-size: 0.72rem; font-weight: 600; }
+	.settings-row small,
+	.settings-copy-row small,
+	.settings-nav small { color: var(--ink-muted); font-size: 0.64rem; line-height: 1.4; }
+	.settings-row input { width: 17px; height: 17px; accent-color: var(--accent); }
+	.settings-nav {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 9px;
+		width: 100%;
+		border: 1px solid var(--border);
+		border-radius: 9px;
+		background: color-mix(in srgb, var(--surface) 70%, transparent);
+		padding: 9px;
+		color: var(--ink-muted);
+		text-align: left;
+		cursor: pointer;
+	}
+	.settings-nav:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--accent); }
+	@media (min-width: 640px) {
+		.settings-backdrop { align-items: center; }
+		.settings-sheet { border-radius: 1.2rem; margin-bottom: 7vh; }
+	}
+</style>

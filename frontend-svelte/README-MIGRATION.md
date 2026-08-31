@@ -55,6 +55,9 @@ Verified gates:
 - Fullscreen smoke verifies pane enter/exit, CSS chrome suppression/restoration,
   xterm refit/resize without remount, and React-parity Focus behavior from grid
   (`single` + fullscreen) against a live PTY.
+- Settings/wake-lock smoke verifies heartbeat preference persistence/reset,
+  Settings → Trusted devices drawer handoff, and one Screen Wake Lock acquire
+  while a real PTY is running followed by one release when that PTY closes.
 
 No production cutover has happened. The existing Next frontend stays on its
 current service/port, and the agent source is not modified by this migration.
@@ -137,8 +140,8 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `app/error.tsx` | `src/routes/+error.svelte` (uses `page` from `$app/state`, the runes replacement for `$app/stores`'s `$page`) |
 | `features/terminals/lib/local-storage.ts` | `src/lib/local-storage.ts` (verbatim) |
 | `features/terminals/hooks/use-fullscreen.ts` | `src/lib/features/terminals/use-fullscreen.svelte.ts` — wired into pane chrome and grid Focus; native Fullscreen API with CSS fallback, shell-chrome suppression, and xterm refit |
-| `features/terminals/hooks/use-wake-lock.ts` | `src/lib/features/terminals/use-wake-lock.svelte.ts` — takes `active: () => boolean` instead of a plain prop, since runes have no dependency array; not wired in yet |
-| `features/terminals/hooks/use-app-settings.ts` | `src/lib/features/terminals/use-app-settings.svelte.ts` — not wired in yet, no settings drawer exists |
+| `features/terminals/hooks/use-wake-lock.ts` | `src/lib/features/terminals/use-wake-lock.svelte.ts` — wired to `terminalSessions.runningCount`; acquires while any PTY runs, releases at zero, and reacquires on visibility return |
+| `features/terminals/hooks/use-app-settings.ts` + settings drawer core | `src/lib/features/terminals/use-app-settings.svelte.ts` + `src/lib/components/settings-drawer.svelte` — heartbeat setting/test, automatic wake-lock explanation, Devices handoff and reset are live; soft-keyboard/appearance/data/automation sections remain with their unported features |
 
 ## Backlog — not ported yet
 
@@ -170,11 +173,12 @@ guessed at — it's simply not written yet.
 - [ ] `use-alfa-watchers.ts`, `patrol/*` (4 components) — alfa patrol/registry feature, plus `app/api/alfa/watchers/**` and `app/api/patrol/pending/**` routes
 - [x] ~~`use-devices.ts`, `devices-drawer.tsx` — device approval UI~~ ported this round, see the table above
 - [x] `use-fullscreen.ts` — ported and wired into pane chrome + grid Focus, with browser fullscreen/resize verification.
-- [x] `use-wake-lock.ts`, `use-app-settings.ts` — ported as logic modules but still **not wired into UI**; connect them when the settings drawer lands.
+- [x] `use-wake-lock.ts` — wired automatically to live terminal count and browser-verified acquire/release.
+- [x] `use-app-settings.ts` + settings drawer core — heartbeat glow persistence/test, reset and Trusted Devices handoff are wired; soft-keyboard settings stay dormant until `pane-soft-keyboard.tsx` is ported.
 - [x] `use-workspaces.ts` and core `use-terminal-preferences.ts` (font size + view mode + grid columns + broadcast targets)
 - [ ] `use-media-query.ts`, `use-session-colors.ts`, `use-pane-agent-overrides.ts`
 - [ ] `sessions/storage.ts`, `sessions/types.ts`, `lib/backup.ts` — cross-browser workspace persistence beyond the now-ported basic agent `/api/state/workspaces` sync; `lib/local-storage.ts` itself is ported (see table above), these are the higher-level backup/history pieces built on top of it
-- [ ] `history-drawer.tsx`, `overview-drawer.tsx`, `settings-drawer.tsx`
+- [ ] `history-drawer.tsx`, `overview-drawer.tsx`; Settings drawer core is now ported, while its appearance/soft-keyboard/data/automation sections stay scoped to the corresponding remaining features
 - [ ] `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts`
 
 **Other feature areas — not started**

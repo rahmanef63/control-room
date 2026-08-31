@@ -4,6 +4,8 @@
 // mount, write back on every change after that) so SSR/first-paint never
 // touches `window`.
 
+import { onMount } from 'svelte';
+
 import { readLocal, writeLocal } from '$lib/local-storage';
 import { APP_SETTINGS_STORAGE_KEY, SOFT_KEYBOARD_KEYS, type SoftKeyboardKey } from './types';
 
@@ -72,10 +74,10 @@ export interface UseAppSettingsResult {
 
 export function useAppSettings(): UseAppSettingsResult {
 	let settings = $state<AppSettings>(DEFAULT_SETTINGS);
-	let hydrated = false;
+	let hydrated = $state(false);
 
 	// Mount-only: adopt whatever's in localStorage once, client-side only.
-	$effect(() => {
+	onMount(() => {
 		settings = readSettings();
 		hydrated = true;
 	});
