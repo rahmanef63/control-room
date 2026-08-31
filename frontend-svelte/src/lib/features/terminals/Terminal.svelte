@@ -19,6 +19,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { Loader2, UploadCloud } from 'lucide-svelte';
 	import PaneSoftKeyboard from '$lib/features/terminals/PaneSoftKeyboard.svelte';
+	import PaneScrollRail from '$lib/features/terminals/PaneScrollRail.svelte';
 	import { FitAddon } from '@xterm/addon-fit';
 	import { WebglAddon } from '@xterm/addon-webgl';
 	import { Terminal as XTerm } from '@xterm/xterm';
@@ -225,6 +226,10 @@
 	function clearTerminal(): void {
 		term?.clear();
 		sendControlKey('l');
+	}
+
+	function railScroll(lines: number): void {
+		term?.scrollLines(lines);
 	}
 
 	function handleSoftKeyboardAction(action: SoftKeyboardAction): void {
@@ -537,6 +542,7 @@
 	});
 </script>
 
+<div class="terminal-pane-shell">
 <div class="terminal-pane">
 	<div class="terminal-pane__status" data-state={connectionState}>
 		{connectionState}
@@ -590,13 +596,25 @@
 		/>
 	{/if}
 </div>
+<PaneScrollRail onScroll={railScroll} />
+</div>
 
 <style>
+	.terminal-pane-shell {
+		display: flex;
+		height: 100%;
+		min-height: 0;
+		min-width: 0;
+		overflow: hidden;
+	}
 	.terminal-pane {
 		position: relative;
 		display: flex;
 		flex-direction: column;
+		flex: 1 1 0%;
+		width: auto;
 		height: 100%;
+		min-width: 0;
 		min-height: 0;
 		background: #0b1220;
 		border-radius: var(--radius);

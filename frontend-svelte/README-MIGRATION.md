@@ -63,6 +63,9 @@ Verified gates:
   the master hide setting persist across reloads, Reset defaults restores them,
   and the stale React-only `enter`/`ctrlHold` preference flags are deliberately
   not exposed as fake controls.
+- Mobile scroll-rail smoke fills a real PTY with 180 numbered output rows and
+  verifies all four controls (up/down one and ten lines) shift the visible xterm
+  window while preserving the authoritative scrollback and session count.
 
 No production cutover has happened. The existing Next frontend stays on its
 current service/port, and the agent source is not modified by this migration.
@@ -131,9 +134,10 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `app/manifest.ts` + `app/{icon,apple-icon}.tsx` | `static/manifest.webmanifest` + `static/icons/*` — exact live Next 512/180 icon pixels, derived 192 size, maskable declaration, screenshots and New terminal shortcut |
 | `offline.html`, `favicon.ico`, `og-card.png`, screenshots | retained under `static/`; stale Next-specific `static/sw.js` removed because SvelteKit now builds `/service-worker.js` from `src/service-worker.ts` |
 | `use-terminal-sessions.ts` (736 lines, subset) | `src/lib/state/terminal-sessions.svelte.ts` — list/create/close/rename/duplicate |
-| `use-pane-terminal.ts` + `terminal-pane.tsx` (subset) | `src/lib/features/terminals/Terminal.svelte` — xterm+webgl, SSE bootstrap/output/status/error, ordered direct input, input RTT EWMA, agent activity detection, resize, reconnect-with-backoff, parent-delegated broadcast keystrokes, two-finger pinch zoom, clipboard helpers and soft-key actions |
+| `use-pane-terminal.ts` + `terminal-pane.tsx` (subset) | `src/lib/features/terminals/Terminal.svelte` — xterm+webgl, SSE bootstrap/output/status/error, ordered direct input, input RTT EWMA, agent activity detection, resize, reconnect-with-backoff, parent-delegated broadcast keystrokes, two-finger pinch zoom, clipboard/soft-key actions, and the shared xterm scroll rail |
 | `screen.tsx` + `session-tabs.tsx` (core) | `src/routes/+page.svelte` — workspace-scoped session tabs, create/close shell, single/grid modes, responsive multi-pane grid, scoped broadcast fan-out, pane telemetry snapshots and activity-aware tab dots |
 | `pane-soft-keyboard.tsx` + `keyboard.css` | `src/lib/features/terminals/PaneSoftKeyboard.svelte` + `soft-keyboard.ts` — compact two-row touch controls, Ctrl+C/Ctrl+L, navigation sequences, clipboard actions and file attach; per-key/master visibility comes from app-settings SSOT |
+| `pane-scroll-rail.tsx` + `pane-rail.css` | `src/lib/features/terminals/PaneScrollRail.svelte` — mobile-only right rail with one/ten-line xterm scroll controls, safe-area spacing, and no duplicate scroll state |
 | `pane-header.tsx` + action subset | `src/lib/features/terminals/PaneChrome.svelte` — in-place rename, activity chip, stream/RTT badge, move workspace, font +/- controls, duplicate, grid focus, fullscreen enter/exit, close; advanced AI/skills/color menus remain backlog |
 | `use-workspaces.ts` + `workspace-tabs.tsx` | `src/lib/features/terminals/use-workspaces.svelte.ts` + `WorkspaceTabs.svelte` — local-first + remote agent-state sync, create/rename/delete/select workspace, session assignment |
 | `use-terminal-preferences.ts` (core) | `src/lib/features/terminals/use-terminal-preferences.svelte.ts` — font-size map, single/grid mode, grid columns, reactive `SvelteSet` broadcast targets |
@@ -174,7 +178,7 @@ guessed at — it's simply not written yet.
 - [x] Core multi-workspace state + workspace tabs + session assignment + single/grid rendering + configurable 1–4/auto columns
 - [x] Core pane chrome actions: move workspace, duplicate, grid focus, and close
 - [ ] Full `terminals-main.tsx` / `terminals-topbar.tsx` parity: row-stretch polish, launcher/patrol controls, history overlays, and the remaining compact chrome
-- [ ] Advanced pane chrome: `pane-actions-menu.tsx`, `pane-menu-cluster.tsx`, `pane-scroll-rail.tsx`, `pane-error-boundary.tsx`, `readonly-terminal-view.tsx`, `terminal-profile-icon.tsx`, `session-color-picker.tsx` plus AI/skills/color integrations. `pane-soft-keyboard.tsx`, `pane-conn-badge.tsx`, `pane-activity-chip.tsx`, and fullscreen behavior are already absorbed by the current Svelte pane components.
+- [ ] Advanced pane chrome: `pane-actions-menu.tsx`, `pane-menu-cluster.tsx`, `pane-error-boundary.tsx`, `readonly-terminal-view.tsx`, `terminal-profile-icon.tsx`, `session-color-picker.tsx` plus AI/skills/color integrations. `pane-soft-keyboard.tsx`, `pane-scroll-rail.tsx`, `pane-conn-badge.tsx`, `pane-activity-chip.tsx`, and fullscreen behavior are already absorbed by the current Svelte pane components.
 - [ ] `launcher-card.tsx`, `launcher-drawer.tsx` — AI agent launch flow (Claude/Codex/Gemini/OpenClaw profiles)
 - [ ] `use-alfa-watchers.ts`, `patrol/*` (4 components) — alfa patrol/registry feature, plus `app/api/alfa/watchers/**` and `app/api/patrol/pending/**` routes
 - [x] ~~`use-devices.ts`, `devices-drawer.tsx` — device approval UI~~ ported this round, see the table above
@@ -196,7 +200,7 @@ guessed at — it's simply not written yet.
 - [ ] `components/ui/{separator,tooltip}.tsx` — the other two shadcn components in the original; add via `bunx shadcn-svelte@latest add separator tooltip` once npm access exists
 
 **Styling parity**
-- [ ] Most legacy stylesheets under `frontend/app/styles/**` (dashboard, drawers, pane-menus/*, alfa-*, terminals/*) still need a visual-parity pass. `keyboard.css` behavior is now absorbed into `PaneSoftKeyboard.svelte`; the broader shell still needs comparison against `docs/media/*.png` screenshots in the repo root.
+- [ ] Most legacy stylesheets under `frontend/app/styles/**` (dashboard, drawers, pane-menus/*, alfa-*, terminals/*) still need a visual-parity pass. `keyboard.css` and `pane-rail.css` behavior are now absorbed into the Svelte pane components; the broader shell still needs comparison against `docs/media/*.png` screenshots in the repo root.
 
 ## What was deliberately kept identical, not reinterpreted
 
