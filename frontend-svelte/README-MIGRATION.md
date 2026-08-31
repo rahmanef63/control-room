@@ -18,7 +18,7 @@ agent on a parallel loopback port without touching the live Next service.
 Verified gates:
 
 - `bun install` succeeds with Svelte 5 / SvelteKit 2 / adapter-node.
-- `bun test` — **28/28** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard helper tests pass.
+- `bun test` — **31/31** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color helper tests pass.
 - `bun run check` — **0 errors, 0 warnings**.
 - `bun run build` — production adapter-node build succeeds.
 - Official Svelte MCP `svelte-autofixer` reports no issues on the changed
@@ -70,6 +70,7 @@ Verified gates:
   real PTYs: only that slot falls back, the healthy pane/dashboard stay live,
   the failed PTY keeps accepting input, and `Reload pane` reconnects the same
   session and replays its agent buffer.
+- Session-color smoke verifies deterministic defaults, live picker updates on pane/tab/profile chrome, reload persistence, cross-tab storage sync, reset-to-default, and profile icon rendering against a real PTY.
 
 No production cutover has happened. The existing Next frontend stays on its
 current service/port, and the agent source is not modified by this migration.
@@ -143,7 +144,10 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `pane-soft-keyboard.tsx` + `keyboard.css` | `src/lib/features/terminals/PaneSoftKeyboard.svelte` + `soft-keyboard.ts` — compact two-row touch controls, Ctrl+C/Ctrl+L, navigation sequences, clipboard actions and file attach; per-key/master visibility comes from app-settings SSOT |
 | `pane-scroll-rail.tsx` + `pane-rail.css` | `src/lib/features/terminals/PaneScrollRail.svelte` — mobile-only right rail with one/ten-line xterm scroll controls, safe-area spacing, and no duplicate scroll state |
 | `pane-error-boundary.tsx` + shared React error boundary | `src/lib/features/terminals/PaneErrorBoundary.svelte` — native `<svelte:boundary>` isolates render/effect failures per pane and retries the same live agent session without exposing error details |
-| `pane-header.tsx` + action subset | `src/lib/features/terminals/PaneChrome.svelte` — in-place rename, activity chip, stream/RTT badge, move workspace, font +/- controls, duplicate, grid focus, fullscreen enter/exit, close; advanced AI/skills/color menus remain backlog |
+| `features/terminals/hooks/use-session-colors.ts` | `src/lib/features/terminals/session-colors.svelte.ts` + `session-colors.ts` — app-wide rune singleton using the original `control-room:session-colors` key, deterministic palette fallback, cross-tab sync, set/clear and tested pruning helper |
+| `session-color-picker.tsx` | `src/lib/features/terminals/SessionColorPicker.svelte` — accessible swatch/palette/reset control wired to the shared session-color store; pane border, heartbeat and active tab consume the same custom property |
+| `terminal-profile-icon.tsx` | `src/lib/features/terminals/TerminalProfileIcon.svelte` — shell/OpenClaw/Codex/Claude/Gemini profile icon parity used in session tabs and pane chrome |
+| `pane-header.tsx` + action subset | `src/lib/features/terminals/PaneChrome.svelte` — profile icon, session-color picker, in-place rename, activity chip, stream/RTT badge, move workspace, font +/- controls, duplicate, grid focus, fullscreen enter/exit, close; advanced AI/skills/actions menus remain backlog |
 | `use-workspaces.ts` + `workspace-tabs.tsx` | `src/lib/features/terminals/use-workspaces.svelte.ts` + `WorkspaceTabs.svelte` — local-first + remote agent-state sync, create/rename/delete/select workspace, session assignment |
 | `use-terminal-preferences.ts` (core) | `src/lib/features/terminals/use-terminal-preferences.svelte.ts` — font-size map, single/grid mode, grid columns, reactive `SvelteSet` broadcast targets |
 | `terminals-broadcast.tsx` + broadcast input slice | `src/lib/features/terminals/BroadcastMenu.svelte` + `broadcast.ts` + `input-queue.ts` — current-workspace running-target selection, All/None, source-inclusive fan-out, shared per-terminal ordered input queue |
@@ -182,8 +186,9 @@ guessed at — it's simply not written yet.
 - [x] Pinch-zoom font sizing — non-passive two-touch attachment with 12% step threshold, shared persisted font SSOT, xterm refit/resize, unit tests and real mobile browser/PTY persistence smoke
 - [x] Core multi-workspace state + workspace tabs + session assignment + single/grid rendering + configurable 1–4/auto columns
 - [x] Core pane chrome actions: move workspace, duplicate, grid focus, and close
+- [x] Session-color SSOT + profile icons + picker — original storage key/palette preserved, deterministic fallback, cross-tab sync, pane/tab/heartbeat custom-property wiring, and real-browser persistence/reset verification. Runtime auto-prune is intentionally deferred until history SSOT lands because React prunes against live + history-restorable ids, not live ids alone.
 - [ ] Full `terminals-main.tsx` / `terminals-topbar.tsx` parity: row-stretch polish, launcher/patrol controls, history overlays, and the remaining compact chrome
-- [ ] Advanced pane chrome: `pane-actions-menu.tsx`, `pane-menu-cluster.tsx`, `readonly-terminal-view.tsx`, `terminal-profile-icon.tsx`, `session-color-picker.tsx` plus AI/skills/color integrations. `pane-soft-keyboard.tsx`, `pane-scroll-rail.tsx`, `pane-error-boundary.tsx`, `pane-conn-badge.tsx`, `pane-activity-chip.tsx`, and fullscreen behavior are already absorbed by the current Svelte pane components.
+- [ ] Advanced pane chrome: `pane-actions-menu.tsx`, `pane-menu-cluster.tsx`, `readonly-terminal-view.tsx` plus AI/skills/actions integrations. `terminal-profile-icon.tsx`, `session-color-picker.tsx`, `pane-soft-keyboard.tsx`, `pane-scroll-rail.tsx`, `pane-error-boundary.tsx`, `pane-conn-badge.tsx`, `pane-activity-chip.tsx`, and fullscreen behavior are already absorbed by the current Svelte pane components.
 - [ ] `launcher-card.tsx`, `launcher-drawer.tsx` — AI agent launch flow (Claude/Codex/Gemini/OpenClaw profiles)
 - [ ] `use-alfa-watchers.ts`, `patrol/*` (4 components) — alfa patrol/registry feature, plus `app/api/alfa/watchers/**` and `app/api/patrol/pending/**` routes
 - [x] ~~`use-devices.ts`, `devices-drawer.tsx` — device approval UI~~ ported this round, see the table above
@@ -191,7 +196,7 @@ guessed at — it's simply not written yet.
 - [x] `use-wake-lock.ts` — wired automatically to live terminal count and browser-verified acquire/release.
 - [x] `use-app-settings.ts` + settings drawer core — heartbeat glow, soft-keyboard master/per-key persistence, reset and Trusted Devices handoff are wired. Legacy `enter`/`ctrlHold` flags remain storage-compatible but hidden because the React keyboard never implemented them.
 - [x] `use-workspaces.ts` and core `use-terminal-preferences.ts` (font size + view mode + grid columns + broadcast targets)
-- [ ] `use-media-query.ts`, `use-session-colors.ts`, `use-pane-agent-overrides.ts`
+- [ ] `use-media-query.ts`, `use-pane-agent-overrides.ts`
 - [ ] `sessions/storage.ts`, `sessions/types.ts`, `lib/backup.ts` — cross-browser workspace persistence beyond the now-ported basic agent `/api/state/workspaces` sync; `lib/local-storage.ts` itself is ported (see table above), these are the higher-level backup/history pieces built on top of it
 - [ ] `history-drawer.tsx`, `overview-drawer.tsx`; Settings drawer core is now ported, while appearance/data/automation sections stay scoped to the corresponding remaining features
 - [ ] `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts`

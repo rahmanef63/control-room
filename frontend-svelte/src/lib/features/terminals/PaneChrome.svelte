@@ -15,6 +15,8 @@
 		X
 	} from 'lucide-svelte';
 
+	import SessionColorPicker from '$lib/features/terminals/SessionColorPicker.svelte';
+	import TerminalProfileIcon from '$lib/features/terminals/TerminalProfileIcon.svelte';
 	import { clampFontSize, type ConnectionState, type TerminalSession } from '$lib/features/terminals/types';
 	import type { ActivityState } from '$lib/features/terminals/telemetry';
 	import type { Workspace } from '$lib/features/terminals/use-workspaces.svelte';
@@ -31,6 +33,10 @@
 		activityLabel: string;
 		showActivity: boolean;
 		fullscreen: boolean;
+		color: string;
+		hasColorOverride: boolean;
+		onColorPick: (color: string) => void;
+		onColorClear: () => void;
 		onRename: (id: string, title: string) => Promise<void>;
 		onDuplicate: (session: TerminalSession) => Promise<void>;
 		onMoveToWorkspace: (sessionId: string, workspaceId: string) => void;
@@ -52,6 +58,10 @@
 		activityLabel,
 		showActivity,
 		fullscreen,
+		color,
+		hasColorOverride,
+		onColorPick,
+		onColorClear,
 		onRename,
 		onDuplicate,
 		onMoveToWorkspace,
@@ -135,6 +145,7 @@
 			</div>
 		{:else}
 			<button type="button" class="pane-chrome__title" onclick={startRename} title={`${session.title} · ${session.cwd}`}>
+				<span class="pane-chrome__profile"><TerminalProfileIcon profile={session.profile} size={13} /></span>
 				<span>{session.title || session.profile}</span>
 				<Pencil size={12} />
 			</button>
@@ -155,6 +166,13 @@
 	</div>
 
 	<div class="pane-chrome__actions">
+		<SessionColorPicker
+			sessionId={session.id}
+			{color}
+			hasOverride={hasColorOverride}
+			onPick={onColorPick}
+			onClear={onColorClear}
+		/>
 		<span
 			class="pane-chrome__latency"
 			data-state={connectionState}
@@ -262,8 +280,12 @@
 	}
 	.pane-chrome__title :global(svg) {
 		flex: 0 0 auto;
-		opacity: 0.5;
 	}
+	.pane-chrome__profile {
+		display: inline-flex;
+		color: var(--session-color, var(--accent));
+	}
+	.pane-chrome__title > :global(svg:last-child) { opacity: 0.5; }
 	.pane-chrome__cwd {
 		min-width: 0;
 		color: var(--ink-muted);

@@ -11,6 +11,7 @@
 	import PaneChrome from '$lib/features/terminals/PaneChrome.svelte';
 	import PaneErrorBoundary from '$lib/features/terminals/PaneErrorBoundary.svelte';
 	import Terminal from '$lib/features/terminals/Terminal.svelte';
+	import TerminalProfileIcon from '$lib/features/terminals/TerminalProfileIcon.svelte';
 	import WorkspaceTabs from '$lib/features/terminals/WorkspaceTabs.svelte';
 	import { resolveBroadcastFanout } from '$lib/features/terminals/broadcast';
 	import { OrderedTerminalInputQueue } from '$lib/features/terminals/input-queue';
@@ -25,6 +26,7 @@
 		resolveSessionVisualState,
 		type TerminalTelemetry
 	} from '$lib/features/terminals/telemetry';
+	import { sessionColors } from '$lib/features/terminals/session-colors.svelte';
 	import { useWakeLock } from '$lib/features/terminals/use-wake-lock.svelte';
 	import { useWorkspaces } from '$lib/features/terminals/use-workspaces.svelte';
 	import { terminalSessions } from '$lib/state/terminal-sessions.svelte';
@@ -62,8 +64,13 @@
 	});
 
 	onMount(() => {
+		sessionColors.init();
 		void terminalSessions.refresh();
 	});
+
+	// Do not auto-prune color overrides yet. React keeps both live and history-
+	// restorable session ids; until the history store is ported, pruning only the
+	// live ids would destructively erase colors that history still owns.
 
 	// Keep single-pane focus inside the selected workspace. The terminals stay
 	// mounted after first activation so switching workspace preserves xterm scrollback.
@@ -202,6 +209,7 @@
 				{@const visualState = resolveSessionVisualState(session, paneTelemetry[session.id]?.activityState)}
 				<div
 					class="session-tab"
+					style:--session-color={sessionColors.colorOf(session.id)}
 					data-active={session.id === terminalSessions.activeId || undefined}
 					data-state={visualState}
 				>
@@ -210,6 +218,7 @@
 						class="session-tab__main"
 						onclick={() => terminalSessions.setActive(session.id)}
 					>
+						<span class="session-tab__profile"><TerminalProfileIcon profile={session.profile} size={13} /></span>
 						<span class="session-tab__dot" data-status={visualState} aria-label={visualState}></span>
 						<span class="session-tab__title">{session.title || session.profile}</span>
 					</button>
@@ -313,6 +322,7 @@
 						<PaneErrorBoundary>
 						<div
 							class="pane-frame"
+							style:--session-color={sessionColors.colorOf(session.id)}
 							data-heartbeat={appSettings.settings.notifications.heartbeatGlow && telemetry?.activityState === 'working' || undefined}
 						>
 							<PaneChrome
@@ -327,6 +337,10 @@
 								activityLabel={telemetry?.activityLabel ?? 'Idle'}
 								showActivity={telemetry?.showActivity ?? false}
 								fullscreen={fullscreen.isFullscreen}
+								color={sessionColors.colorOf(session.id)}
+								hasColorOverride={sessionColors.hasOverride(session.id)}
+								onColorPick={(color) => sessionColors.setColor(session.id, color)}
+								onColorClear={() => sessionColors.clearColor(session.id)}
 								onRename={(id, title) => terminalSessions.rename(id, title)}
 								onDuplicate={duplicateSession}
 								onMoveToWorkspace={moveSession}
@@ -428,7 +442,11 @@
 		overflow: hidden;
 	}
 	.session-tab[data-active='true'] {
-		border-color: var(--accent);
+		border-color: var(--session-color, var(--accent));
+	}
+	.session-tab__profile {
+		display: inline-flex;
+		color: var(--session-color, var(--accent));
 	}
 	.session-tab__main,
 	.session-tab__close {
@@ -559,7 +577,7 @@
 		height: 100%;
 		min-height: 0;
 		overflow: hidden;
-		border: 1px solid var(--border);
+		border: 1px solid var(--session-color, var(--border));
 		border-radius: var(--radius);
 		background: #0b1220;
 	}
@@ -568,8 +586,12 @@
 		animation: pane-heartbeat 1.35s ease-in-out infinite;
 	}
 	@keyframes pane-heartbeat {
-		0%, 100% { box-shadow: 0 0 0 0 rgb(56 189 248 / 0); }
-		50% { box-shadow: 0 0 0 2px rgb(56 189 248 / 0.48), 0 0 24px rgb(56 189 248 / 0.2); }
+		0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--session-color, #38bdf8) 0%, transparent); }
+		50% {
+			box-shadow:
+				0 0 0 2px color-mix(in srgb, var(--session-color, #38bdf8) 48%, transparent),
+				0 0 24px color-mix(in srgb, var(--session-color, #38bdf8) 20%, transparent);
+		}
 	}
 	.pane-broadcast-banner {
 		border-bottom: 1px solid rgb(251 113 133 / 0.22);
