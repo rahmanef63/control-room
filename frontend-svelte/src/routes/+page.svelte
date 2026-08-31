@@ -4,6 +4,7 @@
 	import { Grid2X2, Rows3, ShieldCheck } from 'lucide-svelte';
 
 	import DevicesDrawer from '$lib/components/devices-drawer.svelte';
+	import InstallAppControl from '$lib/pwa/InstallAppControl.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import BroadcastMenu from '$lib/features/terminals/BroadcastMenu.svelte';
 	import PaneChrome from '$lib/features/terminals/PaneChrome.svelte';
@@ -245,6 +246,8 @@
 				targets={preferences.broadcastTargets}
 				onChange={preferences.setBroadcastTargets}
 			/>
+
+			<InstallAppControl />
 
 			<Button variant="outline" size="sm" onclick={() => (devicesOpen = true)}>
 				<ShieldCheck size={14} /> Devices

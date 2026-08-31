@@ -18,7 +18,7 @@ agent on a parallel loopback port without touching the live Next service.
 Verified gates:
 
 - `bun install` succeeds with Svelte 5 / SvelteKit 2 / adapter-node.
-- `bun test` — **18/18** upload + broadcast + ordered-input + telemetry + build-id helper tests pass.
+- `bun test` — **20/20** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset helper tests pass.
 - `bun run check` — **0 errors, 0 warnings**.
 - `bun run build` — production adapter-node build succeeds.
 - Official Svelte MCP `svelte-autofixer` reports no issues on the changed
@@ -45,6 +45,10 @@ Verified gates:
   cache namespace. Chrome registers `/service-worker.js` as the active
   controller; public HTML returns `Cache-Control: no-cache`, while adapter-node
   serves `/_app/immutable/*` with one-year immutable caching.
+- PWA install smoke verifies the real Next icon artwork at 180/192/512 sizes,
+  a valid maskable declaration, Chrome `beforeinstallprompt` handling, and the
+  iPhone/iPad Share → Add to Home Screen fallback. The install smoke isolates
+  terminal/workspace reads and does not create a PTY or mutate durable state.
 
 No production cutover has happened. The existing Next frontend stays on its
 current service/port, and the agent source is not modified by this migration.
@@ -110,7 +114,7 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `app/login/page.tsx` | `src/routes/login/+page.svelte` (simplified visual — see backlog) |
 | `app/layout.tsx` (partial) | `src/routes/+layout.svelte` |
 | `shared/pwa/register-service-worker.tsx` + `public/sw.js` | `src/service-worker.ts` + SvelteKit native auto-registration — versioned build/static caches, network-first HTML, API bypass, offline fallback; no manual registration module |
-| `app/manifest.ts` | `static/manifest.webmanifest` (icon files still placeholder — see backlog) |
+| `app/manifest.ts` + `app/{icon,apple-icon}.tsx` | `static/manifest.webmanifest` + `static/icons/*` — exact live Next 512/180 icon pixels, derived 192 size, maskable declaration, screenshots and New terminal shortcut |
 | `offline.html`, `favicon.ico`, `og-card.png`, screenshots | retained under `static/`; stale Next-specific `static/sw.js` removed because SvelteKit now builds `/service-worker.js` from `src/service-worker.ts` |
 | `use-terminal-sessions.ts` (736 lines, subset) | `src/lib/state/terminal-sessions.svelte.ts` — list/create/close/rename/duplicate |
 | `use-pane-terminal.ts` + `terminal-pane.tsx` (subset) | `src/lib/features/terminals/Terminal.svelte` — xterm+webgl, SSE bootstrap/output/status/error, ordered direct input, input RTT EWMA, agent activity detection, resize, reconnect-with-backoff, parent-delegated broadcast keystrokes |
@@ -122,6 +126,7 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `components/ui/{button,badge}.tsx` | `src/lib/components/ui/{button,badge}/` (hand-written shadcn-svelte style) |
 | `shared/runtime/force-fresh-reload.ts` | `src/lib/pwa/force-fresh-reload.ts` (verbatim — plain browser APIs, no framework code) |
 | `shared/pwa/version-guard.tsx` | `src/lib/pwa/version-guard.svelte` — uses `$app/environment.version` + `$app/state.updated`; SvelteKit polls its version manifest and `/api/version` supplies the newer build label for the reload prompt |
+| `shared/pwa/use-pwa-install.ts` | `src/lib/pwa/use-pwa-install.svelte.ts` + `InstallAppControl.svelte` — native Chromium install prompt plus iPhone/iPad Add to Home Screen instructions; hidden in installed/standalone mode |
 | `features/terminals/hooks/use-devices.ts` + `components/devices-drawer.tsx` | `src/lib/features/terminals/devices.ts` (fetch helpers) + `src/lib/components/devices-drawer.svelte` (runes state + polling while open) — wired into `+page.svelte`'s topbar as a "Devices" button |
 | `app/error.tsx` | `src/routes/+error.svelte` (uses `page` from `$app/state`, the runes replacement for `$app/stores`'s `$page`) |
 | `features/terminals/lib/local-storage.ts` | `src/lib/local-storage.ts` (verbatim) |
@@ -136,13 +141,13 @@ guessed at — it's simply not written yet.
 
 **Auth/UI polish**
 - [ ] `app/login/page.tsx` full two-column marketing layout (icons, feature cards) — current port is the functional form only
-- [ ] `shared/pwa/use-pwa-install.ts` — install prompt handling
+- [x] `shared/pwa/use-pwa-install.ts` — native install prompt handling plus iPhone/iPad manual Add to Home Screen fallback, verified in Chrome browser smoke
 - [ ] `shared/platform/*` (detect.ts, platform-provider.tsx, theme.ts, tokens.css) — per-OS skin
 - [ ] `shared/runtime/chunk-load-recovery*`, `early-asset-recovery-script` — stale-JS-chunk recovery after a redeploy; no direct SvelteKit equivalent identified yet, see the note in `+error.svelte`. `version-guard.svelte` (now ported) covers the same underlying "tab stuck on an old build" problem from a different angle, so this is lower priority than it looked originally.
 - [ ] `shared/components/error-boundary.tsx` → a component-level (not just route-level) Svelte error-boundary pattern, for wrapping individual panes so one crash doesn't blank the whole page — `pane-error-boundary.tsx` is the concrete use site, tracked below under terminal feature depth.
 - [ ] `app/global-error.tsx`, `app/not-found.tsx` → `+error.svelte` (added this round) covers the general case; a dedicated 404 look and the full-`<html>`-replace critical-error path from `global-error.tsx` are not differentiated yet.
-- [x] Build-id/cache-policy deployment wiring — deterministic `kit.version.name`, public no-store `/api/version`, HTML `no-cache`, adapter-node immutable hashed assets, native versioned service worker, 18/18 tests, curl header verification, and Chrome PWA registration/cache smoke all pass.
-- [ ] Real PWA icons: `app/icon.tsx` / `apple-icon.tsx` generate PNGs dynamically — export static files from a built Next app (or regenerate) into `static/icons/`; `manifest.webmanifest` already points at the expected paths
+- [x] Build-id/cache-policy deployment wiring — deterministic `kit.version.name`, public no-store `/api/version`, HTML `no-cache`, adapter-node immutable hashed assets, native versioned service worker, build-id tests, curl header verification, and Chrome PWA registration/cache smoke all pass.
+- [x] Real PWA icons/install metadata — live Next `/icon` and `/apple-icon` outputs copied as the source of truth, 192px derived from the same 512px art, manifest dimensions verified against PNG headers, Apple touch metadata wired, and browser install flows pass
 
 **Terminal feature depth** (the big one — `use-pane-terminal.ts` alone is 662 lines)
 - [x] File upload / drag-drop/pasted-image upload onto a pane, including 25 MiB client guard, safe shell-path insertion, unit tests, and real-agent E2E verification
