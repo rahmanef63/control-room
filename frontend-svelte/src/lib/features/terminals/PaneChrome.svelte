@@ -5,7 +5,9 @@
 		CopyPlus,
 		Focus,
 		Loader2,
+		Maximize2,
 		MessageCircleQuestion,
+		Minimize2,
 		Minus,
 		Pencil,
 		Plus,
@@ -28,11 +30,13 @@
 		activityState: ActivityState;
 		activityLabel: string;
 		showActivity: boolean;
+		fullscreen: boolean;
 		onRename: (id: string, title: string) => Promise<void>;
 		onDuplicate: (session: TerminalSession) => Promise<void>;
 		onMoveToWorkspace: (sessionId: string, workspaceId: string) => void;
 		onFontSizeChange: (sessionId: string, size: number) => void;
 		onFocus: (sessionId: string) => void;
+		onToggleFullscreen: () => void;
 		onClose: (id: string) => Promise<void>;
 	}
 
@@ -47,11 +51,13 @@
 		activityState,
 		activityLabel,
 		showActivity,
+		fullscreen,
 		onRename,
 		onDuplicate,
 		onMoveToWorkspace,
 		onFontSizeChange,
 		onFocus,
+		onToggleFullscreen,
 		onClose
 	}: Props = $props();
 
@@ -201,6 +207,14 @@
 				<Focus size={14} />
 			</button>
 		{/if}
+		<button
+			type="button"
+			onclick={onToggleFullscreen}
+			aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+			title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+		>
+			{#if fullscreen}<Minimize2 size={14} />{:else}<Maximize2 size={14} />{/if}
+		</button>
 		<button type="button" onclick={() => void duplicate()} disabled={duplicateBusy} aria-label="Duplicate terminal" title="Duplicate terminal">
 			<CopyPlus size={14} />
 		</button>

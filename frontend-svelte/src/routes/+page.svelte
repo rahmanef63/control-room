@@ -17,6 +17,7 @@
 		type GridCols
 	} from '$lib/features/terminals/use-terminal-preferences.svelte';
 	import { DEFAULT_FONT_SIZE } from '$lib/features/terminals/types';
+	import { useFullscreen } from '$lib/features/terminals/use-fullscreen.svelte';
 	import {
 		resolveSessionVisualState,
 		type TerminalTelemetry
@@ -26,6 +27,7 @@
 
 	const workspaces = useWorkspaces();
 	const preferences = useTerminalPreferences();
+	const fullscreen = useFullscreen();
 	const broadcastInputQueue = new OrderedTerminalInputQueue(async (id, data) => {
 		const response = await fetch(`/api/terminals/${encodeURIComponent(id)}/input`, {
 			method: 'POST',
@@ -113,6 +115,11 @@
 	function focusSession(sessionId: string): void {
 		terminalSessions.setActive(sessionId);
 		preferences.setViewMode('single');
+		void fullscreen.enter();
+	}
+
+	function toggleFullscreen(): void {
+		void fullscreen.toggle();
 	}
 
 	function selectWorkspace(id: string): void {
@@ -169,7 +176,7 @@
 	<title>Terminals · VPS Control Room</title>
 </svelte:head>
 
-<div class="terminal-shell">
+<div class="terminal-shell" data-fullscreen={fullscreen.isFullscreen || undefined}>
 	<WorkspaceTabs
 		workspaces={workspaces.workspaces}
 		activeId={workspaces.activeId}
@@ -294,11 +301,13 @@
 								activityState={telemetry?.activityState ?? 'idle'}
 								activityLabel={telemetry?.activityLabel ?? 'Idle'}
 								showActivity={telemetry?.showActivity ?? false}
+								fullscreen={fullscreen.isFullscreen}
 								onRename={(id, title) => terminalSessions.rename(id, title)}
 								onDuplicate={duplicateSession}
 								onMoveToWorkspace={moveSession}
 								onFontSizeChange={preferences.setFontSize}
 								onFocus={focusSession}
+								onToggleFullscreen={toggleFullscreen}
 								onClose={closeSession}
 							/>
 							{#if paneIsBroadcastTarget(session.id)}
@@ -311,6 +320,7 @@
 									{session}
 									active={workspaceVisible && active}
 									fontSize={preferences.fontSizes[session.id] ?? DEFAULT_FONT_SIZE}
+									fullscreen={fullscreen.isFullscreen}
 									onUpdate={(updated) => terminalSessions.patchFromStream(updated)}
 									onTelemetry={updatePaneTelemetry}
 									onFontSizeChange={preferences.setFontSize}
@@ -339,6 +349,18 @@
 		height: 100dvh;
 		min-height: 0;
 		background: var(--bg);
+	}
+	.terminal-shell[data-fullscreen='true'] :global(.workspace-tabs),
+	.terminal-shell[data-fullscreen='true'] .topbar {
+		display: none;
+	}
+	.terminal-shell[data-fullscreen='true'] .terminal-stage {
+		padding: 0;
+		overflow: hidden;
+	}
+	.terminal-shell[data-fullscreen='true'] .pane-frame {
+		border: 0;
+		border-radius: 0;
 	}
 	.topbar {
 		display: flex;

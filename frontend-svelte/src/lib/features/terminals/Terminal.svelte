@@ -48,6 +48,7 @@
 		session: TerminalSession;
 		active?: boolean;
 		fontSize?: number;
+		fullscreen?: boolean;
 		onUpdate?: (session: TerminalSession) => void;
 		onTelemetry?: (sessionId: string, telemetry: TerminalTelemetry) => void;
 		onFontSizeChange?: (sessionId: string, size: number) => void;
@@ -59,6 +60,7 @@
 		session,
 		active = true,
 		fontSize = DEFAULT_FONT_SIZE,
+		fullscreen = false,
 		onUpdate,
 		onTelemetry,
 		onFontSizeChange,
@@ -417,6 +419,14 @@
 		if (!term || term.options.fontSize === resolvedFontSize) return;
 		term.options.fontSize = resolvedFontSize;
 		requestAnimationFrame(() => resizeTerminal());
+	});
+
+	// Fullscreen hides/shows shell chrome and changes the pane viewport even in
+	// CSS fallback mode. Re-fit the existing xterm instead of remounting it so
+	// scrollback and the live SSE connection are preserved.
+	$effect(() => {
+		fullscreen;
+		if (term) requestAnimationFrame(() => resizeTerminal());
 	});
 
 	$effect(() => {
