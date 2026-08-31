@@ -1,25 +1,15 @@
 <script lang="ts">
-	// Svelte 5 runes port of frontend/src/shared/pwa/version-guard.tsx.
-	// Polls /api/version and prompts a hard-refresh (unregister SW + drop
-	// caches + reload) when the running build differs from what the server
-	// has. Dismissal is persisted in localStorage per build id, so a reload —
-	// and any other open tab — stops re-nagging for the same version.
-	//
-	// `PUBLIC_BUILD_ID` mirrors NEXT_PUBLIC_BUILD_ID from next.config.ts's
-	// stamping logic (COMMIT_SHA/GITHUB_SHA at deploy time). Read via
-	// `$env/dynamic/public` (not `$env/static/public`) so `bun run dev`
-	// doesn't fail to start just because the var isn't set — the original
-	// component already treats an absent value as 'unknown' and skips
-	// polling entirely, which this preserves.
+	// SvelteKit-native deploy detection. `version` is the deterministic build id
+	// baked into this loaded client; `updated` polls SvelteKit's version manifest.
+	// `/api/version` is only used to label/dismiss the newer server build.
+	import { version as BAKED_BUILD_ID } from '$app/environment';
+	import { updated } from '$app/state';
 	import { onMount } from 'svelte';
 	import { RefreshCcw, X } from 'lucide-svelte';
-	import { env } from '$env/dynamic/public';
 
 	import { forceFreshReload } from './force-fresh-reload';
 
-	const POLL_INTERVAL_MS = 5 * 60 * 1000;
 	const FOCUS_DEBOUNCE_MS = 30 * 1000;
-	const BAKED_BUILD_ID = env.PUBLIC_BUILD_ID ?? 'unknown';
 	const DISMISS_STORAGE_KEY = 'vps-cr-vguard-dismissed';
 
 	let latest = $state<string | null>(null);
@@ -37,10 +27,13 @@
 		}
 	}
 
+	async function refreshLatest(): Promise<void> {
+		const next = await fetchServerBuildId();
+		if (next && next !== BAKED_BUILD_ID) latest = next;
+	}
+
 	async function check(): Promise<void> {
-		const v = await fetchServerBuildId();
-		if (!v || v === 'unknown') return;
-		latest = v;
+		if (await updated.check()) await refreshLatest();
 	}
 
 	onMount(() => {
@@ -50,42 +43,38 @@
 		} catch {
 			// storage blocked
 		}
-		const onStorage = (e: StorageEvent) => {
-			if (e.key === DISMISS_STORAGE_KEY) dismissedBuild = e.newValue;
+
+		const onStorage = (event: StorageEvent) => {
+			if (event.key === DISMISS_STORAGE_KEY) dismissedBuild = event.newValue;
 		};
 		window.addEventListener('storage', onStorage);
 
-		if (BAKED_BUILD_ID === 'unknown') {
-			// dev — skip polling, still honor cross-tab dismissal for consistency.
-			return () => window.removeEventListener('storage', onStorage);
-		}
-
-		let lastPolledAt = Date.now();
+		let lastCheckedAt = 0;
 		void check();
-
-		const interval = window.setInterval(() => void check(), POLL_INTERVAL_MS);
 		const onVisible = () => {
 			if (document.visibilityState !== 'visible') return;
-			if (Date.now() - lastPolledAt < FOCUS_DEBOUNCE_MS) return;
-			lastPolledAt = Date.now();
+			if (Date.now() - lastCheckedAt < FOCUS_DEBOUNCE_MS) return;
+			lastCheckedAt = Date.now();
 			void check();
 		};
 		document.addEventListener('visibilitychange', onVisible);
 		window.addEventListener('focus', onVisible);
 
 		return () => {
-			window.clearInterval(interval);
 			document.removeEventListener('visibilitychange', onVisible);
 			window.removeEventListener('focus', onVisible);
 			window.removeEventListener('storage', onStorage);
 		};
 	});
 
+	// Background version polling is owned by SvelteKit (`kit.version.pollInterval`).
+	// When it flips the reactive updated flag, resolve the newer human-readable id.
+	$effect(() => {
+		if (updated.current && !latest) void refreshLatest();
+	});
+
 	let stale = $derived(
-		!!latest &&
-			latest !== BAKED_BUILD_ID &&
-			BAKED_BUILD_ID !== 'unknown' &&
-			latest !== dismissedBuild
+		updated.current && !!latest && latest !== BAKED_BUILD_ID && latest !== dismissedBuild
 	);
 
 	async function handleRefresh(): Promise<void> {
@@ -102,6 +91,7 @@
 		}
 	}
 </script>
+
 
 {#if stale}
 	<div role="status" aria-live="polite" class="version-guard">

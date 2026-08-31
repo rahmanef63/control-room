@@ -1,15 +1,9 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-
 	import '../app.css';
-	import { registerServiceWorker } from '$lib/pwa/register-service-worker';
 	import VersionGuard from '$lib/pwa/version-guard.svelte';
 
 	let { children } = $props();
 
-	onMount(() => {
-		return registerServiceWorker();
-	});
 </script>
 
 <svelte:head>

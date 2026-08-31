@@ -18,7 +18,7 @@ agent on a parallel loopback port without touching the live Next service.
 Verified gates:
 
 - `bun install` succeeds with Svelte 5 / SvelteKit 2 / adapter-node.
-- `bun test` — **15/15** upload + broadcast + ordered-input + telemetry helper tests pass.
+- `bun test` — **18/18** upload + broadcast + ordered-input + telemetry + build-id helper tests pass.
 - `bun run check` — **0 errors, 0 warnings**.
 - `bun run build` — production adapter-node build succeeds.
 - Official Svelte MCP `svelte-autofixer` reports no issues on the changed
@@ -40,6 +40,11 @@ Verified gates:
   durable workspace state. E2E exposed per-character ordering races in both
   broadcast and ordinary typing; both now share an ordered per-terminal input
   queue without serializing unrelated panes together.
+- PWA/deploy smoke verifies one deterministic SvelteKit build id across
+  `/_app/version.json`, public `/api/version`, and the native service-worker
+  cache namespace. Chrome registers `/service-worker.js` as the active
+  controller; public HTML returns `Cache-Control: no-cache`, while adapter-node
+  serves `/_app/immutable/*` with one-year immutable caching.
 
 No production cutover has happened. The existing Next frontend stays on its
 current service/port, and the agent source is not modified by this migration.
@@ -67,10 +72,12 @@ When a parallel worktree is used, point `AUTH_DEVICE_STORE` at the same
 same trusted-device registry. A normal in-repo cutover does not need that
 override.
 
-Client-exposed variables use SvelteKit's `PUBLIC_` prefix. Build-id stamping
-and the final `PUBLIC_BUILD_ID`/cache-header deployment wiring are still in the
-backlog below; do not switch the systemd/deploy default until those gates and
-the remaining UI parity work are complete.
+Deployment identity now uses SvelteKit's native `kit.version.name` as one
+SSOT. `build-id.mjs` accepts an optional `PUBLIC_BUILD_ID`, then the common
+Git/Dokploy commit variables, then the checked-out Git SHA. The same value is
+baked into `$app/environment.version`, `/_app/version.json`, `/api/version`, and
+`$service-worker.version`. Keep the systemd/deploy default on Next until the
+remaining feature/visual parity and explicit cutover/rollback gates are complete.
 
 ## What changed vs. the plan: no custom WebSocket server needed
 
@@ -102,9 +109,9 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `app/api/terminals/[id]/upload/route.ts` + `features/terminals/lib/upload.ts` | `src/routes/api/terminals/[id]/upload/+server.ts` + `src/lib/features/terminals/upload.ts` — raw binary proxy, 25 MiB guard, safe shell-path quoting, drag/drop and pasted-image upload |
 | `app/login/page.tsx` | `src/routes/login/+page.svelte` (simplified visual — see backlog) |
 | `app/layout.tsx` (partial) | `src/routes/+layout.svelte` |
-| `shared/pwa/register-service-worker.tsx` | `src/lib/pwa/register-service-worker.ts` |
+| `shared/pwa/register-service-worker.tsx` + `public/sw.js` | `src/service-worker.ts` + SvelteKit native auto-registration — versioned build/static caches, network-first HTML, API bypass, offline fallback; no manual registration module |
 | `app/manifest.ts` | `static/manifest.webmanifest` (icon files still placeholder — see backlog) |
-| `public/sw.js`, `offline.html`, `favicon.ico`, `og-card.png`, screenshots | copied byte-for-byte to `static/` |
+| `offline.html`, `favicon.ico`, `og-card.png`, screenshots | retained under `static/`; stale Next-specific `static/sw.js` removed because SvelteKit now builds `/service-worker.js` from `src/service-worker.ts` |
 | `use-terminal-sessions.ts` (736 lines, subset) | `src/lib/state/terminal-sessions.svelte.ts` — list/create/close/rename/duplicate |
 | `use-pane-terminal.ts` + `terminal-pane.tsx` (subset) | `src/lib/features/terminals/Terminal.svelte` — xterm+webgl, SSE bootstrap/output/status/error, ordered direct input, input RTT EWMA, agent activity detection, resize, reconnect-with-backoff, parent-delegated broadcast keystrokes |
 | `screen.tsx` + `session-tabs.tsx` (core) | `src/routes/+page.svelte` — workspace-scoped session tabs, create/close shell, single/grid modes, responsive multi-pane grid, scoped broadcast fan-out, pane telemetry snapshots and activity-aware tab dots |
@@ -114,7 +121,7 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `terminals-broadcast.tsx` + broadcast input slice | `src/lib/features/terminals/BroadcastMenu.svelte` + `broadcast.ts` + `input-queue.ts` — current-workspace running-target selection, All/None, source-inclusive fan-out, shared per-terminal ordered input queue |
 | `components/ui/{button,badge}.tsx` | `src/lib/components/ui/{button,badge}/` (hand-written shadcn-svelte style) |
 | `shared/runtime/force-fresh-reload.ts` | `src/lib/pwa/force-fresh-reload.ts` (verbatim — plain browser APIs, no framework code) |
-| `shared/pwa/version-guard.tsx` | `src/lib/pwa/version-guard.svelte` — polls `/api/version`, prompts hard-refresh on new build; reads `PUBLIC_BUILD_ID` via `$env/dynamic/public` so dev doesn't require it set |
+| `shared/pwa/version-guard.tsx` | `src/lib/pwa/version-guard.svelte` — uses `$app/environment.version` + `$app/state.updated`; SvelteKit polls its version manifest and `/api/version` supplies the newer build label for the reload prompt |
 | `features/terminals/hooks/use-devices.ts` + `components/devices-drawer.tsx` | `src/lib/features/terminals/devices.ts` (fetch helpers) + `src/lib/components/devices-drawer.svelte` (runes state + polling while open) — wired into `+page.svelte`'s topbar as a "Devices" button |
 | `app/error.tsx` | `src/routes/+error.svelte` (uses `page` from `$app/state`, the runes replacement for `$app/stores`'s `$page`) |
 | `features/terminals/lib/local-storage.ts` | `src/lib/local-storage.ts` (verbatim) |
@@ -134,7 +141,7 @@ guessed at — it's simply not written yet.
 - [ ] `shared/runtime/chunk-load-recovery*`, `early-asset-recovery-script` — stale-JS-chunk recovery after a redeploy; no direct SvelteKit equivalent identified yet, see the note in `+error.svelte`. `version-guard.svelte` (now ported) covers the same underlying "tab stuck on an old build" problem from a different angle, so this is lower priority than it looked originally.
 - [ ] `shared/components/error-boundary.tsx` → a component-level (not just route-level) Svelte error-boundary pattern, for wrapping individual panes so one crash doesn't blank the whole page — `pane-error-boundary.tsx` is the concrete use site, tracked below under terminal feature depth.
 - [ ] `app/global-error.tsx`, `app/not-found.tsx` → `+error.svelte` (added this round) covers the general case; a dedicated 404 look and the full-`<html>`-replace critical-error path from `global-error.tsx` are not differentiated yet.
-- [ ] Build-id stamping for `PUBLIC_BUILD_ID` at deploy time (equivalent of `next.config.ts`'s `generateBuildId`/`env` stamping) and the `Cache-Control` header rules from the same file (`no-cache` for HTML/`sw.js`, `immutable` for hashed static assets) — `version-guard.svelte` and `api/version/+server.ts` both assume `PUBLIC_BUILD_ID` is set, but nothing in `frontend-svelte/` sets it yet or replicates the header rules; needs a `hooks.server.ts` addition or adapter-node config, not done in this pass.
+- [x] Build-id/cache-policy deployment wiring — deterministic `kit.version.name`, public no-store `/api/version`, HTML `no-cache`, adapter-node immutable hashed assets, native versioned service worker, 18/18 tests, curl header verification, and Chrome PWA registration/cache smoke all pass.
 - [ ] Real PWA icons: `app/icon.tsx` / `apple-icon.tsx` generate PNGs dynamically — export static files from a built Next app (or regenerate) into `static/icons/`; `manifest.webmanifest` already points at the expected paths
 
 **Terminal feature depth** (the big one — `use-pane-terminal.ts` alone is 662 lines)

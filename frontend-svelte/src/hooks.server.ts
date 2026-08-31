@@ -1,7 +1,8 @@
-// Ported from frontend/middleware.ts. Behaviour kept 1:1: same public-path
-// allowlist, same sliding-renewal rule, same "JSON 401 for /api, redirect for
-// pages" split (a 307 auto-followed as POST by fetch() was the original bug
-// this avoids — see the source comment this one is adapted from).
+// Ported from frontend/middleware.ts. Behaviour keeps the same sliding-renewal
+// rule and "JSON 401 for /api, redirect for pages" split. `/api/version` is an
+// intentional public addition so the global deploy guard also works on /login.
+// The original redirect caution still applies: API requests must get JSON 401s
+// instead of a 307 that fetch() could auto-follow while preserving POST.
 //
 // One real simplification versus the Next.js version: there is no Edge vs.
 // Node runtime split to route around here. Every SvelteKit hook always runs
@@ -15,8 +16,8 @@ const PUBLIC_PATHS = [
 	'/login',
 	'/api/auth/',
 	'/api/health',
+	'/api/version',
 	'/manifest.webmanifest',
-	'/sw.js',
 	'/icon',
 	'/apple-icon',
 	'/favicon.png',
@@ -54,9 +55,21 @@ function applySlidingRenewal(
 export const handle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
 
+	const resolveWithCachePolicy = async (): Promise<Response> => {
+		const response = await resolve(event);
+		// Dynamic HTML must revalidate so a deploy never leaves a browser holding
+		// markup that references an older immutable chunk graph. Adapter-node serves
+		// /_app/immutable/* before this hook and already assigns one-year immutable
+		// caching to those content-hashed files.
+		if (response.headers.get('content-type')?.includes('text/html')) {
+			response.headers.set('Cache-Control', 'no-cache');
+		}
+		return response;
+	};
+
 	const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 	if (isPublic) {
-		return resolve(event);
+		return resolveWithCachePolicy();
 	}
 
 	const sessionCookie = event.cookies.get('session');
@@ -80,5 +93,5 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	event.locals.session = payload;
 	applySlidingRenewal(payload, event.cookies, secret);
-	return resolve(event);
+	return resolveWithCachePolicy();
 };
