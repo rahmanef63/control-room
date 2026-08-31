@@ -15,7 +15,7 @@
 		X
 	} from 'lucide-svelte';
 
-	import PaneAgentBinding from '$lib/features/terminals/PaneAgentBinding.svelte';
+	import PaneAiLaunch from '$lib/features/terminals/PaneAiLaunch.svelte';
 	import SessionColorPicker from '$lib/features/terminals/SessionColorPicker.svelte';
 	import TerminalProfileIcon from '$lib/features/terminals/TerminalProfileIcon.svelte';
 	import {
@@ -44,6 +44,7 @@
 		agentProfiles: RuntimeResolvedAgentProfile[];
 		boundAgentProfileId?: string;
 		onBindAgent: (agentProfileId: string) => void;
+		onInjectAgent: (agentProfileId: string, command: string) => void;
 		onUnbindAgent: () => void;
 		onColorPick: (color: string) => void;
 		onColorClear: () => void;
@@ -73,6 +74,7 @@
 		agentProfiles,
 		boundAgentProfileId,
 		onBindAgent,
+		onInjectAgent,
 		onUnbindAgent,
 		onColorPick,
 		onColorClear,
@@ -187,13 +189,15 @@
 			onPick={onColorPick}
 			onClear={onColorClear}
 		/>
-		<PaneAgentBinding
+		<PaneAiLaunch
 			sessionId={session.id}
 			cwd={session.cwd}
 			{agentProfiles}
 			{boundAgentProfileId}
 			runtimeAgentProfileId={session.agent_profile_id}
-			onBind={onBindAgent}
+			canSendInput={session.status === 'running'}
+			onTrack={onBindAgent}
+			onInject={onInjectAgent}
 			onUnbind={onUnbindAgent}
 		/>
 		<span

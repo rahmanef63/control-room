@@ -41,13 +41,13 @@
 	const fullscreen = useFullscreen();
 	const appSettings = useAppSettings();
 	useWakeLock(() => terminalSessions.runningCount > 0);
-	const broadcastInputQueue = new OrderedTerminalInputQueue(async (id, data) => {
+	const pageInputQueue = new OrderedTerminalInputQueue(async (id, data) => {
 		const response = await fetch(`/api/terminals/${encodeURIComponent(id)}/input`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ data })
 		});
-		if (!response.ok) throw new Error(`Broadcast input failed: ${response.status}`);
+		if (!response.ok) throw new Error(`Terminal input failed: ${response.status}`);
 	});
 	let devicesOpen = $state(false);
 	let settingsOpen = $state(false);
@@ -329,8 +329,15 @@
 		);
 		if (ids.length === 0) return false;
 
-		for (const id of ids) broadcastInputQueue.enqueue(id, data);
+		for (const id of ids) pageInputQueue.enqueue(id, data);
 		return true;
+	}
+
+	function injectPaneAgent(sessionId: string, agentProfileId: string, command: string): void {
+		const session = terminalSessions.sessions.find((item) => item.id === sessionId);
+		if (!session || session.status !== 'running' || !command.trim()) return;
+		pageInputQueue.enqueue(sessionId, `${command}\r`);
+		paneAgentOverrides.bind(sessionId, agentProfileId);
 	}
 </script>
 
@@ -529,6 +536,7 @@
 								agentProfiles={terminalSessions.agentProfiles}
 								boundAgentProfileId={paneAgentOverrides.overrideOf(session.id)?.agentProfileId}
 								onBindAgent={(agentProfileId) => paneAgentOverrides.bind(session.id, agentProfileId)}
+								onInjectAgent={(agentProfileId, command) => injectPaneAgent(session.id, agentProfileId, command)}
 								onUnbindAgent={() => paneAgentOverrides.clear(session.id)}
 								onColorPick={(color) => sessionColors.setColor(session.id, color)}
 								onColorClear={() => sessionColors.clearColor(session.id)}
