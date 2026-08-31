@@ -9,8 +9,9 @@
 	//
 	// Ported in the continuation slice: raw-binary upload proxy, file drag/drop,
 	// pasted images, 25 MiB client guard, and safe shell-path insertion.
-	// NOT ported yet (see README-MIGRATION.md backlog): RTT latency measurement,
-	// activity/idle-state detection, pinch-zoom font sizing. Cross-pane keyboard
+	// Ported in the telemetry slice: input RTT EWMA and agent activity detection
+	// (`working` -> `planning`/`asking`/`waiting` after quiet output). Pinch-zoom
+	// font sizing remains backlog. Cross-pane keyboard
 	// broadcast is delegated to the page-level SSOT through `onData`. The original
 	// hook is 662 lines; this covers the part that makes a pane usable at
 	// all, not the full feature set.
@@ -22,6 +23,15 @@
 	import '@xterm/xterm/css/xterm.css';
 
 	import { filesFromDrop, partitionBySize, quoteShellPath } from '$lib/features/terminals/upload';
+	import { OrderedTerminalInputQueue } from '$lib/features/terminals/input-queue';
+	import {
+		ACTIVITY_LABELS,
+		detectIdleActivity,
+		isAgentSession,
+		updateRttEwma,
+		type ActivityState,
+		type TerminalTelemetry
+	} from '$lib/features/terminals/telemetry';
 	import {
 		clampFontSize,
 		DEFAULT_FONT_SIZE,
@@ -37,6 +47,7 @@
 		active?: boolean;
 		fontSize?: number;
 		onUpdate?: (session: TerminalSession) => void;
+		onTelemetry?: (sessionId: string, telemetry: TerminalTelemetry) => void;
 		/** Return true when the keystroke was handled by a parent fan-out. */
 		onData?: (sourceId: string, data: string) => boolean;
 	}
@@ -46,6 +57,7 @@
 		active = true,
 		fontSize = DEFAULT_FONT_SIZE,
 		onUpdate,
+		onTelemetry,
 		onData
 	}: Props = $props();
 
@@ -56,15 +68,25 @@
 	let resizeObserver: ResizeObserver | null = null;
 	let reconnectAttempts = 0;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	let waitingTimer: ReturnType<typeof setTimeout> | null = null;
 	let destroyed = false;
 	let mounted = false;
 	let started = false;
+	const directInputQueue = new OrderedTerminalInputQueue(async (_id, data) => postInput(data));
 
 	let connectionState = $state<ConnectionState>('connecting');
+	let rttEwma: number | null = null;
+	let rttLastFlush = 0;
+	let rttMs = $state<number | null>(null);
+	let activityState = $state<ActivityState>('idle');
+	let lastOutput = '';
 	let lastError = $state<string | null>(null);
 	let dragOver = $state(false);
 	let uploading = $state(false);
 	let canSendInput = $derived(session.status === 'running');
+	let isAgent = $derived(isAgentSession(session));
+	let showActivity = $derived(isAgent && (activityState !== 'idle' || session.status === 'exited'));
+	let activityLabel = $derived(ACTIVITY_LABELS[activityState]);
 
 	function tryLoadWebgl(t: XTerm): void {
 		try {
@@ -85,6 +107,7 @@
 	}
 
 	async function postInput(data: string): Promise<void> {
+		const startedAt = performance.now();
 		try {
 			const response = await fetch(`/api/terminals/${encodeURIComponent(session.id)}/input`, {
 				method: 'POST',
@@ -92,14 +115,35 @@
 				body: JSON.stringify({ data })
 			});
 			if (!response.ok) throw new Error('Terminal input failed');
+
+			const now = performance.now();
+			rttEwma = updateRttEwma(rttEwma, now - startedAt);
+			if (rttMs === null || now - rttLastFlush > 500) {
+				rttLastFlush = now;
+				rttMs = Math.round(rttEwma);
+			}
 		} catch {
 			lastError = 'Terminal request failed';
 		}
 	}
 
+	function trackOutput(chunk: string): void {
+		if (!chunk) return;
+		lastOutput = `${lastOutput}${chunk}`.slice(-6000);
+	}
+
+	function markWorking(): void {
+		if (!isAgent) return;
+		activityState = 'working';
+		if (waitingTimer) clearTimeout(waitingTimer);
+		waitingTimer = setTimeout(() => {
+			if (activityState === 'working') activityState = detectIdleActivity(lastOutput);
+		}, 1400);
+	}
+
 	function sendInput(data: string): void {
 		if (!canSendInput) return;
-		void postInput(data);
+		directInputQueue.enqueue(session.id, data);
 		term?.focus();
 	}
 
@@ -210,17 +254,24 @@
 			switch (parsed.type) {
 				case 'bootstrap':
 					term.reset();
+					trackOutput(parsed.buffer);
 					term.write(parsed.buffer);
 					term.options.disableStdin = parsed.session.status !== 'running';
 					onUpdate?.(parsed.session);
+					if (parsed.session.status === 'exited') activityState = 'done';
+					else if (isAgentSession(parsed.session) && parsed.buffer) activityState = 'waiting';
 					break;
 				case 'output':
+					trackOutput(parsed.data);
 					term.write(parsed.data);
+					markWorking();
 					break;
 				case 'status':
 					term.options.disableStdin = parsed.session.status !== 'running';
 					onUpdate?.(parsed.session);
 					if (parsed.session.status === 'exited') {
+						activityState = 'done';
+						if (waitingTimer) clearTimeout(waitingTimer);
 						term.writeln('');
 						term.writeln(
 							`\x1b[33m[session exited${parsed.session.exit_code !== undefined ? ` code=${parsed.session.exit_code}` : ''}]\x1b[0m`
@@ -296,6 +347,7 @@
 	onDestroy(() => {
 		destroyed = true;
 		if (reconnectTimer) clearTimeout(reconnectTimer);
+		if (waitingTimer) clearTimeout(waitingTimer);
 		eventSource?.close();
 		resizeObserver?.disconnect();
 		term?.dispose();
@@ -310,6 +362,16 @@
 	let resolvedFontSize = $derived(clampFontSize(fontSize));
 	$effect(() => {
 		if (term) term.options.fontSize = resolvedFontSize;
+	});
+
+	$effect(() => {
+		onTelemetry?.(session.id, {
+			connectionState,
+			rttMs,
+			activityState,
+			activityLabel,
+			showActivity
+		});
 	});
 </script>
 

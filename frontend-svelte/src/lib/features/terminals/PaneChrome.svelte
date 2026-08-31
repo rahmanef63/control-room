@@ -1,8 +1,11 @@
 <script lang="ts">
 	import {
 		Check,
+		CheckCircle2,
 		CopyPlus,
 		Focus,
+		Loader2,
+		MessageCircleQuestion,
 		Minus,
 		Pencil,
 		Plus,
@@ -10,7 +13,8 @@
 		X
 	} from 'lucide-svelte';
 
-	import { clampFontSize, type TerminalSession } from '$lib/features/terminals/types';
+	import { clampFontSize, type ConnectionState, type TerminalSession } from '$lib/features/terminals/types';
+	import type { ActivityState } from '$lib/features/terminals/telemetry';
 	import type { Workspace } from '$lib/features/terminals/use-workspaces.svelte';
 
 	interface Props {
@@ -19,6 +23,11 @@
 		currentWorkspaceId: string;
 		fontSize: number;
 		viewMode: 'single' | 'grid';
+		connectionState: ConnectionState;
+		rttMs: number | null;
+		activityState: ActivityState;
+		activityLabel: string;
+		showActivity: boolean;
 		onRename: (id: string, title: string) => Promise<void>;
 		onDuplicate: (session: TerminalSession) => Promise<void>;
 		onMoveToWorkspace: (sessionId: string, workspaceId: string) => void;
@@ -33,6 +42,11 @@
 		currentWorkspaceId,
 		fontSize,
 		viewMode,
+		connectionState,
+		rttMs,
+		activityState,
+		activityLabel,
+		showActivity,
 		onRename,
 		onDuplicate,
 		onMoveToWorkspace,
@@ -45,6 +59,19 @@
 	let renameValue = $state('');
 	let renameBusy = $state(false);
 	let duplicateBusy = $state(false);
+
+	let latencyTone = $derived(
+		rttMs === null ? 'unknown' : rttMs < 80 ? 'good' : rttMs < 200 ? 'warn' : 'slow'
+	);
+	let connectionLabel = $derived(
+		connectionState === 'connected'
+			? 'Stream connected'
+			: connectionState === 'connecting'
+				? 'Connecting…'
+				: connectionState === 'reconnecting'
+					? 'Reconnecting…'
+					: 'Disconnected'
+	);
 
 	function startRename(): void {
 		renameValue = session.title || session.profile;
@@ -107,9 +134,30 @@
 			</button>
 		{/if}
 		<span class="pane-chrome__cwd" title={session.cwd}>{session.cwd}</span>
+		{#if showActivity}
+			<span class="pane-chrome__activity" data-state={activityState} title={activityLabel}>
+				{#if activityState === 'working' || activityState === 'planning'}
+					<Loader2 size={12} />
+				{:else if activityState === 'asking' || activityState === 'waiting'}
+					<MessageCircleQuestion size={12} />
+				{:else if activityState === 'done'}
+					<CheckCircle2 size={12} />
+				{/if}
+				<span>{activityLabel}</span>
+			</span>
+		{/if}
 	</div>
 
 	<div class="pane-chrome__actions">
+		<span
+			class="pane-chrome__latency"
+			data-state={connectionState}
+			data-tone={latencyTone}
+			title={`${connectionLabel}${rttMs === null ? '' : ` · input round-trip ~${rttMs}ms`}`}
+		>
+			<span class="pane-chrome__latency-dot"></span>
+			<span>{rttMs === null ? '—' : `${rttMs}ms`}</span>
+		</span>
 		{#if workspaces.length > 1}
 			<label class="pane-chrome__workspace">
 				<span class="sr-only">Move terminal to workspace</span>
@@ -208,6 +256,41 @@
 		font-family: var(--font-mono);
 		font-size: 10px;
 	}
+	.pane-chrome__activity {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		flex: 0 0 auto;
+		max-width: 150px;
+		padding: 2px 7px;
+		border: 1px solid;
+		border-radius: 999px;
+		font-size: 9px;
+		font-weight: 650;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+	.pane-chrome__activity[data-state='working'],
+	.pane-chrome__activity[data-state='planning'] {
+		border-color: rgb(252 211 77 / 0.32);
+		background: rgb(252 211 77 / 0.1);
+		color: rgb(252 211 77);
+	}
+	.pane-chrome__activity[data-state='asking'],
+	.pane-chrome__activity[data-state='waiting'] {
+		border-color: rgb(125 211 252 / 0.34);
+		background: rgb(56 189 248 / 0.1);
+		color: rgb(125 211 252);
+	}
+	.pane-chrome__activity[data-state='done'] {
+		border-color: rgb(134 239 172 / 0.34);
+		background: rgb(74 222 128 / 0.08);
+		color: rgb(167 243 208);
+	}
+	.pane-chrome__activity[data-state='working'] :global(svg),
+	.pane-chrome__activity[data-state='planning'] :global(svg) {
+		animation: telemetry-spin 0.9s linear infinite;
+	}
 	.pane-chrome__rename {
 		display: flex;
 		align-items: center;
@@ -226,6 +309,38 @@
 		padding: 0 7px;
 		font-size: 0.74rem;
 	}
+	.pane-chrome__latency {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		min-height: 27px;
+		padding: 0 6px;
+		border: 1px solid var(--border);
+		border-radius: 7px;
+		background: color-mix(in srgb, var(--bg) 58%, transparent);
+		color: var(--ink-muted);
+		font-family: var(--font-mono);
+		font-size: 9px;
+		font-variant-numeric: tabular-nums;
+	}
+	.pane-chrome__latency-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #f43f5e;
+	}
+	.pane-chrome__latency[data-state='connected'] .pane-chrome__latency-dot { background: #34d399; }
+	.pane-chrome__latency[data-state='connecting'] .pane-chrome__latency-dot,
+	.pane-chrome__latency[data-state='reconnecting'] .pane-chrome__latency-dot {
+		background: #fbbf24;
+		animation: telemetry-pulse 1.2s ease-in-out infinite;
+	}
+	.pane-chrome__latency[data-tone='good'] { color: #6ee7b7; }
+	.pane-chrome__latency[data-tone='warn'] { color: #fcd34d; }
+	.pane-chrome__latency[data-tone='slow'] { color: #fda4af; }
+	@keyframes telemetry-spin { to { transform: rotate(360deg); } }
+	@keyframes telemetry-pulse { 50% { opacity: 0.45; transform: scale(0.78); } }
+
 	.pane-chrome__actions,
 	.pane-chrome__zoom {
 		display: flex;
@@ -302,6 +417,7 @@
 			padding-inline: 5px;
 		}
 		.pane-chrome__cwd,
+		.pane-chrome__activity span,
 		.pane-chrome__workspace,
 		.pane-chrome__zoom span {
 			display: none;

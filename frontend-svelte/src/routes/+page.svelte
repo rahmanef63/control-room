@@ -9,21 +9,23 @@
 	import PaneChrome from '$lib/features/terminals/PaneChrome.svelte';
 	import Terminal from '$lib/features/terminals/Terminal.svelte';
 	import WorkspaceTabs from '$lib/features/terminals/WorkspaceTabs.svelte';
-	import {
-		BroadcastInputQueue,
-		resolveBroadcastFanout
-	} from '$lib/features/terminals/broadcast';
+	import { resolveBroadcastFanout } from '$lib/features/terminals/broadcast';
+	import { OrderedTerminalInputQueue } from '$lib/features/terminals/input-queue';
 	import {
 		useTerminalPreferences,
 		type GridCols
 	} from '$lib/features/terminals/use-terminal-preferences.svelte';
 	import { DEFAULT_FONT_SIZE } from '$lib/features/terminals/types';
+	import {
+		resolveSessionVisualState,
+		type TerminalTelemetry
+	} from '$lib/features/terminals/telemetry';
 	import { useWorkspaces } from '$lib/features/terminals/use-workspaces.svelte';
 	import { terminalSessions } from '$lib/state/terminal-sessions.svelte';
 
 	const workspaces = useWorkspaces();
 	const preferences = useTerminalPreferences();
-	const broadcastInputQueue = new BroadcastInputQueue(async (id, data) => {
+	const broadcastInputQueue = new OrderedTerminalInputQueue(async (id, data) => {
 		const response = await fetch(`/api/terminals/${encodeURIComponent(id)}/input`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
@@ -32,6 +34,7 @@
 		if (!response.ok) throw new Error(`Broadcast input failed: ${response.status}`);
 	});
 	let devicesOpen = $state(false);
+	let paneTelemetry = $state<Record<string, TerminalTelemetry>>({});
 
 	let activeWorkspaceSessions = $derived.by(() =>
 		terminalSessions.sessions.filter(
@@ -67,9 +70,29 @@
 		if (session) workspaces.assignSession(session.id, workspaces.activeId);
 	}
 
+	function updatePaneTelemetry(id: string, next: TerminalTelemetry): void {
+		const current = paneTelemetry[id];
+		if (
+			current?.connectionState === next.connectionState &&
+			current.rttMs === next.rttMs &&
+			current.activityState === next.activityState &&
+			current.activityLabel === next.activityLabel &&
+			current.showActivity === next.showActivity
+		) return;
+		paneTelemetry = { ...paneTelemetry, [id]: next };
+	}
+
+	function removePaneTelemetry(id: string): void {
+		if (!(id in paneTelemetry)) return;
+		const next = { ...paneTelemetry };
+		delete next[id];
+		paneTelemetry = next;
+	}
+
 	async function closeSession(id: string): Promise<void> {
 		await terminalSessions.close(id);
 		preferences.removeBroadcastTarget(id);
+		removePaneTelemetry(id);
 		workspaces.unassignSession(id);
 	}
 
@@ -161,13 +184,18 @@
 
 		<div class="session-tabs" aria-label="Terminal sessions">
 			{#each activeWorkspaceSessions as session (session.id)}
-				<div class="session-tab" data-active={session.id === terminalSessions.activeId || undefined}>
+				{@const visualState = resolveSessionVisualState(session, paneTelemetry[session.id]?.activityState)}
+				<div
+					class="session-tab"
+					data-active={session.id === terminalSessions.activeId || undefined}
+					data-state={visualState}
+				>
 					<button
 						type="button"
 						class="session-tab__main"
 						onclick={() => terminalSessions.setActive(session.id)}
 					>
-						<span class="session-tab__dot" data-status={session.status}></span>
+						<span class="session-tab__dot" data-status={visualState} aria-label={visualState}></span>
 						<span class="session-tab__title">{session.title || session.profile}</span>
 					</button>
 					<button
@@ -243,6 +271,7 @@
 				{#each terminalSessions.sessions as session (session.id)}
 					{@const workspaceVisible = paneIsWorkspaceVisible(session.id)}
 					{@const active = paneIsActive(session.id)}
+					{@const telemetry = paneTelemetry[session.id]}
 					<div
 						class="terminal-slot"
 						data-session-id={session.id}
@@ -257,6 +286,11 @@
 								currentWorkspaceId={workspaces.resolveSessionWorkspace(session.id)}
 								fontSize={preferences.fontSizes[session.id] ?? DEFAULT_FONT_SIZE}
 								viewMode={preferences.viewMode}
+								connectionState={telemetry?.connectionState ?? 'connecting'}
+								rttMs={telemetry?.rttMs ?? null}
+								activityState={telemetry?.activityState ?? 'idle'}
+								activityLabel={telemetry?.activityLabel ?? 'Idle'}
+								showActivity={telemetry?.showActivity ?? false}
 								onRename={(id, title) => terminalSessions.rename(id, title)}
 								onDuplicate={duplicateSession}
 								onMoveToWorkspace={moveSession}
@@ -275,6 +309,7 @@
 									active={workspaceVisible && active}
 									fontSize={preferences.fontSizes[session.id] ?? DEFAULT_FONT_SIZE}
 									onUpdate={(updated) => terminalSessions.patchFromStream(updated)}
+									onTelemetry={updatePaneTelemetry}
 									onData={broadcastInput}
 								/>
 							</div>
@@ -373,8 +408,24 @@
 		border-radius: 50%;
 		background: #4ade80;
 	}
+	.session-tab__dot[data-status='working'],
+	.session-tab__dot[data-status='planning'] {
+		background: #fbbf24;
+		animation: session-dot-pulse 1.05s ease-in-out infinite;
+	}
+	.session-tab__dot[data-status='asking'],
+	.session-tab__dot[data-status='waiting'] {
+		background: #38bdf8;
+		animation: session-dot-pulse 1.6s ease-in-out infinite;
+	}
+	.session-tab__dot[data-status='done'] {
+		background: #a7f3d0;
+	}
 	.session-tab__dot[data-status='exited'] {
-		background: var(--ink-muted);
+		background: #f87171;
+	}
+	@keyframes session-dot-pulse {
+		50% { opacity: 0.55; transform: scale(0.7); }
 	}
 	.session-tab__title {
 		max-width: 150px;
