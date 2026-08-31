@@ -18,7 +18,7 @@ agent on a parallel loopback port without touching the live Next service.
 Verified gates:
 
 - `bun install` succeeds with Svelte 5 / SvelteKit 2 / adapter-node.
-- `bun test` — **39/39** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color + history + pane-agent-override helper tests pass.
+- `bun test` — **42/42** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color + history + pane-agent-override + launcher helper tests pass.
 - `bun run check` — **0 errors, 0 warnings**.
 - `bun run build` — production adapter-node build succeeds.
 - Official Svelte MCP `svelte-autofixer` reports no issues on the changed
@@ -73,6 +73,7 @@ Verified gates:
 - Session-color smoke verifies deterministic defaults, live picker updates on pane/tab/profile chrome, reload persistence, cross-tab storage sync, reset-to-default, and profile icon rendering against a real PTY.
 - History smoke verifies a real PTY close is retained as a closed entry, survives reload, restores to a new PTY with the same title/workspace, keeps its color while restorable, and prunes the old color only after successful restoration.
 - Runtime-catalog/agent-binding smoke verifies the real 5 profile / 3 environment / 4 resolved-agent catalog reaches Svelte, `Codex Ops` can be bound as tracking metadata, the backend PTY stays a plain shell with no `agent_profile_id`/`inner_agent`, activity tracking follows the binding, reload persists it, and unbind/close pruning clears it without launching or prompting AI.
+- Launcher smoke verifies the same real 5 profile / 3 environment / 4 resolved-agent catalog through the lazy-loaded Svelte drawer: Base shell, `host-default` environment, and `codex-ops` Regular agent launch all create real PTYs through the UI, preserve exact request semantics, land in the active workspace/history, and send no AI prompt. A 390×844 mobile pass verifies Base/Agents/Envs remain reachable with no horizontal overflow; the Saved tab stays hidden until Templates is actually ported.
 
 No production cutover has happened. The existing Next frontend stays on its
 current service/port, and the agent source is not modified by this migration.
@@ -153,6 +154,7 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `history-drawer.tsx` | `src/lib/features/terminals/HistoryDrawer.svelte` — global open/closed history, focus live panes, restore closed panes, remove/clear actions, plus workspace-scoped “Restore where I left off” empty state |
 | `use-pane-agent-overrides.ts` | `src/lib/features/terminals/pane-agent-overrides.svelte.ts` + `pane-agent-overrides.ts` — original `control-room:pane-agent-overrides` key, app-wide rune SSOT, bind/unbind metadata and React-parity live-session pruning |
 | tracking-only subset of `pane-ai-launch.tsx` | `src/lib/features/terminals/PaneAgentBinding.svelte` — catalog-backed bind/unbind control that marks shell panes for agent telemetry without injecting a command, launching an agent, or sending a prompt |
+| `launcher-card.tsx` + executable subset of `launcher-drawer.tsx` | `src/lib/features/terminals/LauncherDrawer.svelte` + `launcher.ts` — lazy-loaded Base/Agents/Envs launcher using the `terminalSessions` runtime catalog and shared create/workspace/history path; Regular/YOLO + active-dir request semantics are tested, while Saved stays deferred until Templates exists |
 | `pane-header.tsx` + action subset | `src/lib/features/terminals/PaneChrome.svelte` — profile icon, session-color picker, tracking-only agent binding, in-place rename, activity chip, stream/RTT badge, move workspace, font +/- controls, duplicate, grid focus, fullscreen enter/exit, close; AI launch/injection, skills and advanced actions remain backlog |
 | `use-workspaces.ts` + `workspace-tabs.tsx` | `src/lib/features/terminals/use-workspaces.svelte.ts` + `WorkspaceTabs.svelte` — local-first + remote agent-state sync, create/rename/delete/select workspace, session assignment |
 | `use-terminal-preferences.ts` (core) | `src/lib/features/terminals/use-terminal-preferences.svelte.ts` — font-size map, single/grid mode, grid columns, reactive `SvelteSet` broadcast targets |
@@ -195,9 +197,9 @@ guessed at — it's simply not written yet.
 - [x] Session-color SSOT + profile icons + picker — original storage key/palette preserved, deterministic fallback, cross-tab sync, pane/tab/heartbeat custom-property wiring, and real-browser persistence/reset verification. Auto-prune now matches React by retaining the union of live + history-restorable ids.
 - [x] Terminal history SSOT + History drawer — exact storage key/40-entry cap, live snapshot updates, closed retention, workspace-aware single/bulk restore, reload persistence, and real-agent restore E2E.
 - [x] Runtime catalog + pane-agent override SSOT — `GET /api/terminals` profiles/environments/agentProfiles are retained in `terminalSessions`; original override key/shape and live-only pruning are preserved; tracking-only bind/unbind is real-browser verified without AI launch/prompt.
-- [ ] Full `terminals-main.tsx` / `terminals-topbar.tsx` parity: row-stretch polish, launcher/patrol controls, and the remaining compact chrome
+- [ ] Full `terminals-main.tsx` / `terminals-topbar.tsx` parity: row-stretch polish, patrol controls, and the remaining compact chrome; the core launcher is now ported
 - [ ] Advanced pane chrome: `pane-actions-menu.tsx`, `pane-menu-cluster.tsx`, `readonly-terminal-view.tsx` plus AI launch/injection, skills and actions integrations. `terminal-profile-icon.tsx`, `session-color-picker.tsx`, `pane-soft-keyboard.tsx`, `pane-scroll-rail.tsx`, `pane-error-boundary.tsx`, `pane-conn-badge.tsx`, `pane-activity-chip.tsx`, and fullscreen behavior are already absorbed by the current Svelte pane components.
-- [ ] `launcher-card.tsx`, `launcher-drawer.tsx` — AI agent launch flow (Claude/Codex/Gemini/OpenClaw profiles)
+- [x] `launcher-card.tsx` + `launcher-drawer.tsx` core — Base/Agents/Envs are lazy-loaded and real-agent verified, including Regular agent launch; Saved is intentionally deferred with the Templates feature rather than exposed as a non-functional tab
 - [ ] `use-alfa-watchers.ts`, `patrol/*` (4 components) — alfa patrol/registry feature, plus `app/api/alfa/watchers/**` and `app/api/patrol/pending/**` routes
 - [x] ~~`use-devices.ts`, `devices-drawer.tsx` — device approval UI~~ ported this round, see the table above
 - [x] `use-fullscreen.ts` — ported and wired into pane chrome + grid Focus, with browser fullscreen/resize verification.

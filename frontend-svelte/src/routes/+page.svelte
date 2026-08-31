@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { onMount, untrack } from 'svelte';
-	import { Grid2X2, History as HistoryIcon, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
+	import { Grid2X2, History as HistoryIcon, Rocket, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
 
 	import DevicesDrawer from '$lib/components/devices-drawer.svelte';
 	import HistoryDrawer from '$lib/features/terminals/HistoryDrawer.svelte';
@@ -16,12 +16,13 @@
 	import WorkspaceTabs from '$lib/features/terminals/WorkspaceTabs.svelte';
 	import { resolveBroadcastFanout } from '$lib/features/terminals/broadcast';
 	import { OrderedTerminalInputQueue } from '$lib/features/terminals/input-queue';
+	import { agentLaunchRequest, environmentLaunchRequest, profileLaunchRequest, type LauncherTab } from '$lib/features/terminals/launcher';
 	import type { TerminalHistoryEntry } from '$lib/features/terminals/history';
 	import {
 		useTerminalPreferences,
 		type GridCols
 	} from '$lib/features/terminals/use-terminal-preferences.svelte';
-	import { DEFAULT_FONT_SIZE } from '$lib/features/terminals/types';
+	import { DEFAULT_FONT_SIZE, type TerminalCreateRequest } from '$lib/features/terminals/types';
 	import { useAppSettings } from '$lib/features/terminals/use-app-settings.svelte';
 	import { useFullscreen } from '$lib/features/terminals/use-fullscreen.svelte';
 	import {
@@ -51,6 +52,9 @@
 	let devicesOpen = $state(false);
 	let settingsOpen = $state(false);
 	let historyOpen = $state(false);
+	let launcherOpen = $state(false);
+	let launcherTab = $state<LauncherTab>('base');
+	let launcherCreatingKey = $state<string | null>(null);
 	let historyRestoring = $state(false);
 	let sessionsLoaded = $state(false);
 	let paneTelemetry = $state<Record<string, TerminalTelemetry>>({});
@@ -136,12 +140,30 @@
 		}
 	});
 
-	async function newShell(): Promise<void> {
+	async function createInActiveWorkspace(
+		request: TerminalCreateRequest,
+		creatingKey: string | null = null
+	): Promise<boolean> {
 		const workspaceId = workspaces.activeId;
-		const session = await terminalSessions.create({ profile: 'shell' });
-		if (!session) return;
-		workspaces.assignSession(session.id, workspaceId);
-		terminalHistory.upsert(session, workspaceId);
+		if (creatingKey) launcherCreatingKey = creatingKey;
+		try {
+			const session = await terminalSessions.create(request);
+			if (!session) return false;
+			workspaces.assignSession(session.id, workspaceId);
+			terminalHistory.upsert(session, workspaceId);
+			return true;
+		} finally {
+			if (creatingKey && launcherCreatingKey === creatingKey) launcherCreatingKey = null;
+		}
+	}
+
+	async function newShell(): Promise<void> {
+		await createInActiveWorkspace(profileLaunchRequest('shell'));
+	}
+
+	function openLauncher(tab: LauncherTab = 'base'): void {
+		launcherTab = tab;
+		launcherOpen = true;
 	}
 
 	function updatePaneTelemetry(id: string, next: TerminalTelemetry): void {
@@ -396,6 +418,10 @@
 				onChange={preferences.setBroadcastTargets}
 			/>
 
+			<Button variant="outline" size="sm" onclick={() => openLauncher('base')} aria-label="Open terminal launcher">
+				<Rocket size={14} /> Launch
+			</Button>
+
 			<Button variant="outline" size="sm" onclick={() => (historyOpen = true)} aria-label="Open terminal history">
 				<HistoryIcon size={14} /> History
 				{#if restorableHistoryCount > 0}<span class="topbar-count">{restorableHistoryCount}</span>{/if}
@@ -412,6 +438,25 @@
 			<Button variant="outline" size="sm" onclick={logout}>Sign out</Button>
 		</div>
 	</header>
+
+	{#if launcherOpen}
+		{#await import('$lib/features/terminals/LauncherDrawer.svelte') then launcherModule}
+			{@const LauncherDrawer = launcherModule.default}
+			<LauncherDrawer
+				open={launcherOpen}
+				tab={launcherTab}
+				profiles={terminalSessions.profiles}
+				environments={terminalSessions.environments}
+				agentProfiles={terminalSessions.agentProfiles}
+				creatingKey={launcherCreatingKey}
+				onOpenChange={(value) => (launcherOpen = value)}
+				onTabChange={(value) => (launcherTab = value)}
+				onLaunchProfile={(profile) => createInActiveWorkspace(profileLaunchRequest(profile), `profile:${profile}`)}
+				onLaunchEnvironment={(environmentId) => createInActiveWorkspace(environmentLaunchRequest(environmentId), `env:${environmentId}`)}
+				onLaunchAgent={(agentId, options) => createInActiveWorkspace(agentLaunchRequest(agentId, options), `agent:${agentId}`)}
+			/>
+		{/await}
+	{/if}
 
 	<HistoryDrawer
 		open={historyOpen}
