@@ -13,10 +13,20 @@
 // components (see svelte.dev/docs/ai/overview) — it replaces both the old
 // `writable()` store pattern AND the React `useSyncExternalStore` + custom
 // hook the original used for the same job.
-import type { TerminalCreateRequest, TerminalSession } from '$lib/features/terminals/types';
+import type {
+	RuntimeEnvironmentSummary,
+	RuntimeResolvedAgentProfile,
+	TerminalCreateRequest,
+	TerminalListResponse,
+	TerminalProfileDescriptor,
+	TerminalSession
+} from '$lib/features/terminals/types';
 
 class TerminalSessionsState {
 	sessions = $state<TerminalSession[]>([]);
+	profiles = $state<TerminalProfileDescriptor[]>([]);
+	environments = $state<RuntimeEnvironmentSummary[]>([]);
+	agentProfiles = $state<RuntimeResolvedAgentProfile[]>([]);
 	activeId = $state<string | null>(null);
 	loading = $state(false);
 	error = $state<string | null>(null);
@@ -30,8 +40,17 @@ class TerminalSessionsState {
 		try {
 			const res = await fetch('/api/terminals');
 			if (!res.ok) throw new Error(`Failed to list terminals (${res.status})`);
-			const payload = (await res.json()) as { sessions?: TerminalSession[] };
-			this.sessions = payload.sessions ?? [];
+			const payload = (await res.json()) as TerminalListResponse;
+			this.profiles = payload.profiles ?? [];
+			this.environments = payload.environments ?? [];
+			this.agentProfiles = (payload.agentProfiles ?? []).map((profile) => ({
+				...profile,
+				skills: profile.skills ?? []
+			}));
+			this.sessions = (payload.sessions ?? []).map((session) => ({
+				...session,
+				skills: session.skills ?? []
+			}));
 			if (!this.activeId && this.sessions.length > 0) {
 				this.activeId = this.sessions[0].id;
 			}

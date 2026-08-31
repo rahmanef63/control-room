@@ -55,6 +55,7 @@
 		fullscreen?: boolean;
 		keyboardVisible?: boolean;
 		softKeyVisible?: Partial<Record<SoftKeyboardKey, boolean>>;
+		boundAgentProfileId?: string;
 		onUpdate?: (session: TerminalSession) => void;
 		onTelemetry?: (sessionId: string, telemetry: TerminalTelemetry) => void;
 		onFontSizeChange?: (sessionId: string, size: number) => void;
@@ -69,6 +70,7 @@
 		fullscreen = false,
 		keyboardVisible = false,
 		softKeyVisible = {},
+		boundAgentProfileId,
 		onUpdate,
 		onTelemetry,
 		onFontSizeChange,
@@ -98,7 +100,7 @@
 	let dragOver = $state(false);
 	let uploading = $state(false);
 	let canSendInput = $derived(session.status === 'running');
-	let isAgent = $derived(isAgentSession(session));
+	let isAgent = $derived(Boolean(boundAgentProfileId) || isAgentSession(session));
 	let showActivity = $derived(isAgent && (activityState !== 'idle' || session.status === 'exited'));
 	let activityLabel = $derived(ACTIVITY_LABELS[activityState]);
 

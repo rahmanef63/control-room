@@ -15,9 +15,15 @@
 		X
 	} from 'lucide-svelte';
 
+	import PaneAgentBinding from '$lib/features/terminals/PaneAgentBinding.svelte';
 	import SessionColorPicker from '$lib/features/terminals/SessionColorPicker.svelte';
 	import TerminalProfileIcon from '$lib/features/terminals/TerminalProfileIcon.svelte';
-	import { clampFontSize, type ConnectionState, type TerminalSession } from '$lib/features/terminals/types';
+	import {
+		clampFontSize,
+		type ConnectionState,
+		type RuntimeResolvedAgentProfile,
+		type TerminalSession
+	} from '$lib/features/terminals/types';
 	import type { ActivityState } from '$lib/features/terminals/telemetry';
 	import type { Workspace } from '$lib/features/terminals/use-workspaces.svelte';
 
@@ -35,6 +41,10 @@
 		fullscreen: boolean;
 		color: string;
 		hasColorOverride: boolean;
+		agentProfiles: RuntimeResolvedAgentProfile[];
+		boundAgentProfileId?: string;
+		onBindAgent: (agentProfileId: string) => void;
+		onUnbindAgent: () => void;
 		onColorPick: (color: string) => void;
 		onColorClear: () => void;
 		onRename: (id: string, title: string) => Promise<void>;
@@ -60,6 +70,10 @@
 		fullscreen,
 		color,
 		hasColorOverride,
+		agentProfiles,
+		boundAgentProfileId,
+		onBindAgent,
+		onUnbindAgent,
 		onColorPick,
 		onColorClear,
 		onRename,
@@ -172,6 +186,15 @@
 			hasOverride={hasColorOverride}
 			onPick={onColorPick}
 			onClear={onColorClear}
+		/>
+		<PaneAgentBinding
+			sessionId={session.id}
+			cwd={session.cwd}
+			{agentProfiles}
+			{boundAgentProfileId}
+			runtimeAgentProfileId={session.agent_profile_id}
+			onBind={onBindAgent}
+			onUnbind={onUnbindAgent}
 		/>
 		<span
 			class="pane-chrome__latency"

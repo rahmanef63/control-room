@@ -6,6 +6,42 @@
 
 export type TerminalProfile = 'shell' | 'codex' | 'claude' | 'gemini' | 'openclaw';
 
+export interface TerminalProfileDescriptor {
+	profile: TerminalProfile;
+	title: string;
+	description: string;
+}
+
+export interface RuntimeEnvironmentSummary {
+	id: string;
+	label: string;
+	description: string;
+	cwd: string;
+	envText: string;
+	tags: string[];
+	envVarCount: number;
+	envKeys: string[];
+}
+
+export interface RuntimeResolvedAgentProfile {
+	id: string;
+	label: string;
+	description: string;
+	terminalProfile: TerminalProfile;
+	model: string;
+	environmentId?: string;
+	environmentLabel?: string;
+	skills: string[];
+	launchCommand?: string;
+}
+
+export interface TerminalListResponse {
+	profiles?: TerminalProfileDescriptor[];
+	sessions?: TerminalSession[];
+	environments?: RuntimeEnvironmentSummary[];
+	agentProfiles?: RuntimeResolvedAgentProfile[];
+}
+
 export interface TerminalSession {
 	id: string;
 	profile: TerminalProfile;
@@ -58,9 +94,9 @@ export function getStreamUrl(sessionId: string): string {
 	return `/api/terminals/${encodeURIComponent(sessionId)}/stream`;
 }
 
-// Added for use-app-settings.svelte.ts. The rest of the original
-// lib/utils.ts storage-key constants (SESSION_STORAGE_KEY, HISTORY_*,
-// WORKSPACE_*, TEMPLATES_*, ALFA_WATCHERS_*, PANE_AGENT_OVERRIDES_*) and its
+// Added for ported feature slices. The rest of the original
+// lib/utils.ts storage-key constants (SESSION_STORAGE_KEY, WORKSPACE_*,
+// TEMPLATES_*, ALFA_WATCHERS_*) and its
 // ActivityState/detectIdleActivity() are intentionally not copied here yet —
 // they get ported alongside the feature that actually reads/writes them, to
 // avoid dumping a pile of unused constants into this file.

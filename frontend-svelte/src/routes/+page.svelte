@@ -28,6 +28,7 @@
 		resolveSessionVisualState,
 		type TerminalTelemetry
 	} from '$lib/features/terminals/telemetry';
+	import { paneAgentOverrides } from '$lib/features/terminals/pane-agent-overrides.svelte';
 	import { sessionColors } from '$lib/features/terminals/session-colors.svelte';
 	import { terminalHistory } from '$lib/features/terminals/terminal-history.svelte';
 	import { useWakeLock } from '$lib/features/terminals/use-wake-lock.svelte';
@@ -83,6 +84,7 @@
 	);
 
 	onMount(() => {
+		paneAgentOverrides.init();
 		sessionColors.init();
 		terminalHistory.init();
 		void terminalSessions.refresh().finally(() => {
@@ -115,6 +117,13 @@
 		];
 		if (!ready) return;
 		untrack(() => sessionColors.pruneTo(keepIds));
+	});
+
+	// Pane-agent overrides intentionally follow React's live-session-only cleanup.
+	$effect(() => {
+		const liveIds = terminalSessions.sessions.map((session) => session.id);
+		if (!sessionsLoaded || !paneAgentOverrides.hydrated) return;
+		untrack(() => paneAgentOverrides.pruneTo(liveIds));
 	});
 
 	// Keep single-pane focus inside the selected workspace. The terminals stay
@@ -472,6 +481,10 @@
 								fullscreen={fullscreen.isFullscreen}
 								color={sessionColors.colorOf(session.id)}
 								hasColorOverride={sessionColors.hasOverride(session.id)}
+								agentProfiles={terminalSessions.agentProfiles}
+								boundAgentProfileId={paneAgentOverrides.overrideOf(session.id)?.agentProfileId}
+								onBindAgent={(agentProfileId) => paneAgentOverrides.bind(session.id, agentProfileId)}
+								onUnbindAgent={() => paneAgentOverrides.clear(session.id)}
 								onColorPick={(color) => sessionColors.setColor(session.id, color)}
 								onColorClear={() => sessionColors.clearColor(session.id)}
 								onRename={(id, title) => terminalSessions.rename(id, title)}
@@ -495,6 +508,7 @@
 									fullscreen={fullscreen.isFullscreen}
 									keyboardVisible={!appSettings.settings.softKeyboard.hideKeyboard}
 									softKeyVisible={appSettings.settings.softKeyboard.visibility}
+									boundAgentProfileId={paneAgentOverrides.overrideOf(session.id)?.agentProfileId}
 									onUpdate={(updated) => terminalSessions.patchFromStream(updated)}
 									onTelemetry={updatePaneTelemetry}
 									onFontSizeChange={preferences.setFontSize}
