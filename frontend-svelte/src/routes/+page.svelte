@@ -9,6 +9,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import BroadcastMenu from '$lib/features/terminals/BroadcastMenu.svelte';
 	import PaneChrome from '$lib/features/terminals/PaneChrome.svelte';
+	import PaneErrorBoundary from '$lib/features/terminals/PaneErrorBoundary.svelte';
 	import Terminal from '$lib/features/terminals/Terminal.svelte';
 	import WorkspaceTabs from '$lib/features/terminals/WorkspaceTabs.svelte';
 	import { resolveBroadcastFanout } from '$lib/features/terminals/broadcast';
@@ -309,6 +310,7 @@
 						data-active={active}
 						aria-hidden={!workspaceVisible || !active}
 					>
+						<PaneErrorBoundary>
 						<div
 							class="pane-frame"
 							data-heartbeat={appSettings.settings.notifications.heartbeatGlow && telemetry?.activityState === 'working' || undefined}
@@ -353,6 +355,7 @@
 								/>
 							</div>
 						</div>
+						</PaneErrorBoundary>
 					</div>
 				{/each}
 			</div>
