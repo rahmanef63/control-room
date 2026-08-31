@@ -10,8 +10,8 @@
 	// Ported in the continuation slice: raw-binary upload proxy, file drag/drop,
 	// pasted images, 25 MiB client guard, and safe shell-path insertion.
 	// NOT ported yet (see README-MIGRATION.md backlog): RTT latency measurement,
-	// activity/idle-state detection, cross-pane broadcast input, in-place rename,
-	// pinch-zoom font sizing. The original
+	// activity/idle-state detection, pinch-zoom font sizing. Cross-pane keyboard
+	// broadcast is delegated to the page-level SSOT through `onData`. The original
 	// hook is 662 lines; this covers the part that makes a pane usable at
 	// all, not the full feature set.
 	import { onDestroy, onMount } from 'svelte';
@@ -37,9 +37,17 @@
 		active?: boolean;
 		fontSize?: number;
 		onUpdate?: (session: TerminalSession) => void;
+		/** Return true when the keystroke was handled by a parent fan-out. */
+		onData?: (sourceId: string, data: string) => boolean;
 	}
 
-	let { session, active = true, fontSize = DEFAULT_FONT_SIZE, onUpdate }: Props = $props();
+	let {
+		session,
+		active = true,
+		fontSize = DEFAULT_FONT_SIZE,
+		onUpdate,
+		onData
+	}: Props = $props();
 
 	let containerEl: HTMLDivElement;
 	let term: XTerm | null = null;
@@ -266,7 +274,13 @@
 		tryLoadWebgl(term);
 		resizeTerminal();
 
-		term.onData((data) => sendInput(data));
+		term.onData((data) => {
+			if (onData?.(session.id, data)) {
+				term?.focus();
+				return;
+			}
+			sendInput(data);
+		});
 
 		resizeObserver = new ResizeObserver(() => resizeTerminal());
 		resizeObserver.observe(containerEl);

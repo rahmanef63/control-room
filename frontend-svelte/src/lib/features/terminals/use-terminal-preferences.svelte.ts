@@ -1,4 +1,5 @@
 import { onMount } from 'svelte';
+import { SvelteSet } from 'svelte/reactivity';
 
 import { readLocal, writeLocal } from '$lib/local-storage';
 import { clampFontSize } from '$lib/features/terminals/types';
@@ -15,6 +16,7 @@ export function useTerminalPreferences() {
 	let fontSizes = $state<Record<string, number>>({});
 	let viewMode = $state<ViewMode>('single');
 	let gridCols = $state<GridCols>('auto');
+	const broadcastTargets = new SvelteSet<string>();
 	let hydrated = $state(false);
 
 	onMount(() => {
@@ -60,6 +62,19 @@ export function useTerminalPreferences() {
 		gridCols = next;
 	}
 
+	function setBroadcastTargets(next: Iterable<string>): void {
+		broadcastTargets.clear();
+		for (const id of next) broadcastTargets.add(id);
+	}
+
+	function removeBroadcastTarget(id: string): void {
+		broadcastTargets.delete(id);
+	}
+
+	function clearBroadcastTargets(): void {
+		broadcastTargets.clear();
+	}
+
 	return {
 		get fontSizes() {
 			return fontSizes;
@@ -70,8 +85,14 @@ export function useTerminalPreferences() {
 		get gridCols() {
 			return gridCols;
 		},
+		get broadcastTargets() {
+			return broadcastTargets;
+		},
 		setFontSize,
 		setViewMode,
-		setGridCols
+		setGridCols,
+		setBroadcastTargets,
+		removeBroadcastTarget,
+		clearBroadcastTargets
 	};
 }

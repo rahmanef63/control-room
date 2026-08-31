@@ -5,9 +5,14 @@
 
 	import DevicesDrawer from '$lib/components/devices-drawer.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import BroadcastMenu from '$lib/features/terminals/BroadcastMenu.svelte';
 	import PaneChrome from '$lib/features/terminals/PaneChrome.svelte';
 	import Terminal from '$lib/features/terminals/Terminal.svelte';
 	import WorkspaceTabs from '$lib/features/terminals/WorkspaceTabs.svelte';
+	import {
+		BroadcastInputQueue,
+		resolveBroadcastFanout
+	} from '$lib/features/terminals/broadcast';
 	import {
 		useTerminalPreferences,
 		type GridCols
@@ -18,6 +23,14 @@
 
 	const workspaces = useWorkspaces();
 	const preferences = useTerminalPreferences();
+	const broadcastInputQueue = new BroadcastInputQueue(async (id, data) => {
+		const response = await fetch(`/api/terminals/${encodeURIComponent(id)}/input`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ data })
+		});
+		if (!response.ok) throw new Error(`Broadcast input failed: ${response.status}`);
+	});
 	let devicesOpen = $state(false);
 
 	let activeWorkspaceSessions = $derived.by(() =>
@@ -56,6 +69,7 @@
 
 	async function closeSession(id: string): Promise<void> {
 		await terminalSessions.close(id);
+		preferences.removeBroadcastTarget(id);
 		workspaces.unassignSession(id);
 	}
 
@@ -66,6 +80,9 @@
 	}
 
 	function moveSession(sessionId: string, workspaceId: string): void {
+		if (workspaceId !== workspaces.resolveSessionWorkspace(sessionId)) {
+			preferences.removeBroadcastTarget(sessionId);
+		}
 		workspaces.assignSession(sessionId, workspaceId);
 	}
 
@@ -75,6 +92,7 @@
 	}
 
 	function selectWorkspace(id: string): void {
+		if (id !== workspaces.activeId) preferences.clearBroadcastTargets();
 		workspaces.setActive(id);
 		const first = terminalSessions.sessions.find(
 			(session) => workspaces.resolveSessionWorkspace(session.id) === id
@@ -83,6 +101,7 @@
 	}
 
 	function createWorkspace(): void {
+		preferences.clearBroadcastTargets();
 		workspaces.createWorkspace();
 	}
 
@@ -102,6 +121,23 @@
 
 	function paneIsActive(sessionId: string): boolean {
 		return preferences.viewMode === 'grid' || sessionId === terminalSessions.activeId;
+	}
+
+	function paneIsBroadcastTarget(sessionId: string): boolean {
+		const session = activeWorkspaceSessions.find((item) => item.id === sessionId);
+		return session?.status === 'running' && preferences.broadcastTargets.has(sessionId);
+	}
+
+	function broadcastInput(sourceId: string, data: string): boolean {
+		const ids = resolveBroadcastFanout(
+			sourceId,
+			preferences.broadcastTargets,
+			activeWorkspaceSessions
+		);
+		if (ids.length === 0) return false;
+
+		for (const id of ids) broadcastInputQueue.enqueue(id, data);
+		return true;
 	}
 </script>
 
@@ -176,6 +212,12 @@
 				</label>
 			{/if}
 
+			<BroadcastMenu
+				sessions={activeWorkspaceSessions}
+				targets={preferences.broadcastTargets}
+				onChange={preferences.setBroadcastTargets}
+			/>
+
 			<Button variant="outline" size="sm" onclick={() => (devicesOpen = true)}>
 				<ShieldCheck size={14} /> Devices
 			</Button>
@@ -222,12 +264,18 @@
 								onFocus={focusSession}
 								onClose={closeSession}
 							/>
+							{#if paneIsBroadcastTarget(session.id)}
+								<div class="pane-broadcast-banner">
+									Broadcast target — typing in any sibling pane is mirrored here.
+								</div>
+							{/if}
 							<div class="pane-terminal-host">
 								<Terminal
 									{session}
 									active={workspaceVisible && active}
 									fontSize={preferences.fontSizes[session.id] ?? DEFAULT_FONT_SIZE}
 									onUpdate={(updated) => terminalSessions.patchFromStream(updated)}
+									onData={broadcastInput}
 								/>
 							</div>
 						</div>
@@ -409,6 +457,14 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		background: #0b1220;
+	}
+	.pane-broadcast-banner {
+		border-bottom: 1px solid rgb(251 113 133 / 0.22);
+		background: rgb(127 29 29 / 0.22);
+		padding: 5px 10px;
+		color: rgb(254 205 211);
+		font-size: 11px;
+		line-height: 1.35;
 	}
 	.pane-terminal-host {
 		flex: 1 1 auto;

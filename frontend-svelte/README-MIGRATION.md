@@ -18,7 +18,7 @@ agent on a parallel loopback port without touching the live Next service.
 Verified gates:
 
 - `bun install` succeeds with Svelte 5 / SvelteKit 2 / adapter-node.
-- `bun test` — 5/5 terminal-upload helper tests pass.
+- `bun test` — **11/11** terminal-upload + ordered-broadcast helper tests pass.
 - `bun run check` — **0 errors, 0 warnings**.
 - `bun run build` — production adapter-node build succeeds.
 - Official Svelte MCP `svelte-autofixer` reports no issues on the changed
@@ -32,9 +32,13 @@ Verified gates:
   cannot cover: terminal creation through the rune state object, workspace
   creation, two panes in one workspace, grid mode, two live xterm mounts,
   in-place rename, persisted font-size change, duplicate, move to workspace,
-  grid-to-single focus, and close from pane chrome. The test intercepts
-  `/api/state/workspaces`, so it does not mutate the operator's durable
-  workspace state.
+  grid-to-single focus, and close from pane chrome. A dedicated real-agent
+  broadcast smoke also verifies that typing in one pane reaches two selected
+  PTYs while armed and returns to source-only input after disarming. The test
+  intercepts `/api/state/workspaces`, so it does not mutate the operator's
+  durable workspace state. During this E2E pass, per-character parallel POSTs
+  exposed a target-side ordering race; the Svelte port now serializes input per
+  target without serializing unrelated panes together.
 
 No production cutover has happened. The existing Next frontend stays on its
 current service/port, and the agent source is not modified by this migration.
@@ -101,11 +105,12 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `app/manifest.ts` | `static/manifest.webmanifest` (icon files still placeholder — see backlog) |
 | `public/sw.js`, `offline.html`, `favicon.ico`, `og-card.png`, screenshots | copied byte-for-byte to `static/` |
 | `use-terminal-sessions.ts` (736 lines, subset) | `src/lib/state/terminal-sessions.svelte.ts` — list/create/close/rename/duplicate |
-| `use-pane-terminal.ts` + `terminal-pane.tsx` (subset) | `src/lib/features/terminals/Terminal.svelte` — xterm+webgl, SSE bootstrap/output/status/error, input, resize, reconnect-with-backoff |
-| `screen.tsx` + `session-tabs.tsx` (core) | `src/routes/+page.svelte` — workspace-scoped session tabs, create/close shell, single/grid modes, responsive multi-pane grid |
+| `use-pane-terminal.ts` + `terminal-pane.tsx` (subset) | `src/lib/features/terminals/Terminal.svelte` — xterm+webgl, SSE bootstrap/output/status/error, input, resize, reconnect-with-backoff, parent-delegated broadcast keystrokes |
+| `screen.tsx` + `session-tabs.tsx` (core) | `src/routes/+page.svelte` — workspace-scoped session tabs, create/close shell, single/grid modes, responsive multi-pane grid, scoped broadcast fan-out |
 | `pane-header.tsx` + action subset | `src/lib/features/terminals/PaneChrome.svelte` — in-place rename, move workspace, font +/- controls, duplicate, grid focus, close; advanced AI/skills/color/activity/latency menus remain backlog |
 | `use-workspaces.ts` + `workspace-tabs.tsx` | `src/lib/features/terminals/use-workspaces.svelte.ts` + `WorkspaceTabs.svelte` — local-first + remote agent-state sync, create/rename/delete/select workspace, session assignment |
-| `use-terminal-preferences.ts` (core) | `src/lib/features/terminals/use-terminal-preferences.svelte.ts` — font-size map, single/grid mode, grid columns; broadcast preferences remain backlog |
+| `use-terminal-preferences.ts` (core) | `src/lib/features/terminals/use-terminal-preferences.svelte.ts` — font-size map, single/grid mode, grid columns, reactive `SvelteSet` broadcast targets |
+| `terminals-broadcast.tsx` + broadcast input slice | `src/lib/features/terminals/BroadcastMenu.svelte` + `broadcast.ts` — current-workspace running-target selection, All/None, source-inclusive fan-out, per-target ordered input queue |
 | `components/ui/{button,badge}.tsx` | `src/lib/components/ui/{button,badge}/` (hand-written shadcn-svelte style) |
 | `shared/runtime/force-fresh-reload.ts` | `src/lib/pwa/force-fresh-reload.ts` (verbatim — plain browser APIs, no framework code) |
 | `shared/pwa/version-guard.tsx` | `src/lib/pwa/version-guard.svelte` — polls `/api/version`, prompts hard-refresh on new build; reads `PUBLIC_BUILD_ID` via `$env/dynamic/public` so dev doesn't require it set |
@@ -135,19 +140,19 @@ guessed at — it's simply not written yet.
 - [x] File upload / drag-drop/pasted-image upload onto a pane, including 25 MiB client guard, safe shell-path insertion, unit tests, and real-agent E2E verification
 - [ ] RTT latency measurement + display
 - [ ] Activity/idle-state detection (`working` / `asking` / `planning` / `waiting` / `done` labels)
-- [ ] Cross-pane broadcast input (`terminals-broadcast.tsx`, `use-terminal-sessions.ts` broadcast slice)
+- [x] Cross-pane broadcast input (`BroadcastMenu.svelte` + `broadcast.ts`) with current-workspace target SSOT, source-inclusive fan-out, ordered per-target delivery, unit tests, and real-agent browser E2E
 - [x] In-place pane rename and persisted button-based font sizing
 - [ ] Pinch-zoom font sizing
 - [x] Core multi-workspace state + workspace tabs + session assignment + single/grid rendering + configurable 1–4/auto columns
 - [x] Core pane chrome actions: move workspace, duplicate, grid focus, and close
-- [ ] Full `terminals-main.tsx` / `terminals-topbar.tsx` parity: row-stretch polish, launcher/broadcast/patrol controls, history overlays, and the remaining compact chrome
+- [ ] Full `terminals-main.tsx` / `terminals-topbar.tsx` parity: row-stretch polish, launcher/patrol controls, history overlays, and the remaining compact chrome
 - [ ] Advanced pane chrome: `pane-actions-menu.tsx`, `pane-menu-cluster.tsx`, `pane-scroll-rail.tsx`, `pane-soft-keyboard.tsx`, `pane-conn-badge.tsx`, `pane-activity-chip.tsx`, `pane-error-boundary.tsx`, `readonly-terminal-view.tsx`, `terminal-profile-icon.tsx`, `session-color-picker.tsx` plus AI/skills/color/fullscreen integrations
 - [ ] `launcher-card.tsx`, `launcher-drawer.tsx` — AI agent launch flow (Claude/Codex/Gemini/OpenClaw profiles)
 - [ ] `use-alfa-watchers.ts`, `patrol/*` (4 components) — alfa patrol/registry feature, plus `app/api/alfa/watchers/**` and `app/api/patrol/pending/**` routes
 - [x] ~~`use-devices.ts`, `devices-drawer.tsx` — device approval UI~~ ported this round, see the table above
 - [x] ~~`use-fullscreen.ts`, `use-wake-lock.ts`, `use-app-settings.ts`~~ ported this round as logic-only modules, see the table above — **not wired into any UI yet**: there's no fullscreen button, wake-lock toggle, or settings drawer in `+page.svelte`, so these three currently have zero consumers. Wire them up when the advanced pane chrome / settings drawer lands.
-- [x] `use-workspaces.ts` and core `use-terminal-preferences.ts` (font size + view mode + grid columns)
-- [ ] `use-media-query.ts`, broadcast-target slice of `use-terminal-preferences.ts`, `use-session-colors.ts`, `use-pane-agent-overrides.ts`
+- [x] `use-workspaces.ts` and core `use-terminal-preferences.ts` (font size + view mode + grid columns + broadcast targets)
+- [ ] `use-media-query.ts`, `use-session-colors.ts`, `use-pane-agent-overrides.ts`
 - [ ] `sessions/storage.ts`, `sessions/types.ts`, `lib/backup.ts` — cross-browser workspace persistence beyond the now-ported basic agent `/api/state/workspaces` sync; `lib/local-storage.ts` itself is ported (see table above), these are the higher-level backup/history pieces built on top of it
 - [ ] `history-drawer.tsx`, `overview-drawer.tsx`, `settings-drawer.tsx`
 - [ ] `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts`
