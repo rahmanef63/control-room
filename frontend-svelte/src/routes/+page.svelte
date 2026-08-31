@@ -275,8 +275,11 @@
 	<SettingsDrawer
 		open={settingsOpen}
 		notifications={appSettings.settings.notifications}
+		softKeyboard={appSettings.settings.softKeyboard}
 		onOpenChange={(value) => (settingsOpen = value)}
 		onUpdateNotifications={appSettings.updateNotifications}
+		onUpdateSoftKeyboard={appSettings.updateSoftKeyboard}
+		onSetSoftKeyVisible={appSettings.setSoftKeyVisible}
 		onOpenDevices={() => (devicesOpen = true)}
 		onResetDefaults={appSettings.resetDefaults}
 	/>
@@ -341,6 +344,8 @@
 									active={workspaceVisible && active}
 									fontSize={preferences.fontSizes[session.id] ?? DEFAULT_FONT_SIZE}
 									fullscreen={fullscreen.isFullscreen}
+									keyboardVisible={!appSettings.settings.softKeyboard.hideKeyboard}
+									softKeyVisible={appSettings.settings.softKeyboard.visibility}
 									onUpdate={(updated) => terminalSessions.patchFromStream(updated)}
 									onTelemetry={updatePaneTelemetry}
 									onFontSizeChange={preferences.setFontSize}

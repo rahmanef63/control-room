@@ -18,13 +18,15 @@
 	// all, not the full feature set.
 	import { onDestroy, onMount } from 'svelte';
 	import { Loader2, UploadCloud } from 'lucide-svelte';
+	import PaneSoftKeyboard from '$lib/features/terminals/PaneSoftKeyboard.svelte';
 	import { FitAddon } from '@xterm/addon-fit';
 	import { WebglAddon } from '@xterm/addon-webgl';
 	import { Terminal as XTerm } from '@xterm/xterm';
 	import '@xterm/xterm/css/xterm.css';
 
-	import { filesFromDrop, partitionBySize, quoteShellPath } from '$lib/features/terminals/upload';
+	import { filesFromDrop, imageFileFromBlob, partitionBySize, quoteShellPath } from '$lib/features/terminals/upload';
 	import { OrderedTerminalInputQueue } from '$lib/features/terminals/input-queue';
+	import type { SoftKeyboardAction } from '$lib/features/terminals/soft-keyboard';
 	import { fontSizeForPinch, touchDistance } from '$lib/features/terminals/pinch-zoom';
 	import {
 		ACTIVITY_LABELS,
@@ -41,7 +43,8 @@
 		TERMINAL_SCROLLBACK,
 		type ConnectionState,
 		type TerminalGatewayEvent,
-		type TerminalSession
+		type TerminalSession,
+		type SoftKeyboardKey
 	} from '$lib/features/terminals/types';
 
 	interface Props {
@@ -49,6 +52,8 @@
 		active?: boolean;
 		fontSize?: number;
 		fullscreen?: boolean;
+		keyboardVisible?: boolean;
+		softKeyVisible?: Partial<Record<SoftKeyboardKey, boolean>>;
 		onUpdate?: (session: TerminalSession) => void;
 		onTelemetry?: (sessionId: string, telemetry: TerminalTelemetry) => void;
 		onFontSizeChange?: (sessionId: string, size: number) => void;
@@ -61,6 +66,8 @@
 		active = true,
 		fontSize = DEFAULT_FONT_SIZE,
 		fullscreen = false,
+		keyboardVisible = false,
+		softKeyVisible = {},
 		onUpdate,
 		onTelemetry,
 		onFontSizeChange,
@@ -151,6 +158,96 @@
 		if (!canSendInput) return;
 		directInputQueue.enqueue(session.id, data);
 		term?.focus();
+	}
+
+	function sendControlKey(key: string): void {
+		if (!/^[a-z]$/i.test(key)) return;
+		sendInput(String.fromCharCode(key.toUpperCase().charCodeAt(0) & 0x1f));
+	}
+
+	async function pasteFromClipboard(): Promise<void> {
+		if (!canSendInput) return;
+
+		if (navigator.clipboard?.read) {
+			try {
+				const items = await navigator.clipboard.read();
+				const images: File[] = [];
+				for (const item of items) {
+					const imageType = item.types.find((type) => type.startsWith('image/'));
+					if (imageType) images.push(imageFileFromBlob(await item.getType(imageType), images.length));
+				}
+				if (images.length > 0) {
+					await uploadFiles(images);
+					return;
+				}
+			} catch {
+				// Permission denied or no rich clipboard item — fall through to text.
+			}
+		}
+
+		if (!navigator.clipboard?.readText) return;
+		try {
+			const text = await navigator.clipboard.readText();
+			if (text) sendInput(text);
+		} catch {
+			lastError = 'Clipboard read blocked';
+		}
+	}
+
+	async function copyTerminalContent(): Promise<void> {
+		if (!term || !navigator.clipboard?.writeText) return;
+		const selected = term.hasSelection() ? term.getSelection() : '';
+		const text = selected || lastOutput;
+		if (!text) return;
+		try {
+			await navigator.clipboard.writeText(text);
+		} catch {
+			lastError = 'Clipboard write blocked';
+		}
+	}
+
+	async function selectAndCopyAll(): Promise<void> {
+		if (!term || !navigator.clipboard?.writeText) return;
+		try {
+			term.selectAll();
+		} catch {
+			// xterm selection can be unavailable before the pane is fully armed.
+		}
+		const text = term.hasSelection() ? term.getSelection() : lastOutput;
+		if (!text) return;
+		try {
+			await navigator.clipboard.writeText(text);
+		} catch {
+			lastError = 'Clipboard write blocked';
+		}
+	}
+
+	function clearTerminal(): void {
+		term?.clear();
+		sendControlKey('l');
+	}
+
+	function handleSoftKeyboardAction(action: SoftKeyboardAction): void {
+		switch (action.kind) {
+			case 'input':
+				sendInput(action.data);
+				break;
+			case 'control':
+				sendControlKey(action.key);
+				break;
+			case 'clear':
+				clearTerminal();
+				break;
+			case 'paste':
+				void pasteFromClipboard();
+				break;
+			case 'copy':
+				void copyTerminalContent();
+				break;
+			case 'selectAll':
+				void selectAndCopyAll();
+				break;
+		}
 	}
 
 	async function uploadFiles(rawFiles: File[]): Promise<void> {
@@ -484,6 +581,14 @@
 			</div>
 		{/if}
 	</div>
+	{#if keyboardVisible}
+		<PaneSoftKeyboard
+			{canSendInput}
+			{softKeyVisible}
+			onAction={handleSoftKeyboardAction}
+			onAttachFiles={(files) => void uploadFiles(files)}
+		/>
+	{/if}
 </div>
 
 <style>

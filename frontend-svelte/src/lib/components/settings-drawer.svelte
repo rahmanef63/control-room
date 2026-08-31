@@ -2,15 +2,21 @@
 	import { RotateCcw, Settings2, ShieldCheck, X } from 'lucide-svelte';
 
 	import { Button } from '$lib/components/ui/button';
+	import { SUPPORTED_SOFT_KEYBOARD_KEYS } from '$lib/features/terminals/soft-keyboard';
+	import type { SoftKeyboardKey } from '$lib/features/terminals/types';
 	import type {
-		NotificationSettings
+		NotificationSettings,
+		SoftKeyboardSettings
 	} from '$lib/features/terminals/use-app-settings.svelte';
 
 	interface Props {
 		open: boolean;
 		notifications: NotificationSettings;
+		softKeyboard: SoftKeyboardSettings;
 		onOpenChange: (open: boolean) => void;
 		onUpdateNotifications: (patch: Partial<NotificationSettings>) => void;
+		onUpdateSoftKeyboard: (patch: Partial<SoftKeyboardSettings>) => void;
+		onSetSoftKeyVisible: (key: SoftKeyboardKey, visible: boolean) => void;
 		onOpenDevices: () => void;
 		onResetDefaults: () => void;
 	}
@@ -18,8 +24,11 @@
 	let {
 		open,
 		notifications,
+		softKeyboard,
 		onOpenChange,
 		onUpdateNotifications,
+		onUpdateSoftKeyboard,
+		onSetSoftKeyVisible,
 		onOpenDevices,
 		onResetDefaults
 	}: Props = $props();
@@ -88,6 +97,37 @@
 						/>
 					</label>
 					<Button variant="outline" size="sm" onclick={testHeartbeat}>Test heartbeat</Button>
+				</section>
+
+				<section class="settings-section">
+					<div class="settings-section__head">
+						<h3>Terminal shortcuts</h3>
+						<span>Touch controls</span>
+					</div>
+					<label class="settings-row">
+						<span>
+							<strong>Soft keyboard bar</strong>
+							<small>Show terminal shortcut keys below each pane on touch layouts.</small>
+						</span>
+						<input
+							type="checkbox"
+							checked={!softKeyboard.hideKeyboard}
+							onchange={(event) => onUpdateSoftKeyboard({ hideKeyboard: !event.currentTarget.checked })}
+						/>
+					</label>
+					<div class="settings-key-grid" aria-label="Visible terminal shortcut keys">
+						{#each SUPPORTED_SOFT_KEYBOARD_KEYS as key (key.id)}
+							<label class="settings-key-row">
+								<input
+									type="checkbox"
+									checked={softKeyboard.visibility[key.id] !== false}
+									onchange={(event) => onSetSoftKeyVisible(key.id, event.currentTarget.checked)}
+								/>
+								<span>{key.label}</span>
+							</label>
+						{/each}
+					</div>
+					<small class="settings-note">The old React preferences also carried unused Enter/Ctrl-hold flags; they remain storage-compatible but are hidden until real behavior exists.</small>
 				</section>
 
 				<section class="settings-section">
@@ -213,6 +253,11 @@
 		cursor: pointer;
 	}
 	.settings-nav:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--accent); }
+	.settings-key-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+	.settings-key-row { display: flex; align-items: center; gap: 7px; min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 7px 8px; color: var(--ink-muted); font-size: 0.65rem; }
+	.settings-key-row input { width: 15px; height: 15px; flex: 0 0 auto; accent-color: var(--accent); }
+	.settings-key-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.settings-note { color: var(--ink-muted); font-size: 0.61rem; line-height: 1.4; }
 	@media (min-width: 640px) {
 		.settings-backdrop { align-items: center; }
 		.settings-sheet { border-radius: 1.2rem; margin-bottom: 7vh; }
