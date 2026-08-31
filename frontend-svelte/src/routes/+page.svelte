@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { onMount } from 'svelte';
-	import { Grid2X2, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
+	import { onMount, untrack } from 'svelte';
+	import { Grid2X2, History as HistoryIcon, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
 
 	import DevicesDrawer from '$lib/components/devices-drawer.svelte';
+	import HistoryDrawer from '$lib/features/terminals/HistoryDrawer.svelte';
 	import SettingsDrawer from '$lib/components/settings-drawer.svelte';
 	import InstallAppControl from '$lib/pwa/InstallAppControl.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -15,6 +16,7 @@
 	import WorkspaceTabs from '$lib/features/terminals/WorkspaceTabs.svelte';
 	import { resolveBroadcastFanout } from '$lib/features/terminals/broadcast';
 	import { OrderedTerminalInputQueue } from '$lib/features/terminals/input-queue';
+	import type { TerminalHistoryEntry } from '$lib/features/terminals/history';
 	import {
 		useTerminalPreferences,
 		type GridCols
@@ -27,8 +29,9 @@
 		type TerminalTelemetry
 	} from '$lib/features/terminals/telemetry';
 	import { sessionColors } from '$lib/features/terminals/session-colors.svelte';
+	import { terminalHistory } from '$lib/features/terminals/terminal-history.svelte';
 	import { useWakeLock } from '$lib/features/terminals/use-wake-lock.svelte';
-	import { useWorkspaces } from '$lib/features/terminals/use-workspaces.svelte';
+	import { DEFAULT_WORKSPACE_ID, useWorkspaces } from '$lib/features/terminals/use-workspaces.svelte';
 	import { terminalSessions } from '$lib/state/terminal-sessions.svelte';
 
 	const workspaces = useWorkspaces();
@@ -46,6 +49,9 @@
 	});
 	let devicesOpen = $state(false);
 	let settingsOpen = $state(false);
+	let historyOpen = $state(false);
+	let historyRestoring = $state(false);
+	let sessionsLoaded = $state(false);
 	let paneTelemetry = $state<Record<string, TerminalTelemetry>>({});
 
 	let activeWorkspaceSessions = $derived.by(() =>
@@ -63,14 +69,53 @@
 		return counts;
 	});
 
+	let liveSessionIds = $derived(new Set(terminalSessions.sessions.map((session) => session.id)));
+	let activeWorkspaceHistory = $derived.by(() =>
+		terminalHistory.entries.filter(
+			(entry) => (entry.workspaceId ?? DEFAULT_WORKSPACE_ID) === workspaces.activeId
+		)
+	);
+	let activeRestorableHistory = $derived(
+		activeWorkspaceHistory.filter((entry) => !liveSessionIds.has(entry.id))
+	);
+	let restorableHistoryCount = $derived(
+		terminalHistory.entries.filter((entry) => !liveSessionIds.has(entry.id)).length
+	);
+
 	onMount(() => {
 		sessionColors.init();
-		void terminalSessions.refresh();
+		terminalHistory.init();
+		void terminalSessions.refresh().finally(() => {
+			sessionsLoaded = true;
+		});
 	});
 
-	// Do not auto-prune color overrides yet. React keeps both live and history-
-	// restorable session ids; until the history store is ported, pruning only the
-	// live ids would destructively erase colors that history still owns.
+	// Keep history snapshots current without making history itself an effect
+	// dependency. Svelte tracks the live session/workspace snapshots; untrack
+	// prevents each history write from recursively scheduling this effect.
+	$effect(() => {
+		const ready = sessionsLoaded && workspaces.hydrated && terminalHistory.hydrated;
+		const sessions = terminalSessions.sessions;
+		const sessionMap = workspaces.sessionMap;
+		if (!ready) return;
+		untrack(() => {
+			for (const session of sessions) {
+				terminalHistory.upsert(session, sessionMap[session.id] ?? DEFAULT_WORKSPACE_ID);
+			}
+		});
+	});
+
+	// React prunes session colors against both live and history-restorable ids.
+	// Now that history is a real SSOT, the same cleanup is safe again.
+	$effect(() => {
+		const ready = sessionsLoaded && terminalHistory.hydrated && sessionColors.hydrated;
+		const keepIds = [
+			...terminalSessions.sessions.map((session) => session.id),
+			...terminalHistory.entries.map((entry) => entry.id)
+		];
+		if (!ready) return;
+		untrack(() => sessionColors.pruneTo(keepIds));
+	});
 
 	// Keep single-pane focus inside the selected workspace. The terminals stay
 	// mounted after first activation so switching workspace preserves xterm scrollback.
@@ -83,8 +128,11 @@
 	});
 
 	async function newShell(): Promise<void> {
+		const workspaceId = workspaces.activeId;
 		const session = await terminalSessions.create({ profile: 'shell' });
-		if (session) workspaces.assignSession(session.id, workspaces.activeId);
+		if (!session) return;
+		workspaces.assignSession(session.id, workspaceId);
+		terminalHistory.upsert(session, workspaceId);
 	}
 
 	function updatePaneTelemetry(id: string, next: TerminalTelemetry): void {
@@ -107,7 +155,11 @@
 	}
 
 	async function closeSession(id: string): Promise<void> {
+		const snapshot = terminalSessions.sessions.find((session) => session.id === id);
+		const workspaceId = workspaces.resolveSessionWorkspace(id);
+		if (snapshot) terminalHistory.upsert(snapshot, workspaceId);
 		await terminalSessions.close(id);
+		terminalHistory.markClosed([id]);
 		preferences.removeBroadcastTarget(id);
 		removePaneTelemetry(id);
 		workspaces.unassignSession(id);
@@ -116,7 +168,10 @@
 	async function duplicateSession(session: (typeof terminalSessions.sessions)[number]): Promise<void> {
 		const workspaceId = workspaces.resolveSessionWorkspace(session.id);
 		const duplicated = await terminalSessions.duplicate(session);
-		if (duplicated) workspaces.assignSession(duplicated.id, workspaceId);
+		if (duplicated) {
+			workspaces.assignSession(duplicated.id, workspaceId);
+			terminalHistory.upsert(duplicated, workspaceId);
+		}
 	}
 
 	function moveSession(sessionId: string, workspaceId: string): void {
@@ -124,6 +179,8 @@
 			preferences.removeBroadcastTarget(sessionId);
 		}
 		workspaces.assignSession(sessionId, workspaceId);
+		const session = terminalSessions.sessions.find((item) => item.id === sessionId);
+		if (session) terminalHistory.upsert(session, workspaceId);
 	}
 
 	function focusSession(sessionId: string): void {
@@ -153,6 +210,66 @@
 	function deleteWorkspace(id: string): void {
 		workspaces.deleteWorkspace(id);
 		selectWorkspace(workspaces.activeId);
+	}
+
+	function resolveHistoryWorkspace(entry: TerminalHistoryEntry): string {
+		const requested = entry.workspaceId ?? DEFAULT_WORKSPACE_ID;
+		return workspaces.workspaces.some((workspace) => workspace.id === requested)
+			? requested
+			: DEFAULT_WORKSPACE_ID;
+	}
+
+	async function recreateHistoryEntry(entry: TerminalHistoryEntry) {
+		const targetWorkspace = resolveHistoryWorkspace(entry);
+		const session = await terminalSessions.create({
+			profile: entry.profile,
+			cwd: entry.cwd,
+			...(entry.agentProfileId ? { agentProfileId: entry.agentProfileId } : {}),
+			...(entry.environmentId ? { environmentId: entry.environmentId } : {})
+		});
+		if (!session) return null;
+
+		workspaces.assignSession(session.id, targetWorkspace);
+		if (entry.title && entry.title !== session.title) {
+			await terminalSessions.rename(session.id, entry.title);
+		}
+		const restored = terminalSessions.sessions.find((item) => item.id === session.id) ?? session;
+		terminalHistory.upsert(restored, targetWorkspace);
+		terminalHistory.remove(entry.id);
+		if (targetWorkspace !== workspaces.activeId) selectWorkspace(targetWorkspace);
+		terminalSessions.setActive(restored.id);
+		return restored;
+	}
+
+	async function openHistoryEntry(entry: TerminalHistoryEntry): Promise<void> {
+		const live = terminalSessions.sessions.find((session) => session.id === entry.id);
+		if (live) {
+			const workspaceId = workspaces.resolveSessionWorkspace(live.id);
+			if (workspaceId !== workspaces.activeId) selectWorkspace(workspaceId);
+			terminalSessions.setActive(live.id);
+			return;
+		}
+
+		if (historyRestoring) return;
+		historyRestoring = true;
+		try {
+			await recreateHistoryEntry(entry);
+		} finally {
+			historyRestoring = false;
+		}
+	}
+
+	async function restoreActiveWorkspaceHistory(): Promise<void> {
+		if (historyRestoring || activeRestorableHistory.length === 0) return;
+		historyRestoring = true;
+		try {
+			for (const entry of [...activeRestorableHistory]) {
+				const restored = await recreateHistoryEntry(entry);
+				if (!restored) break;
+			}
+		} finally {
+			historyRestoring = false;
+		}
 	}
 
 	async function logout(): Promise<void> {
@@ -270,6 +387,11 @@
 				onChange={preferences.setBroadcastTargets}
 			/>
 
+			<Button variant="outline" size="sm" onclick={() => (historyOpen = true)} aria-label="Open terminal history">
+				<HistoryIcon size={14} /> History
+				{#if restorableHistoryCount > 0}<span class="topbar-count">{restorableHistoryCount}</span>{/if}
+			</Button>
+
 			<InstallAppControl />
 
 			<Button variant="outline" size="sm" onclick={() => (settingsOpen = true)} aria-label="Open settings">
@@ -281,6 +403,17 @@
 			<Button variant="outline" size="sm" onclick={logout}>Sign out</Button>
 		</div>
 	</header>
+
+	<HistoryDrawer
+		open={historyOpen}
+		history={terminalHistory.entries}
+		liveIds={liveSessionIds}
+		restoring={historyRestoring}
+		onOpenChange={(value) => (historyOpen = value)}
+		onOpenEntry={(entry) => void openHistoryEntry(entry)}
+		onRemoveEntry={terminalHistory.remove.bind(terminalHistory)}
+		onClearHistory={() => terminalHistory.clear()}
+	/>
 
 	<SettingsDrawer
 		open={settingsOpen}
@@ -377,8 +510,23 @@
 
 		{#if !terminalSessions.loading && activeWorkspaceSessions.length === 0}
 			<div class="empty">
-				<p>No terminal sessions in this workspace.</p>
-				<Button onclick={newShell}>Launch a shell</Button>
+				{#if activeRestorableHistory.length > 0}
+					<div class="empty__history">
+						<p class="empty__eyebrow">Last session · {activeRestorableHistory.length} terminal{activeRestorableHistory.length === 1 ? '' : 's'}</p>
+						<ul>
+							{#each activeRestorableHistory.slice(0, 5) as entry (entry.id)}
+								<li><span>{entry.title}</span><small>{entry.cwd}</small></li>
+							{/each}
+						</ul>
+						<Button onclick={() => void restoreActiveWorkspaceHistory()} disabled={historyRestoring}>
+							<HistoryIcon size={14} /> {historyRestoring ? 'Restoring…' : 'Restore where I left off'}
+						</Button>
+						<button type="button" class="empty__forget" onclick={() => terminalHistory.clear(workspaces.activeId)}>Forget this history</button>
+					</div>
+				{:else}
+					<p>No terminal sessions in this workspace.</p>
+					<Button onclick={newShell}>Launch a shell</Button>
+				{/if}
 			</div>
 		{/if}
 	</main>
@@ -512,6 +660,16 @@
 		gap: 6px;
 		flex: 0 0 auto;
 	}
+	.topbar-count {
+		display: inline-grid;
+		min-width: 17px;
+		height: 17px;
+		place-items: center;
+		border-radius: 999px;
+		background: rgb(56 189 248 / 0.16);
+		color: rgb(186 230 253);
+		font-size: 9px;
+	}
 	.grid-cols-control {
 		display: inline-flex;
 		align-items: center;
@@ -620,6 +778,22 @@
 	.hint--error {
 		color: #fca5a5;
 	}
+	.empty__history {
+		display: grid;
+		gap: 10px;
+		width: min(92vw, 420px);
+		border: 1px solid var(--border);
+		border-radius: 13px;
+		background: var(--surface);
+		padding: 14px;
+	}
+	.empty__eyebrow { margin: 0; color: var(--ink-muted); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+	.empty__history ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+	.empty__history li { display: flex; justify-content: space-between; gap: 10px; min-width: 0; font-size: 11px; }
+	.empty__history li span { overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
+	.empty__history li small { overflow: hidden; max-width: 48%; color: var(--ink-muted); font-family: var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
+	.empty__forget { justify-self: center; border: 0; background: transparent; color: var(--ink-muted); font-size: 10px; cursor: pointer; }
+	.empty__forget:hover { color: rgb(253 164 175); }
 	.empty {
 		position: absolute;
 		inset: 0;
