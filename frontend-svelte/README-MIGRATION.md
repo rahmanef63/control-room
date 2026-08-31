@@ -18,7 +18,7 @@ agent on a parallel loopback port without touching the live Next service.
 Verified gates:
 
 - `bun install` succeeds with Svelte 5 / SvelteKit 2 / adapter-node.
-- `bun test` — **20/20** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset helper tests pass.
+- `bun test` — **24/24** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom helper tests pass.
 - `bun run check` — **0 errors, 0 warnings**.
 - `bun run build` — production adapter-node build succeeds.
 - Official Svelte MCP `svelte-autofixer` reports no issues on the changed
@@ -49,6 +49,9 @@ Verified gates:
   a valid maskable declaration, Chrome `beforeinstallprompt` handling, and the
   iPhone/iPad Share → Add to Home Screen fallback. The install smoke isolates
   terminal/workspace reads and does not create a PTY or mutate durable state.
+- Mobile pinch smoke sends real two-touch events to a live PTY pane: sub-threshold
+  jitter is ignored, a 26% pinch changes font 13→15, native pinch is prevented,
+  and the same persisted per-session value survives reload.
 
 No production cutover has happened. The existing Next frontend stays on its
 current service/port, and the agent source is not modified by this migration.
@@ -117,7 +120,7 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `app/manifest.ts` + `app/{icon,apple-icon}.tsx` | `static/manifest.webmanifest` + `static/icons/*` — exact live Next 512/180 icon pixels, derived 192 size, maskable declaration, screenshots and New terminal shortcut |
 | `offline.html`, `favicon.ico`, `og-card.png`, screenshots | retained under `static/`; stale Next-specific `static/sw.js` removed because SvelteKit now builds `/service-worker.js` from `src/service-worker.ts` |
 | `use-terminal-sessions.ts` (736 lines, subset) | `src/lib/state/terminal-sessions.svelte.ts` — list/create/close/rename/duplicate |
-| `use-pane-terminal.ts` + `terminal-pane.tsx` (subset) | `src/lib/features/terminals/Terminal.svelte` — xterm+webgl, SSE bootstrap/output/status/error, ordered direct input, input RTT EWMA, agent activity detection, resize, reconnect-with-backoff, parent-delegated broadcast keystrokes |
+| `use-pane-terminal.ts` + `terminal-pane.tsx` (subset) | `src/lib/features/terminals/Terminal.svelte` — xterm+webgl, SSE bootstrap/output/status/error, ordered direct input, input RTT EWMA, agent activity detection, resize, reconnect-with-backoff, parent-delegated broadcast keystrokes, two-finger pinch zoom through persisted font preferences |
 | `screen.tsx` + `session-tabs.tsx` (core) | `src/routes/+page.svelte` — workspace-scoped session tabs, create/close shell, single/grid modes, responsive multi-pane grid, scoped broadcast fan-out, pane telemetry snapshots and activity-aware tab dots |
 | `pane-header.tsx` + action subset | `src/lib/features/terminals/PaneChrome.svelte` — in-place rename, activity chip, stream/RTT badge, move workspace, font +/- controls, duplicate, grid focus, close; advanced AI/skills/color menus remain backlog |
 | `use-workspaces.ts` + `workspace-tabs.tsx` | `src/lib/features/terminals/use-workspaces.svelte.ts` + `WorkspaceTabs.svelte` — local-first + remote agent-state sync, create/rename/delete/select workspace, session assignment |
@@ -155,7 +158,7 @@ guessed at — it's simply not written yet.
 - [x] Activity/idle-state detection (`working` / `asking` / `planning` / `waiting` / `done`) for agent profiles and detected `inner_agent`, with pane chip + activity-aware tab dots and Codex real-agent smoke
 - [x] Cross-pane broadcast input (`BroadcastMenu.svelte` + `broadcast.ts`) with current-workspace target SSOT, source-inclusive fan-out, ordered per-target delivery, unit tests, and real-agent browser E2E
 - [x] In-place pane rename and persisted button-based font sizing
-- [ ] Pinch-zoom font sizing
+- [x] Pinch-zoom font sizing — non-passive two-touch attachment with 12% step threshold, shared persisted font SSOT, xterm refit/resize, unit tests and real mobile browser/PTY persistence smoke
 - [x] Core multi-workspace state + workspace tabs + session assignment + single/grid rendering + configurable 1–4/auto columns
 - [x] Core pane chrome actions: move workspace, duplicate, grid focus, and close
 - [ ] Full `terminals-main.tsx` / `terminals-topbar.tsx` parity: row-stretch polish, launcher/patrol controls, history overlays, and the remaining compact chrome

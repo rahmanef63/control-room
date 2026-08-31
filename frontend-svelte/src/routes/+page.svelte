@@ -313,6 +313,7 @@
 									fontSize={preferences.fontSizes[session.id] ?? DEFAULT_FONT_SIZE}
 									onUpdate={(updated) => terminalSessions.patchFromStream(updated)}
 									onTelemetry={updatePaneTelemetry}
+									onFontSizeChange={preferences.setFontSize}
 									onData={broadcastInput}
 								/>
 							</div>

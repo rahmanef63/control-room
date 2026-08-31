@@ -10,8 +10,9 @@
 	// Ported in the continuation slice: raw-binary upload proxy, file drag/drop,
 	// pasted images, 25 MiB client guard, and safe shell-path insertion.
 	// Ported in the telemetry slice: input RTT EWMA and agent activity detection
-	// (`working` -> `planning`/`asking`/`waiting` after quiet output). Pinch-zoom
-	// font sizing remains backlog. Cross-pane keyboard
+	// (`working` -> `planning`/`asking`/`waiting` after quiet output). Two-finger
+	// pinch zoom writes through the same persisted per-session font preference as
+	// pane chrome. Cross-pane keyboard
 	// broadcast is delegated to the page-level SSOT through `onData`. The original
 	// hook is 662 lines; this covers the part that makes a pane usable at
 	// all, not the full feature set.
@@ -24,6 +25,7 @@
 
 	import { filesFromDrop, partitionBySize, quoteShellPath } from '$lib/features/terminals/upload';
 	import { OrderedTerminalInputQueue } from '$lib/features/terminals/input-queue';
+	import { fontSizeForPinch, touchDistance } from '$lib/features/terminals/pinch-zoom';
 	import {
 		ACTIVITY_LABELS,
 		detectIdleActivity,
@@ -48,6 +50,7 @@
 		fontSize?: number;
 		onUpdate?: (session: TerminalSession) => void;
 		onTelemetry?: (sessionId: string, telemetry: TerminalTelemetry) => void;
+		onFontSizeChange?: (sessionId: string, size: number) => void;
 		/** Return true when the keystroke was handled by a parent fan-out. */
 		onData?: (sourceId: string, data: string) => boolean;
 	}
@@ -58,6 +61,7 @@
 		fontSize = DEFAULT_FONT_SIZE,
 		onUpdate,
 		onTelemetry,
+		onFontSizeChange,
 		onData
 	}: Props = $props();
 
@@ -218,6 +222,55 @@
 		postResize(term.cols, term.rows);
 	}
 
+	function pinchZoomAttachment(node: HTMLElement) {
+		let startDistance = 0;
+		let startFontSize = resolvedFontSize;
+		let lastAppliedSize = resolvedFontSize;
+
+		const reset = () => {
+			startDistance = 0;
+		};
+
+		const start = (event: TouchEvent) => {
+			if (!onFontSizeChange || event.touches.length !== 2) {
+				reset();
+				return;
+			}
+			startDistance = touchDistance(event.touches[0], event.touches[1]);
+			startFontSize = resolvedFontSize;
+			lastAppliedSize = resolvedFontSize;
+			if (startDistance > 0) event.preventDefault();
+		};
+
+		const move = (event: TouchEvent) => {
+			if (!onFontSizeChange || startDistance <= 0 || event.touches.length !== 2) return;
+			event.preventDefault();
+			const next = fontSizeForPinch(
+				startFontSize,
+				startDistance,
+				touchDistance(event.touches[0], event.touches[1])
+			);
+			if (next === lastAppliedSize) return;
+			lastAppliedSize = next;
+			onFontSizeChange(session.id, next);
+		};
+
+		const end = (event: TouchEvent) => {
+			if (event.touches.length < 2) reset();
+		};
+
+		node.addEventListener('touchstart', start, { passive: false });
+		node.addEventListener('touchmove', move, { passive: false });
+		node.addEventListener('touchend', end);
+		node.addEventListener('touchcancel', reset);
+		return () => {
+			node.removeEventListener('touchstart', start);
+			node.removeEventListener('touchmove', move);
+			node.removeEventListener('touchend', end);
+			node.removeEventListener('touchcancel', reset);
+		};
+	}
+
 	function connectStream(): void {
 		if (destroyed || !term) return;
 		eventSource?.close();
@@ -361,7 +414,9 @@
 
 	let resolvedFontSize = $derived(clampFontSize(fontSize));
 	$effect(() => {
-		if (term) term.options.fontSize = resolvedFontSize;
+		if (!term || term.options.fontSize === resolvedFontSize) return;
+		term.options.fontSize = resolvedFontSize;
+		requestAnimationFrame(() => resizeTerminal());
 	});
 
 	$effect(() => {
@@ -385,6 +440,7 @@
 	<div
 		class="terminal-pane__screen"
 		role="presentation"
+		{@attach pinchZoomAttachment}
 		onpaste={(event) => {
 			if (handlePaste(event.clipboardData)) event.preventDefault();
 		}}
