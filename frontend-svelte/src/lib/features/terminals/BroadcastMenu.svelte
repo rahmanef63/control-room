@@ -92,7 +92,7 @@
 	.broadcast-quick { display:flex; gap:4px; }
 	.broadcast-quick button { border-radius:7px; padding:3px 7px; color:rgb(203 213 225); font-size:10px; letter-spacing:0; text-transform:none; }
 	.broadcast-quick button:hover:not(:disabled),.broadcast-target:hover { background:rgb(255 255 255 / .06); }
-	.broadcast-targets { max-height:min(260px,40vh); overflow:auto; padding:0; margin:0; list-style:none; }
+	.broadcast-targets { max-height:min(260px,40dvh); overflow:auto; padding:0; margin:0; list-style:none; }
 	.broadcast-target { display:flex; align-items:center; gap:9px; border-radius:9px; padding:7px 6px; cursor:pointer; }
 	.broadcast-target input { accent-color:rgb(251 113 133); }
 	.target-copy { display:grid; min-width:0; gap:1px; }
@@ -104,6 +104,6 @@
 		.broadcast-trigger > span:not(.broadcast-badge) { display:none; }
 		.broadcast-trigger { width:32px; justify-content:center; padding:0; }
 		.broadcast-badge { position:absolute; top:-5px; right:-4px; }
-		.broadcast-popover { position:fixed; top:108px; right:12px; left:12px; width:auto; }
+		.broadcast-popover { position:fixed; top:calc(108px + var(--safe-top)); right:calc(12px + var(--safe-right)); left:calc(12px + var(--safe-left)); width:auto; max-height:calc(100dvh - var(--safe-top) - var(--safe-bottom) - 120px); overflow-y:auto; }
 	}
 </style>

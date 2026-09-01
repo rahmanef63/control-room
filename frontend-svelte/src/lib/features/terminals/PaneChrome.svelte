@@ -18,6 +18,7 @@
 	} from 'lucide-svelte';
 
 	import PaneAiLaunch from '$lib/features/terminals/PaneAiLaunch.svelte';
+	import PaneMobileMenu from '$lib/features/terminals/PaneMobileMenu.svelte';
 	import PaneToolsMenu from '$lib/features/terminals/PaneToolsMenu.svelte';
 	import SessionColorPicker from '$lib/features/terminals/SessionColorPicker.svelte';
 	import TerminalProfileIcon from '$lib/features/terminals/TerminalProfileIcon.svelte';
@@ -150,6 +151,18 @@
 	}
 </script>
 
+{#snippet latencyBadge()}
+	<span
+		class="pane-chrome__latency"
+		data-state={connectionState}
+		data-tone={latencyTone}
+		title={`${connectionLabel}${rttMs === null ? '' : ` · input round-trip ~${rttMs}ms`}`}
+	>
+		<span class="pane-chrome__latency-dot"></span>
+		<span>{rttMs === null ? '—' : `${rttMs}ms`}</span>
+	</span>
+{/snippet}
+
 <header class="pane-chrome">
 	<div class="pane-chrome__identity">
 		{#if renaming}
@@ -198,7 +211,7 @@
 		{/if}
 	</div>
 
-	<div class="pane-chrome__actions">
+	<div class="pane-chrome__actions pane-chrome__actions--desktop">
 		<SessionColorPicker
 			sessionId={colorOwnerId}
 			{color}
@@ -223,15 +236,7 @@
 			canSendInput={session.status === 'running'}
 			{onCommand}
 		/>
-		<span
-			class="pane-chrome__latency"
-			data-state={connectionState}
-			data-tone={latencyTone}
-			title={`${connectionLabel}${rttMs === null ? '' : ` · input round-trip ~${rttMs}ms`}`}
-		>
-			<span class="pane-chrome__latency-dot"></span>
-			<span>{rttMs === null ? '—' : `${rttMs}ms`}</span>
-		</span>
+		{@render latencyBadge()}
 		{#if workspaces.length > 1}
 			<label class="pane-chrome__workspace">
 				<span class="sr-only">Move terminal to workspace</span>
@@ -289,6 +294,40 @@
 		<button type="button" class="pane-chrome__danger" onclick={() => void onClose(session.id)} aria-label="Close terminal" title="Close terminal">
 			<Trash2 size={14} />
 		</button>
+	</div>
+
+	<div class="pane-chrome__mobile-actions">
+		{@render latencyBadge()}
+		<PaneMobileMenu
+			sessionId={session.id}
+			title={session.title || session.profile}
+			cwd={session.cwd}
+			canSendInput={session.status === 'running'}
+			runtimeAgentProfileId={session.agent_profile_id}
+			{workspaces}
+			{currentWorkspaceId}
+			{fontSize}
+			{viewMode}
+			{fullscreen}
+			{color}
+			{hasColorOverride}
+			{colorOwnerId}
+			colorTitle={parentAlfa ? `Inherits color from ALFA ${parentAlfa.label ?? parentAlfa.id.slice(0, 8)} — click to change ALFA color` : undefined}
+			{agentProfiles}
+			{boundAgentProfileId}
+			{onBindAgent}
+			{onInjectAgent}
+			{onCommand}
+			{onUnbindAgent}
+			{onColorPick}
+			{onColorClear}
+			onMoveToWorkspace={(workspaceId) => onMoveToWorkspace(session.id, workspaceId)}
+			onFontSizeChange={(size) => onFontSizeChange(session.id, size)}
+			onFocus={() => onFocus(session.id)}
+			{onToggleFullscreen}
+			onDuplicate={() => duplicate()}
+			onClose={() => onClose(session.id)}
+		/>
 	</div>
 </header>
 
@@ -431,6 +470,7 @@
 	@keyframes telemetry-spin { to { transform: rotate(360deg); } }
 	@keyframes telemetry-pulse { 50% { opacity: 0.45; transform: scale(0.78); } }
 
+	.pane-chrome__mobile-actions { display: none; }
 	.pane-chrome__actions,
 	.pane-chrome__zoom {
 		display: flex;
@@ -503,20 +543,40 @@
 	}
 	@media (max-width: 680px) {
 		.pane-chrome {
+			gap: 5px;
+			padding: 4px 5px 4px 7px;
+		}
+		.pane-chrome__identity {
 			gap: 4px;
-			padding-inline: 5px;
 		}
 		.pane-chrome__cwd,
 		.pane-chrome__activity span,
 		.pane-chrome__workspace,
-		.pane-chrome__zoom span {
+		.pane-chrome__zoom span,
+		.pane-chrome__role b {
 			display: none;
 		}
 		.pane-chrome__title {
-			max-width: 35vw;
+			flex: 1 1 auto;
+			max-width: 100%;
 		}
 		.pane-chrome__rename {
-			min-width: min(210px, 48vw);
+			min-width: 0;
+			width: min(220px, 58vw);
+		}
+		.pane-chrome__actions--desktop {
+			display: none;
+		}
+		.pane-chrome__mobile-actions {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			flex: 0 0 auto;
+			margin-left: auto;
+		}
+		.pane-chrome__mobile-actions .pane-chrome__latency {
+			min-height: 27px;
+			padding-inline: 5px;
 		}
 	}
 </style>

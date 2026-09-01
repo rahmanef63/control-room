@@ -820,8 +820,13 @@
 	.terminal-shell {
 		display: flex;
 		flex-direction: column;
+		width: 100%;
+		max-width: 100vw;
+		height: 100vh;
 		height: 100dvh;
+		max-height: 100dvh;
 		min-height: 0;
+		overflow: hidden;
 		background: var(--bg);
 	}
 	.terminal-shell[data-fullscreen='true'] :global(.workspace-tabs),
@@ -829,7 +834,7 @@
 		display: none;
 	}
 	.terminal-shell[data-fullscreen='true'] .terminal-stage {
-		padding: 0;
+		padding: calc(4px + var(--safe-top)) calc(4px + var(--safe-right)) calc(4px + var(--safe-bottom)) calc(4px + var(--safe-left));
 		overflow: hidden;
 	}
 	.terminal-shell[data-fullscreen='true'] .pane-frame {
@@ -841,7 +846,7 @@
 		align-items: center;
 		gap: 12px;
 		min-height: 48px;
-		padding: 7px 10px;
+		padding: 7px calc(10px + var(--safe-right)) 7px calc(10px + var(--safe-left));
 		border-bottom: 1px solid var(--border);
 		background: var(--surface);
 	}
@@ -986,8 +991,11 @@
 		position: relative;
 		flex: 1;
 		min-height: 0;
-		padding: 8px;
+		padding: 8px calc(8px + var(--safe-right)) calc(8px + var(--safe-bottom)) calc(8px + var(--safe-left));
 		overflow: auto;
+	}
+	.terminal-shell :global(.terminal-pane-controls) {
+		padding-bottom: 0.4rem;
 	}
 	.terminal-grid {
 		display: grid;
@@ -1104,7 +1112,7 @@
 		.topbar {
 			flex-wrap: nowrap;
 			gap: 6px;
-			padding: 6px 8px;
+			padding: 6px calc(8px + var(--safe-right)) 6px calc(8px + var(--safe-left));
 		}
 		.topbar__brand {
 			display: none;
@@ -1155,7 +1163,7 @@
 			align-items: stretch;
 			justify-content: flex-start;
 			gap: 8px;
-			padding: max(12px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom));
+			padding: calc(12px + var(--safe-top)) calc(12px + var(--safe-right)) calc(16px + var(--safe-bottom)) 12px;
 			border-left: 1px solid var(--border);
 			background: var(--surface);
 			overflow-y: auto;
@@ -1208,7 +1216,10 @@
 			width: 100%;
 		}
 		.terminal-stage {
-			padding: 6px;
+			padding: 6px calc(6px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(6px + var(--safe-left));
+		}
+		.terminal-shell :global(.terminal-pane-controls) {
+			padding-bottom: 0.3rem;
 		}
 	}
 

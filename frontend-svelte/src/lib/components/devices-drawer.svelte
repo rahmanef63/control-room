@@ -225,18 +225,20 @@
 	.devices-sheet {
 		width: 100%;
 		max-width: 28rem;
-		max-height: 85vh;
+		max-height: min(85dvh, calc(100dvh - var(--safe-top)));
 		display: flex;
 		flex-direction: column;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 1.25rem 1.25rem 0 0;
 		overflow: hidden;
+		padding-bottom: var(--safe-bottom);
 	}
 	@media (min-width: 640px) {
 		.devices-sheet {
 			border-radius: 1.25rem;
-			margin-bottom: 10vh;
+			margin-bottom: min(10dvh, 5rem);
+			padding-bottom: 0;
 		}
 	}
 	.devices-header {

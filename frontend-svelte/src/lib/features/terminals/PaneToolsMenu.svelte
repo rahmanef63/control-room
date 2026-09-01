@@ -7,10 +7,14 @@
 		cwd: string;
 		canSendInput: boolean;
 		onCommand: (command: string) => void;
+		open?: boolean;
+		onOpenChange?: (open: boolean) => void;
+		hideTrigger?: boolean;
 	}
 
-	let { cwd, canSendInput, onCommand }: Props = $props();
-	let open = $state(false);
+	let { cwd, canSendInput, onCommand, open: controlledOpen, onOpenChange, hideTrigger = false }: Props = $props();
+	let internalOpen = $state(false);
+	let open = $derived(controlledOpen ?? internalOpen);
 	let tab = $state<'skills' | 'folder'>('skills');
 	let wrapper: HTMLDivElement | undefined = $state();
 	let skills = $state<SkillSummary[]>([]);
@@ -19,6 +23,11 @@
 	let error = $state<string | null>(null);
 	let explorerOpen = $state(false);
 	let grouped = $derived(groupSkills(skills));
+
+	function setOpen(next: boolean): void {
+		if (onOpenChange) onOpenChange(next);
+		else internalOpen = next;
+	}
 
 	async function loadSkills(): Promise<void> {
 		if (loadedFor === cwd || loading) return;
@@ -40,8 +49,9 @@
 	}
 
 	function toggle(): void {
-		open = !open;
-		if (open && tab === 'skills') void loadSkills();
+		const next = !open;
+		setOpen(next);
+		if (next && tab === 'skills') void loadSkills();
 	}
 
 	function selectTab(next: 'skills' | 'folder'): void {
@@ -52,7 +62,7 @@
 	function inject(command: string): void {
 		if (!canSendInput || !command.trim()) return;
 		onCommand(command);
-		open = false;
+		setOpen(false);
 	}
 
 	function pickDirectory(path: string): void {
@@ -63,29 +73,35 @@
 
 <svelte:window
 	onmousedown={(event) => {
-		if (!open) return;
-		if (event.target instanceof Node && !wrapper?.contains(event.target)) open = false;
+		if (!open || hideTrigger) return;
+		if (event.target instanceof Node && !wrapper?.contains(event.target)) setOpen(false);
 	}}
 	onkeydown={(event) => {
-		if (event.key === 'Escape' && open) open = false;
+		if (event.key === 'Escape' && open) setOpen(false);
 	}}
 />
 
 <div class="pane-tools" bind:this={wrapper}>
-	<button
-		type="button"
-		class="pane-tools__trigger"
-		aria-label="Pane tools"
-		aria-expanded={open}
-		aria-haspopup="dialog"
-		title="Skills and folder tools"
-		onclick={toggle}
-	>
-		<MoreVertical size={14} />
-	</button>
+	{#if !hideTrigger}
+		<button
+			type="button"
+			class="pane-tools__trigger"
+			aria-label="Pane tools"
+			aria-expanded={open}
+			aria-haspopup="dialog"
+			title="Skills and folder tools"
+			onclick={toggle}
+		>
+			<MoreVertical size={14} />
+		</button>
+	{/if}
+
+	{#if open && hideTrigger}
+		<button type="button" class="pane-tools__backdrop" aria-label="Close pane tools" onclick={() => setOpen(false)}></button>
+	{/if}
 
 	{#if open}
-		<div class="pane-tools__popover" role="dialog" aria-label="Pane tools menu">
+		<div class="pane-tools__popover" class:pane-tools__popover--sheet={hideTrigger} role="dialog" aria-label="Pane tools menu">
 			<nav class="pane-tools__tabs" aria-label="Pane tool sections">
 				<button type="button" data-active={tab === 'skills' || undefined} onclick={() => selectTab('skills')}>
 					<Sparkles size={12} /> Skills
@@ -131,7 +147,7 @@
 			{:else}
 				<div class="pane-tools__folder">
 					<div><strong>Current directory</strong><small title={cwd}>{cwd}</small></div>
-					<button type="button" disabled={!canSendInput} onclick={() => { explorerOpen = true; open = false; }}>
+					<button type="button" disabled={!canSendInput} onclick={() => { explorerOpen = true; setOpen(false); }}>
 						<FolderSearch size={14} /> Browse folders
 					</button>
 					<p>Only directories allowed by the agent filesystem read roots are listed.</p>
@@ -150,6 +166,7 @@
 
 <style>
 	.pane-tools { position: relative; display: inline-flex; flex: 0 0 auto; }
+	.pane-tools__backdrop { position: fixed; inset: 0; z-index: 118; border: 0; background: rgb(4 8 16 / 0.62); }
 	.pane-tools__trigger { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--ink-muted); cursor: pointer; }
 	.pane-tools__trigger[aria-expanded='true'] { border-color: rgb(56 189 248 / 0.4); background: rgb(56 189 248 / 0.08); color: #bae6fd; }
 	.pane-tools__popover { position: absolute; top: calc(100% + 7px); right: 0; z-index: 92; width: min(340px, calc(100vw - 20px)); max-height: min(460px, 70dvh); overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: color-mix(in srgb, var(--surface) 97%, #07101d); box-shadow: 0 18px 48px rgb(0 0 0 / 0.46); }
@@ -176,5 +193,6 @@
 	.pane-tools__folder > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; border: 1px solid rgb(56 189 248 / 0.32); border-radius: 8px; background: rgb(56 189 248 / 0.08); color: #bae6fd; font: inherit; font-size: 9px; font-weight: 650; cursor: pointer; }
 	.pane-tools__folder > button:disabled { opacity: 0.45; cursor: not-allowed; }
 	.pane-tools__folder > p { margin: 0; color: var(--ink-muted); font-size: 8px; line-height: 1.4; }
-	@media (max-width: 680px) { .pane-tools__popover { position: fixed; top: auto; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); left: 10px; width: auto; } }
+	.pane-tools__popover--sheet { position: fixed; z-index: 119; }
+	@media (max-width: 680px) { .pane-tools__popover { position: fixed; top: auto; right: calc(10px + var(--safe-right)); bottom: calc(10px + var(--safe-bottom)); left: calc(10px + var(--safe-left)); width: auto; max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 20px); } }
 </style>

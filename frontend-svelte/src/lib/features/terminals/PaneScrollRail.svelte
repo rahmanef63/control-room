@@ -42,8 +42,7 @@
 			gap: 0.6rem;
 			border-left: 1px solid var(--border);
 			background: linear-gradient(180deg, rgba(11, 18, 32, 0.72), rgba(11, 18, 32, 0.44), rgba(11, 18, 32, 0.72));
-			padding: 1rem 0.4rem max(1rem, env(safe-area-inset-bottom));
-			padding-right: max(0.4rem, calc(0.4rem + env(safe-area-inset-right)));
+			padding: 1rem 0.4rem;
 		}
 		.rail-group {
 			display: flex;
@@ -77,7 +76,7 @@
 	}
 
 	@media (max-width: 380px) {
-		.terminal-pane-rail { width: 52px; flex-basis: 52px; padding-left: 0.25rem; padding-right: max(0.25rem, calc(0.25rem + env(safe-area-inset-right))); }
+		.terminal-pane-rail { width: 52px; flex-basis: 52px; padding-inline: 0.25rem; }
 		.rail-btn { width: 38px; height: 44px; }
 	}
 </style>

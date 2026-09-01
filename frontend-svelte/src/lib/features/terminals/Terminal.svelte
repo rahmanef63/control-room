@@ -82,6 +82,10 @@
 	let fitAddon: FitAddon | null = null;
 	let eventSource: EventSource | null = null;
 	let resizeObserver: ResizeObserver | null = null;
+	let resizeFrame: number | null = null;
+	let resizeFollowupFrame: number | null = null;
+	let lastPostedCols = 0;
+	let lastPostedRows = 0;
 	let reconnectAttempts = 0;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	let waitingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -322,10 +326,36 @@
 		return true;
 	}
 
-	function resizeTerminal(): void {
-		if (!fitAddon || !term) return;
-		fitAddon.fit();
+	function resizeTerminalNow(): void {
+		if (!fitAddon || !term || !containerEl || !active) return;
+		if (containerEl.offsetParent === null) return;
+		const rect = containerEl.getBoundingClientRect();
+		if (rect.width < 2 || rect.height < 2) return;
+		try {
+			fitAddon.fit();
+		} catch {
+			return;
+		}
+		if (term.cols <= 0 || term.rows <= 0) return;
+		if (term.cols === lastPostedCols && term.rows === lastPostedRows) return;
+		lastPostedCols = term.cols;
+		lastPostedRows = term.rows;
 		postResize(term.cols, term.rows);
+	}
+
+	function resizeTerminal(followup = false): void {
+		if (typeof window === 'undefined') return;
+		if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+		resizeFrame = requestAnimationFrame(() => {
+			resizeFrame = null;
+			resizeTerminalNow();
+			if (!followup) return;
+			if (resizeFollowupFrame !== null) cancelAnimationFrame(resizeFollowupFrame);
+			resizeFollowupFrame = requestAnimationFrame(() => {
+				resizeFollowupFrame = null;
+				resizeTerminalNow();
+			});
+		});
 	}
 
 	function pinchZoomAttachment(node: HTMLElement) {
@@ -389,7 +419,7 @@
 			reconnectAttempts = 0;
 			connectionState = 'connected';
 			lastError = null;
-			resizeTerminal();
+			resizeTerminal(true);
 		};
 
 		// Only the "message" channel carries real gateway events — an SSE frame
@@ -414,7 +444,14 @@
 				case 'bootstrap':
 					term.reset();
 					trackOutput(parsed.buffer);
-					term.write(parsed.buffer);
+					if (parsed.buffer) {
+						term.write(parsed.buffer, () => {
+							resizeTerminal(true);
+							term?.scrollToBottom();
+						});
+					} else {
+						resizeTerminal(true);
+					}
 					term.options.disableStdin = parsed.session.status !== 'running';
 					onUpdate?.(parsed.session);
 					if (parsed.session.status === 'exited') activityState = 'done';
@@ -470,19 +507,40 @@
 		term = new XTerm({
 			scrollback: TERMINAL_SCROLLBACK,
 			fontSize: clampFontSize(fontSize),
-			fontFamily: "'IBM Plex Mono', ui-monospace, Menlo, monospace",
+			fontFamily: "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+			lineHeight: 1.18,
+			convertEol: true,
 			cursorBlink: true,
+			rightClickSelectsWord: true,
+			macOptionClickForcesSelection: true,
 			allowProposedApi: true,
 			theme: {
-				background: '#0b1220',
-				foreground: '#e6ebf5'
+				background: '#08111f',
+				foreground: '#d7e3f6',
+				cursor: '#f8fafc',
+				black: '#08111f',
+				red: '#fb7185',
+				green: '#4ade80',
+				yellow: '#facc15',
+				blue: '#60a5fa',
+				magenta: '#f472b6',
+				cyan: '#22d3ee',
+				white: '#d7e3f6',
+				brightBlack: '#334155',
+				brightRed: '#fda4af',
+				brightGreen: '#86efac',
+				brightYellow: '#fde047',
+				brightBlue: '#93c5fd',
+				brightMagenta: '#f9a8d4',
+				brightCyan: '#67e8f9',
+				brightWhite: '#f8fafc'
 			}
 		});
 		fitAddon = new FitAddon();
 		term.loadAddon(fitAddon);
 		term.open(containerEl);
 		tryLoadWebgl(term);
-		resizeTerminal();
+		resizeTerminal(true);
 
 		term.onData((data) => {
 			if (onData?.(session.id, data)) {
@@ -501,12 +559,28 @@
 	onMount(() => {
 		mounted = true;
 		if (active) startTerminal();
+
+		const handleViewportResize = () => resizeTerminal(true);
+		window.addEventListener('resize', handleViewportResize, { passive: true });
+		window.addEventListener('orientationchange', handleViewportResize);
+		window.visualViewport?.addEventListener('resize', handleViewportResize, { passive: true });
+		window.visualViewport?.addEventListener('scroll', handleViewportResize, { passive: true });
+		void document.fonts?.ready.then(() => resizeTerminal(true));
+
+		return () => {
+			window.removeEventListener('resize', handleViewportResize);
+			window.removeEventListener('orientationchange', handleViewportResize);
+			window.visualViewport?.removeEventListener('resize', handleViewportResize);
+			window.visualViewport?.removeEventListener('scroll', handleViewportResize);
+		};
 	});
 
 	onDestroy(() => {
 		destroyed = true;
 		if (reconnectTimer) clearTimeout(reconnectTimer);
 		if (waitingTimer) clearTimeout(waitingTimer);
+		if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+		if (resizeFollowupFrame !== null) cancelAnimationFrame(resizeFollowupFrame);
 		eventSource?.close();
 		resizeObserver?.disconnect();
 		term?.dispose();
@@ -515,14 +589,16 @@
 	// Defer heavy xterm/WebGL/SSE initialization until the pane is first shown.
 	// Once armed it stays alive across workspace/view switches, preserving scrollback.
 	$effect(() => {
-		if (active && mounted) startTerminal();
+		if (!active || !mounted) return;
+		startTerminal();
+		if (term) resizeTerminal(true);
 	});
 
 	let resolvedFontSize = $derived(clampFontSize(fontSize));
 	$effect(() => {
 		if (!term || term.options.fontSize === resolvedFontSize) return;
 		term.options.fontSize = resolvedFontSize;
-		requestAnimationFrame(() => resizeTerminal());
+		resizeTerminal(true);
 	});
 
 	// Fullscreen hides/shows shell chrome and changes the pane viewport even in
@@ -530,7 +606,9 @@
 	// scrollback and the live SSE connection are preserved.
 	$effect(() => {
 		fullscreen;
-		if (term) requestAnimationFrame(() => resizeTerminal());
+		keyboardVisible;
+		active;
+		if (term && active) resizeTerminal(true);
 	});
 
 	$effect(() => {
@@ -546,9 +624,6 @@
 
 <div class="terminal-pane-shell">
 <div class="terminal-pane">
-	<div class="terminal-pane__status" data-state={connectionState}>
-		{connectionState}
-	</div>
 	{#if lastError}
 		<div class="terminal-pane__error">{lastError}</div>
 	{/if}
@@ -624,17 +699,30 @@
 	}
 	.terminal-pane__screen {
 		position: relative;
-		flex: 1;
+		flex: 1 1 0;
 		min-height: 0;
+		background: #101418;
+		padding: 7px;
+		-webkit-user-select: text;
+		user-select: text;
+		-webkit-touch-callout: default;
+		touch-action: manipulation;
 	}
 	.terminal-pane__surface {
 		height: 100%;
 		min-height: 0;
-		padding: 8px;
+		padding: 0;
+	}
+	.terminal-pane__screen :global(.xterm),
+	.terminal-pane__screen :global(.xterm-screen),
+	.terminal-pane__screen :global(.xterm-rows) {
+		-webkit-user-select: text;
+		user-select: text;
+		-webkit-touch-callout: default;
 	}
 	.terminal-pane__drop-overlay {
 		position: absolute;
-		inset: 8px;
+		inset: 7px;
 		z-index: 3;
 		display: flex;
 		align-items: center;
@@ -655,26 +743,6 @@
 		to {
 			transform: rotate(360deg);
 		}
-	}
-	.terminal-pane__status {
-		position: absolute;
-		top: 6px;
-		right: 10px;
-		z-index: 2;
-		font-family: var(--font-mono);
-		font-size: 11px;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		padding: 2px 8px;
-		border-radius: 999px;
-		background: rgba(255, 255, 255, 0.08);
-		color: var(--ink-muted);
-	}
-	.terminal-pane__status[data-state='connected'] {
-		color: #4ade80;
-	}
-	.terminal-pane__status[data-state='reconnecting'] {
-		color: var(--warning);
 	}
 	.terminal-pane__error {
 		position: absolute;

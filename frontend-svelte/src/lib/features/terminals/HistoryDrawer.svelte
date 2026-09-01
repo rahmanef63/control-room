@@ -131,12 +131,13 @@
 		flex-direction: column;
 		width: 100%;
 		max-width: 38rem;
-		max-height: min(88dvh, 760px);
+		max-height: min(88dvh, calc(100dvh - var(--safe-top)), 760px);
 		overflow: hidden;
 		border: 1px solid var(--border);
 		border-radius: 1.2rem 1.2rem 0 0;
 		background: color-mix(in srgb, var(--surface) 97%, #07101d);
 		box-shadow: 0 -20px 60px rgb(0 0 0 / 0.38);
+		padding-bottom: var(--safe-bottom);
 	}
 	.history-header {
 		display: flex;
@@ -204,7 +205,7 @@
 	.history-remove:hover, .history-clear:hover { color: rgb(253 164 175); }
 	@media (min-width: 640px) {
 		.history-backdrop { align-items: center; }
-		.history-sheet { border-radius: 1.2rem; margin-bottom: 6vh; }
+		.history-sheet { border-radius: 1.2rem; margin-bottom: 6dvh; }
 	}
 	@media (max-width: 520px) {
 		.history-item { grid-template-columns: auto minmax(0, 1fr) auto; }

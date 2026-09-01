@@ -161,7 +161,7 @@
 	}
 	.session-color__option[data-active='true'] { border-color: white; box-shadow: 0 0 0 1px rgb(255 255 255 / 0.3); }
 	.session-color__reset { background: var(--surface-2); color: var(--ink-muted); }
-	.session-color__overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; }
+	.session-color__overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: calc(10px + var(--safe-top)) calc(10px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(10px + var(--safe-left)); }
 	.session-color__backdrop { position: absolute; inset: 0; border: 0; background: rgb(4 8 16 / 0.62); backdrop-filter: blur(7px); }
 	.session-color__palette--sheet { position: relative; top: auto; right: auto; grid-template-columns: repeat(4, 30px); gap: 8px; padding: 12px; }
 	.session-color__palette--sheet .session-color__option { width: 30px; height: 30px; }

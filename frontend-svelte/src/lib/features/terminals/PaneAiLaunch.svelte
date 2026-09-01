@@ -14,6 +14,9 @@
 		onTrack: (agentProfileId: string) => void;
 		onInject: (agentProfileId: string, command: string) => void;
 		onUnbind: () => void;
+		open?: boolean;
+		onOpenChange?: (open: boolean) => void;
+		hideTrigger?: boolean;
 	}
 
 	let {
@@ -25,10 +28,14 @@
 		canSendInput,
 		onTrack,
 		onInject,
-		onUnbind
+		onUnbind,
+		open: controlledOpen,
+		onOpenChange,
+		hideTrigger = false
 	}: Props = $props();
 
-	let open = $state(false);
+	let internalOpen = $state(false);
+	let open = $derived(controlledOpen ?? internalOpen);
 	let wrapper: HTMLDivElement | undefined = $state();
 	let localBound = $derived(
 		boundAgentProfileId
@@ -42,46 +49,57 @@
 	);
 	let boundLabel = $derived(localBound?.label ?? runtimeBound?.label ?? null);
 
+	function setOpen(next: boolean): void {
+		if (onOpenChange) onOpenChange(next);
+		else internalOpen = next;
+	}
+
 	function track(profile: RuntimeResolvedAgentProfile): void {
 		onTrack(profile.id);
-		open = false;
+		setOpen(false);
 	}
 
 	function inject(profile: RuntimeResolvedAgentProfile, bypass: boolean): void {
 		if (!canSendInput) return;
 		onInject(profile.id, buildPaneAgentCommand(profile, bypass));
-		open = false;
+		setOpen(false);
 	}
 </script>
 
 <svelte:window
 	onmousedown={(event) => {
-		if (!open) return;
-		if (event.target instanceof Node && !wrapper?.contains(event.target)) open = false;
+		if (!open || hideTrigger) return;
+		if (event.target instanceof Node && !wrapper?.contains(event.target)) setOpen(false);
 	}}
 	onkeydown={(event) => {
-		if (open && event.key === 'Escape') open = false;
+		if (open && event.key === 'Escape') setOpen(false);
 	}}
 />
 
 {#if agentProfiles.length > 0 || runtimeAgentProfileId}
 	<div class="pane-ai" bind:this={wrapper}>
-		<button
-			type="button"
-			class="pane-ai__trigger"
-			data-bound={Boolean(boundLabel) || undefined}
-			aria-label={boundLabel ? `AI agent: ${boundLabel}` : 'Run AI agent in this terminal'}
-			aria-expanded={open}
-			aria-haspopup="dialog"
-			title={boundLabel ? `Agent · ${boundLabel} · ${cwd}` : `Run or track AI agent · ${cwd}`}
-			onclick={() => (open = !open)}
-		>
-			<Sparkles size={14} />
-			{#if boundLabel}<span>{boundLabel}</span>{/if}
-		</button>
+		{#if !hideTrigger}
+			<button
+				type="button"
+				class="pane-ai__trigger"
+				data-bound={Boolean(boundLabel) || undefined}
+				aria-label={boundLabel ? `AI agent: ${boundLabel}` : 'Run AI agent in this terminal'}
+				aria-expanded={open}
+				aria-haspopup="dialog"
+				title={boundLabel ? `Agent · ${boundLabel} · ${cwd}` : `Run or track AI agent · ${cwd}`}
+				onclick={() => setOpen(!open)}
+			>
+				<Sparkles size={14} />
+				{#if boundLabel}<span>{boundLabel}</span>{/if}
+			</button>
+		{/if}
+
+		{#if open && hideTrigger}
+			<button type="button" class="pane-ai__backdrop" aria-label="Close AI agent menu" onclick={() => setOpen(false)}></button>
+		{/if}
 
 		{#if open}
-			<div class="pane-ai__popover" role="dialog" aria-label="Run AI agent in pane">
+			<div class="pane-ai__popover" class:pane-ai__popover--sheet={hideTrigger} role="dialog" aria-label="Run AI agent in pane">
 				<header class="pane-ai__header">
 					<div>
 						<strong>Run agent here</strong>
@@ -93,7 +111,7 @@
 							class="pane-ai__unbind"
 							onclick={() => {
 								onUnbind();
-								open = false;
+								setOpen(false);
 							}}
 						>
 							<Power size={12} /> Unbind
@@ -171,6 +189,7 @@
 		color: rgb(196 181 253);
 	}
 	.pane-ai__trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+	.pane-ai__backdrop { position: fixed; inset: 0; z-index: 118; border: 0; background: rgb(4 8 16 / 0.62); }
 	.pane-ai__popover {
 		position: absolute;
 		top: calc(100% + 7px);
@@ -228,10 +247,11 @@
 	.pane-ai__actions button:disabled { opacity: 0.42; cursor: not-allowed; }
 	.pane-ai__note { display: flex; align-items: flex-start; gap: 5px; margin: 8px 1px 0; color: var(--ink-muted); font-size: 9px; line-height: 1.45; }
 	.pane-ai__note :global(svg) { flex: 0 0 auto; margin-top: 1px; }
+	.pane-ai__popover--sheet { position: fixed; z-index: 119; }
 	@media (max-width: 680px) {
 		.pane-ai__trigger span { display: none; }
 		.pane-ai__trigger { width: 28px; min-width: 28px; padding: 0; }
-		.pane-ai__popover { position: fixed; top: auto; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); left: 10px; width: auto; }
+		.pane-ai__popover { position: fixed; top: auto; right: calc(10px + var(--safe-right)); bottom: calc(10px + var(--safe-bottom)); left: calc(10px + var(--safe-left)); width: auto; max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 20px); overflow-y: auto; }
 	}
 	@media (max-width: 380px) {
 		.pane-ai__actions { grid-template-columns: 1fr; }

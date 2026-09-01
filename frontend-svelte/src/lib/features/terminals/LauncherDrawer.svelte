@@ -278,12 +278,13 @@
 		flex-direction: column;
 		width: 100%;
 		max-width: 40rem;
-		max-height: min(92dvh, 760px);
+		max-height: min(92dvh, calc(100dvh - var(--safe-top)), 760px);
 		overflow: hidden;
 		border: 1px solid var(--border);
 		border-radius: 1.25rem 1.25rem 0 0;
 		background: color-mix(in srgb, var(--surface) 97%, #07101d);
 		box-shadow: 0 -24px 80px rgb(0 0 0 / 0.45);
+		padding-bottom: var(--safe-bottom);
 	}
 	.launcher-header {
 		display: flex;

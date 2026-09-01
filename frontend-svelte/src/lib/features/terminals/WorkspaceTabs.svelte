@@ -112,7 +112,7 @@
 		align-items: center;
 		gap: 4px;
 		min-height: 38px;
-		padding: 5px 10px;
+		padding: calc(5px + var(--safe-top)) calc(10px + var(--safe-right)) 5px calc(10px + var(--safe-left));
 		overflow-x: auto;
 		border-bottom: 1px solid var(--border);
 		background: color-mix(in srgb, var(--surface) 92%, transparent);

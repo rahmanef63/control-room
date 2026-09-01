@@ -130,7 +130,7 @@
 
 <style>
 	.fs-backdrop { position: fixed; inset: 0; z-index: 140; display: flex; align-items: flex-end; justify-content: center; background: rgb(4 8 16 / 0.68); backdrop-filter: blur(8px); }
-	.fs-sheet { display: flex; flex-direction: column; width: 100%; max-width: 42rem; max-height: min(90dvh, 760px); overflow: hidden; border: 1px solid var(--border); border-radius: 1.25rem 1.25rem 0 0; background: color-mix(in srgb, var(--surface) 97%, #07101d); box-shadow: 0 -22px 70px rgb(0 0 0 / 0.45); }
+	.fs-sheet { display: flex; flex-direction: column; width: 100%; max-width: 42rem; max-height: min(90dvh, calc(100dvh - var(--safe-top)), 760px); overflow: hidden; border: 1px solid var(--border); border-radius: 1.25rem 1.25rem 0 0; background: color-mix(in srgb, var(--surface) 97%, #07101d); box-shadow: 0 -22px 70px rgb(0 0 0 / 0.45); padding-bottom: var(--safe-bottom); }
 	.fs-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border); padding: 12px 14px; }
 	.fs-header h2, .fs-header p { margin: 0; }
 	.fs-header h2 { color: var(--ink); font-size: 0.88rem; }
@@ -151,5 +151,5 @@
 	.fs-empty--error { color: #fca5a5; }
 	.fs-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--border); padding: 8px 10px; }
 	.fs-footer span { min-width: 0; overflow: hidden; color: var(--ink-muted); font-family: var(--font-mono); font-size: 0.62rem; text-overflow: ellipsis; white-space: nowrap; }
-	@media (min-width: 640px) { .fs-backdrop { align-items: center; padding: 16px; } .fs-sheet { border-radius: 1.25rem; } }
+	@media (min-width: 640px) { .fs-backdrop { align-items: center; padding: calc(16px + var(--safe-top)) calc(16px + var(--safe-right)) calc(16px + var(--safe-bottom)) calc(16px + var(--safe-left)); } .fs-sheet { border-radius: 1.25rem; padding-bottom: 0; } }
 </style>

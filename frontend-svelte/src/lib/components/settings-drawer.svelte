@@ -211,12 +211,13 @@
 		flex-direction: column;
 		width: 100%;
 		max-width: 31rem;
-		max-height: min(88dvh, 720px);
+		max-height: min(88dvh, calc(100dvh - var(--safe-top)), 720px);
 		overflow: hidden;
 		border: 1px solid var(--border);
 		border-radius: 1.2rem 1.2rem 0 0;
 		background: color-mix(in srgb, var(--surface) 97%, #07101d);
 		box-shadow: 0 -20px 60px rgb(0 0 0 / 0.38);
+		padding-bottom: var(--safe-bottom);
 	}
 	.settings-header,
 	.settings-footer {
@@ -289,6 +290,6 @@
 	.settings-note { color: var(--ink-muted); font-size: 0.61rem; line-height: 1.4; }
 	@media (min-width: 640px) {
 		.settings-backdrop { align-items: center; }
-		.settings-sheet { border-radius: 1.2rem; margin-bottom: 7vh; }
+		.settings-sheet { border-radius: 1.2rem; margin-bottom: 7dvh; }
 	}
 </style>
