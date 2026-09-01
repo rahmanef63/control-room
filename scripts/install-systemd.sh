@@ -72,7 +72,7 @@ TimeoutStopSec=8
 # Resource guards — the frontend can spike RAM under many panes / login storms.
 # MemoryHigh throttles + reclaims before the hard MemoryMax backstop; CPUWeight
 # raises scheduling priority so the UI stays responsive under host contention.
-# Sized for the per-pane cost: each open pane holds an SSE stream plus a `ws`
+# Sized for the per-pane cost: each open pane holds an SSE stream plus a server-side WebSocket
 # client in THIS process, and ws queues unsent frames off-heap (see the
 # MAX_WS_BUFFER_BYTES note in agent/src/terminal/gateway/socket.ts). 1.5G/2G was
 # tight enough that a full grid of panes ran against the ceiling.
@@ -110,7 +110,7 @@ WorkingDirectory=${REPO_DIR}/agent
 EnvironmentFile=${REPO_DIR}/.env.local
 # bun on PATH for everything the agent SPAWNS (pty panes, patrol subprocesses,
 # cron jobs) — non-interactive children never source .bashrc, so without this a
-# `bun run build` from a pane fails with command-not-found.
+# Frontend builds from a pane need the Bun binary available on PATH.
 Environment=PATH=${BUN_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Stays on Node deliberately: under Bun, node-pty spawns but never emits data.
 ExecStart=/usr/bin/node ${REPO_DIR}/agent/dist/index.js
@@ -198,7 +198,7 @@ echo "  Created /etc/systemd/system/vps-control-room-cleanup.timer"
 
 # --- Reload and enable ---
 
-# Drop `systemctl set-property` leftovers. Those land in /etc/systemd/system.control
+# Drop stale systemd set-property leftovers. Those land in /etc/systemd/system.control
 # and OVERRIDE the unit files written above, so a limit tuned live during an
 # incident silently outranks this script forever — the repo says one number and
 # the box runs another. This script is the source of truth; anything set-property
