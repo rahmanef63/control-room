@@ -1,12 +1,10 @@
 import { onMount } from 'svelte';
 
 import { readLocal, writeLocal } from '$lib/local-storage';
+import { WORKSPACES_STORAGE_KEY, WORKSPACE_ACTIVE_KEY, WORKSPACE_SESSION_MAP_KEY } from './storage-keys';
 
 export const DEFAULT_WORKSPACE_ID = 'default';
 export const DEFAULT_WORKSPACE_NAME = 'default';
-const WORKSPACES_STORAGE_KEY = 'vps-control-room.workspaces';
-const WORKSPACE_ACTIVE_KEY = 'vps-control-room.workspace-active';
-const WORKSPACE_SESSION_MAP_KEY = 'vps-control-room.workspace-session-map';
 const REMOTE_STATE_KEY = 'workspaces';
 const REMOTE_DEBOUNCE_MS = 600;
 const WORKSPACE_COLORS = ['#38bdf8', '#a855f7', '#f59e0b', '#34d399', '#fb7185', '#818cf8'];

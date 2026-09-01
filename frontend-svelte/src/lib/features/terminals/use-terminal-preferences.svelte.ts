@@ -3,13 +3,11 @@ import { SvelteSet } from 'svelte/reactivity';
 
 import { readLocal, writeLocal } from '$lib/local-storage';
 import { clampFontSize } from '$lib/features/terminals/types';
+import { FONT_SIZE_STORAGE_KEY, GRID_COLS_STORAGE_KEY, VIEW_MODE_STORAGE_KEY } from './storage-keys';
 
 export type ViewMode = 'single' | 'grid';
 export type GridCols = 'auto' | '1' | '2' | '3' | '4';
 
-const FONT_SIZE_STORAGE_KEY = 'vps-control-room.terminal-font-sizes';
-const VIEW_MODE_STORAGE_KEY = 'vps-control-room.terminal-view-mode';
-const GRID_COLS_STORAGE_KEY = 'vps-control-room.terminal-grid-cols';
 const GRID_COL_VALUES: GridCols[] = ['auto', '1', '2', '3', '4'];
 
 export function useTerminalPreferences() {

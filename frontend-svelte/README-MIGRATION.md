@@ -18,7 +18,7 @@ agent on a parallel loopback port without touching the live Next service.
 Verified gates:
 
 - `bun install` succeeds with Svelte 5 / SvelteKit 2 / adapter-node.
-- `bun test` — **63/63** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color + history + pane-agent-override + launcher + pane-agent-command + pane-tools + overview + templates + crons helper tests pass.
+- `bun test` — **71/71** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color + history + pane-agent-override + launcher + pane-agent-command + pane-tools + overview + templates + crons + backup helper tests pass.
 - `bun run check` — **0 errors, 0 warnings**.
 - `bun run build` — production adapter-node build succeeds.
 - Official Svelte MCP `svelte-autofixer` reports no issues on the changed
@@ -80,6 +80,7 @@ Verified gates:
 - Launcher smoke verifies the real 5 profile / 3 environment / 4 resolved-agent catalog through the lazy-loaded Svelte drawer: Base shell, `host-default` environment, and `codex-ops` Regular agent launch all create real PTYs with exact request semantics and no AI prompt. The fourth Saved tab is now backed by the real Templates SSOT instead of being hidden.
 - Templates/Saved smoke verifies the exact `vps-control-room.templates` storage key and original palette/shape across create, edit, duplicate, delete and full-page reload. A Saved launch re-created a real shell with exact create body, pinned workspace/history, custom title, and executed initial command; the test also caught the React-era literal `\r` bug, so Svelte now appends a real carriage-return byte 13. A 390×844 pass verifies Saved launcher, Templates drawer and edit form without overflow or PTY creation.
 - Crons smoke verifies authenticated CRUD against the unchanged agent cron manager: a disabled spawn cron was created, edited, enabled/disabled, run manually, and deleted; Run-now spawned a real shell at the requested cwd and executed its marker command. A second disabled `send_input` cron delivered the exact command to an existing PTY with a real carriage-return byte 13. All smoke crons/sessions were cleaned up, existing crons were preserved, unauthenticated `/api/crons` returns 401, and a 390×844 pass covers list + both form action modes with zero writes/PTY creation.
+- Backup/Data smoke uses the real Settings UI to download a version-1 JSON backup, verifies React-compatible core keys plus Svelte font/view/grid/session-color/pane-agent preferences, rejects malformed JSON without any local or remote mutation, then imports the downloaded file and reloads. The workspace triplet is synchronized to `/api/state/workspaces` so the agent's authoritative state cannot overwrite the restore; unit tests also verify rollback if that sync fails. Browser verification intercepts that one workspace endpoint, so the operator's durable workspace state is never changed, and the 390×844 Settings sheet has no horizontal overflow.
 
 No production cutover has happened. The existing Next frontend stays on its
 current service/port, and the agent source is not modified by this migration.
@@ -180,7 +181,8 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `features/terminals/lib/local-storage.ts` | `src/lib/local-storage.ts` (verbatim) |
 | `features/terminals/hooks/use-fullscreen.ts` | `src/lib/features/terminals/use-fullscreen.svelte.ts` — wired into pane chrome and grid Focus; native Fullscreen API with CSS fallback, shell-chrome suppression, and xterm refit |
 | `features/terminals/hooks/use-wake-lock.ts` | `src/lib/features/terminals/use-wake-lock.svelte.ts` — wired to `terminalSessions.runningCount`; acquires while any PTY runs, releases at zero, and reacquires on visibility return |
-| `features/terminals/hooks/use-app-settings.ts` + settings drawer core | `src/lib/features/terminals/use-app-settings.svelte.ts` + `src/lib/components/settings-drawer.svelte` — heartbeat, soft-keyboard master/per-key visibility, automatic wake-lock explanation, Devices handoff and reset are live; appearance/data/automation sections remain with their unported features |
+| `features/terminals/lib/backup.ts` + Settings Data section | `src/lib/features/terminals/backup.ts` + `storage-keys.ts` + `src/lib/components/settings-drawer.svelte` — React-compatible v1 export/import, strict allowlist validation, extended Svelte pane preferences, transactional local rollback, authoritative remote-workspace sync, real file download/import and mobile verification |
+| `features/terminals/hooks/use-app-settings.ts` + settings drawer core | `src/lib/features/terminals/use-app-settings.svelte.ts` + `src/lib/components/settings-drawer.svelte` — heartbeat, soft-keyboard master/per-key visibility, automatic wake-lock explanation, Devices handoff, Data backup/import and reset are live; appearance/platform and remaining automation navigation stay scoped to their separate features |
 
 ## Backlog — not ported yet
 
@@ -219,8 +221,8 @@ guessed at — it's simply not written yet.
 - [x] `use-app-settings.ts` + settings drawer core — heartbeat glow, soft-keyboard master/per-key persistence, reset and Trusted Devices handoff are wired. Legacy `enter`/`ctrlHold` flags remain storage-compatible but hidden because the React keyboard never implemented them.
 - [x] `use-workspaces.ts` and core `use-terminal-preferences.ts` (font size + view mode + grid columns + broadcast targets)
 - [ ] `use-media-query.ts`
-- [ ] `lib/backup.ts` — export/import of workspaces, templates, settings and history as one backup payload. Workspaces/history/templates/settings storage are now ported; session-order/active-id persistence from the large React session hook remains part of topbar/session-order parity.
-- [x] `overview-drawer.tsx` — lazy Svelte system overview ported and real-agent/mobile verified; History and Settings drawer core are also ported, while Settings appearance/data/automation sections stay scoped to corresponding remaining features
+- [x] `lib/backup.ts` + Settings Data — version-1 React-compatible export/import now covers workspaces, templates, app settings, history and Svelte pane preferences; imports are allowlisted/validated, roll back local state on sync failure, synchronize authoritative remote workspace state, reload, and are real-browser/mobile verified. Session-order/active-id persistence from the large React session hook remains separate topbar/session-order parity.
+- [x] `overview-drawer.tsx` — lazy Svelte system overview ported and real-agent/mobile verified; History and Settings core/Data backup are also ported, while Settings appearance/platform and remaining automation navigation stay scoped to corresponding features
 - [x] `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts` — lazy Svelte explorer + authenticated proxy ported and real-PTY verified
 
 **Other feature areas**

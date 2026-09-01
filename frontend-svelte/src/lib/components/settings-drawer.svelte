@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RotateCcw, Settings2, ShieldCheck, X } from 'lucide-svelte';
+	import { DownloadCloud, RotateCcw, Settings2, ShieldCheck, UploadCloud, X } from 'lucide-svelte';
 
 	import { Button } from '$lib/components/ui/button';
 	import { SUPPORTED_SOFT_KEYBOARD_KEYS } from '$lib/features/terminals/soft-keyboard';
@@ -18,6 +18,8 @@
 		onUpdateSoftKeyboard: (patch: Partial<SoftKeyboardSettings>) => void;
 		onSetSoftKeyVisible: (key: SoftKeyboardKey, visible: boolean) => void;
 		onOpenDevices: () => void;
+		onExportBackup: () => void;
+		onImportBackup: () => void;
 		onResetDefaults: () => void;
 	}
 
@@ -30,6 +32,8 @@
 		onUpdateSoftKeyboard,
 		onSetSoftKeyVisible,
 		onOpenDevices,
+		onExportBackup,
+		onImportBackup,
 		onResetDefaults
 	}: Props = $props();
 
@@ -157,6 +161,29 @@
 						<span aria-hidden="true">›</span>
 					</button>
 				</section>
+
+				<section class="settings-section">
+					<div class="settings-section__head">
+						<h3>Data</h3>
+						<span>Backup</span>
+					</div>
+					<button type="button" class="settings-nav" onclick={onExportBackup}>
+						<DownloadCloud size={15} />
+						<span>
+							<strong>Export dashboard settings</strong>
+							<small>Download workspaces, templates, settings, history and pane preferences as one JSON backup.</small>
+						</span>
+						<span aria-hidden="true">↓</span>
+					</button>
+					<button type="button" class="settings-nav settings-nav--danger" onclick={onImportBackup}>
+						<UploadCloud size={15} />
+						<span>
+							<strong>Import settings…</strong>
+							<small>Replace current dashboard data from a backup, sync workspace state to the host, then reload. No undo — export first.</small>
+						</span>
+						<span aria-hidden="true">↑</span>
+					</button>
+				</section>
 			</div>
 
 			<footer class="settings-footer">
@@ -253,6 +280,8 @@
 		cursor: pointer;
 	}
 	.settings-nav:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--accent); }
+	.settings-nav--danger { border-color: rgb(244 63 94 / 0.22); }
+	.settings-nav--danger:hover { border-color: rgb(244 63 94 / 0.48); color: rgb(253 164 175); }
 	.settings-key-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 	.settings-key-row { display: flex; align-items: center; gap: 7px; min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 7px 8px; color: var(--ink-muted); font-size: 0.65rem; }
 	.settings-key-row input { width: 15px; height: 15px; flex: 0 0 auto; accent-color: var(--accent); }

@@ -15,6 +15,7 @@
 	import TerminalProfileIcon from '$lib/features/terminals/TerminalProfileIcon.svelte';
 	import WorkspaceTabs from '$lib/features/terminals/WorkspaceTabs.svelte';
 	import { resolveBroadcastFanout } from '$lib/features/terminals/broadcast';
+	import { downloadBackup, pickAndImportBackup } from '$lib/features/terminals/backup';
 	import { OrderedTerminalInputQueue } from '$lib/features/terminals/input-queue';
 	import { agentLaunchRequest, environmentLaunchRequest, profileLaunchRequest, type LauncherTab } from '$lib/features/terminals/launcher';
 	import type { TerminalHistoryEntry } from '$lib/features/terminals/history';
@@ -344,6 +345,26 @@
 		window.location.assign(resolve('/login'));
 	}
 
+
+	function exportBackup(): void {
+		try {
+			downloadBackup();
+		} catch (error) {
+			alert(`Backup export failed: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	async function importBackup(): Promise<void> {
+		if (!confirm('Import backup will REPLACE workspaces, templates, settings, history and pane preferences. Continue?')) return;
+		try {
+			const result = await pickAndImportBackup();
+			if (!result) return;
+			window.location.reload();
+		} catch (error) {
+			alert(`Import failed: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
 	function paneIsWorkspaceVisible(sessionId: string): boolean {
 		return workspaces.resolveSessionWorkspace(sessionId) === workspaces.activeId;
 	}
@@ -591,6 +612,8 @@
 		onUpdateSoftKeyboard={appSettings.updateSoftKeyboard}
 		onSetSoftKeyVisible={appSettings.setSoftKeyVisible}
 		onOpenDevices={() => (devicesOpen = true)}
+		onExportBackup={exportBackup}
+		onImportBackup={() => void importBackup()}
 		onResetDefaults={appSettings.resetDefaults}
 	/>
 	<DevicesDrawer open={devicesOpen} onOpenChange={(value) => (devicesOpen = value)} />
