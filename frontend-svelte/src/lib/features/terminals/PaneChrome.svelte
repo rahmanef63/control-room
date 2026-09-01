@@ -1,7 +1,9 @@
 <script lang="ts">
 	import {
 		Check,
+		Bot,
 		CheckCircle2,
+		Eye,
 		CopyPlus,
 		Focus,
 		Loader2,
@@ -26,6 +28,7 @@
 		type TerminalSession
 	} from '$lib/features/terminals/types';
 	import type { ActivityState } from '$lib/features/terminals/telemetry';
+	import type { AlfaWatcher } from '$lib/features/patrol/alfa';
 	import type { Workspace } from '$lib/features/terminals/use-workspaces.svelte';
 
 	interface Props {
@@ -42,6 +45,9 @@
 		fullscreen: boolean;
 		color: string;
 		hasColorOverride: boolean;
+		colorOwnerId: string;
+		selfWatcher?: AlfaWatcher;
+		parentAlfa?: AlfaWatcher;
 		agentProfiles: RuntimeResolvedAgentProfile[];
 		boundAgentProfileId?: string;
 		onBindAgent: (agentProfileId: string) => void;
@@ -73,6 +79,9 @@
 		fullscreen,
 		color,
 		hasColorOverride,
+		colorOwnerId,
+		selfWatcher,
+		parentAlfa,
 		agentProfiles,
 		boundAgentProfileId,
 		onBindAgent,
@@ -170,6 +179,11 @@
 			</button>
 		{/if}
 		<span class="pane-chrome__cwd" title={session.cwd}>{session.cwd}</span>
+		{#if selfWatcher}
+			<span class="pane-chrome__role" data-role="alfa" title={`ALFA patrol · ${selfWatcher.watchedSessionIds.length} target(s)`}><Bot size={11} /> ALFA <b>{selfWatcher.watchedSessionIds.length}</b></span>
+		{:else if parentAlfa}
+			<span class="pane-chrome__role" data-role="target" title={`Patrol target of ${parentAlfa.label ?? parentAlfa.id.slice(0, 8)}`}><Eye size={11} /> TARGET <b>◄ {parentAlfa.label ?? parentAlfa.id.slice(0, 8)}</b></span>
+		{/if}
 		{#if showActivity}
 			<span class="pane-chrome__activity" data-state={activityState} title={activityLabel}>
 				{#if activityState === 'working' || activityState === 'planning'}
@@ -186,11 +200,12 @@
 
 	<div class="pane-chrome__actions">
 		<SessionColorPicker
-			sessionId={session.id}
+			sessionId={colorOwnerId}
 			{color}
 			hasOverride={hasColorOverride}
 			onPick={onColorPick}
 			onClear={onColorClear}
+			title={parentAlfa ? `Inherits color from ALFA ${parentAlfa.label ?? parentAlfa.id.slice(0, 8)} — click to change ALFA color` : undefined}
 		/>
 		<PaneAiLaunch
 			sessionId={session.id}
@@ -321,6 +336,10 @@
 		color: var(--session-color, var(--accent));
 	}
 	.pane-chrome__title > :global(svg:last-child) { opacity: 0.5; }
+	.pane-chrome__role { display: inline-flex; align-items: center; gap: 4px; max-width: 150px; flex: 0 0 auto; border-radius: 5px; padding: 2px 5px; font-size: 8px; font-weight: 800; letter-spacing: .05em; white-space: nowrap; }
+	.pane-chrome__role[data-role='alfa'] { background: rgb(139 92 246 / .14); color: rgb(196 181 253); }
+	.pane-chrome__role[data-role='target'] { background: color-mix(in srgb, var(--session-color) 13%, transparent); color: var(--session-color); }
+	.pane-chrome__role b { max-width: 76px; overflow: hidden; font-size: 8px; font-weight: 650; text-overflow: ellipsis; }
 	.pane-chrome__cwd {
 		min-width: 0;
 		color: var(--ink-muted);

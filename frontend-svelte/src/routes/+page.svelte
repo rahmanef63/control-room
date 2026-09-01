@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { onMount, untrack } from 'svelte';
-	import { Bookmark, CalendarClock, Gauge, Grid2X2, History as HistoryIcon, Rocket, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
+	import { Bookmark, Bot, CalendarClock, Gauge, Grid2X2, History as HistoryIcon, Rocket, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
 
 	import DevicesDrawer from '$lib/components/devices-drawer.svelte';
 	import HistoryDrawer from '$lib/features/terminals/HistoryDrawer.svelte';
@@ -39,6 +39,9 @@
 	import { templatesState } from '$lib/features/templates/templates.svelte';
 	import { templateInitialCommandInput, templateLaunchRequest, type TerminalTemplate } from '$lib/features/templates/templates';
 	import { cronsState } from '$lib/features/crons/crons.svelte';
+	import { alfaWatchers } from '$lib/features/patrol/alfa-watchers.svelte';
+	import { patrolPings } from '$lib/features/patrol/patrol-pings.svelte';
+	import { activeWatchedCount } from '$lib/features/patrol/alfa';
 
 	const workspaces = useWorkspaces();
 	const preferences = useTerminalPreferences();
@@ -59,6 +62,7 @@
 	let overviewOpen = $state(false);
 	let templatesOpen = $state(false);
 	let cronsOpen = $state(false);
+	let alfaPatrolOpen = $state(false);
 	let launcherOpen = $state(false);
 	let launcherTab = $state<LauncherTab>('base');
 	let launcherCreatingKey = $state<string | null>(null);
@@ -93,15 +97,21 @@
 	let restorableHistoryCount = $derived(
 		terminalHistory.entries.filter((entry) => !liveSessionIds.has(entry.id)).length
 	);
+	let patrolWatchedCount = $derived(activeWatchedCount(alfaWatchers.watchers, terminalSessions.sessions));
 
 	onMount(() => {
 		paneAgentOverrides.init();
 		sessionColors.init();
 		terminalHistory.init();
 		templatesState.init();
+		alfaWatchers.init();
 		void terminalSessions.refresh().finally(() => {
 			sessionsLoaded = true;
 		});
+		return () => {
+			alfaWatchers.destroy();
+			patrolPings.destroy();
+		};
 	});
 
 	// Keep history snapshots current without making history itself an effect
@@ -136,6 +146,20 @@
 		const liveIds = terminalSessions.sessions.map((session) => session.id);
 		if (!sessionsLoaded || !paneAgentOverrides.hydrated) return;
 		untrack(() => paneAgentOverrides.pruneTo(liveIds));
+	});
+
+	// Server watcher state is authoritative. Never prune a warm local cache until
+	// the first successful remote watcher refresh has completed.
+	$effect(() => {
+		const liveIds = terminalSessions.sessions.map((session) => session.id);
+		if (!sessionsLoaded || !alfaWatchers.remoteReady) return;
+		untrack(() => alfaWatchers.pruneTo(liveIds));
+	});
+
+	// Keep pending badges fresh whenever Patrol is in use, without polling on an
+	// installation that has no ALFA configured.
+	$effect(() => {
+		patrolPings.setEnabled(alfaPatrolOpen || alfaWatchers.watchers.length > 0);
 	});
 
 	// Keep single-pane focus inside the selected workspace. The terminals stay
@@ -500,6 +524,12 @@
 				{#if cronsState.crons.length > 0}<span class="topbar-count">{cronsState.crons.length}</span>{/if}
 			</Button>
 
+			<Button variant="outline" size="sm" onclick={() => (alfaPatrolOpen = true)} aria-label="Open Alfa patrol">
+				<Bot size={14} /> Patrol
+				{#if patrolWatchedCount > 0}<span class="topbar-count">{patrolWatchedCount}</span>{/if}
+				{#if patrolPings.pendingCount > 0}<span class="topbar-count topbar-count--alert">{patrolPings.pendingCount}</span>{/if}
+			</Button>
+
 			<Button variant="outline" size="sm" onclick={() => (historyOpen = true)} aria-label="Open terminal history">
 				<HistoryIcon size={14} /> History
 				{#if restorableHistoryCount > 0}<span class="topbar-count">{restorableHistoryCount}</span>{/if}
@@ -592,10 +622,24 @@
 		{/await}
 	{/if}
 
+	{#if alfaPatrolOpen}
+		{#await import('$lib/features/patrol/AlfaRegistryDrawer.svelte') then patrolModule}
+			{@const AlfaRegistryDrawer = patrolModule.default}
+			<AlfaRegistryDrawer
+				sessions={terminalSessions.sessions}
+				workspaces={workspaces.workspaces}
+				resolveWorkspace={workspaces.resolveSessionWorkspace}
+				onClose={() => (alfaPatrolOpen = false)}
+				onInjectCommand={sendPaneCommand}
+			/>
+		{/await}
+	{/if}
+
 	<HistoryDrawer
 		open={historyOpen}
 		history={terminalHistory.entries}
 		liveIds={liveSessionIds}
+		watchers={alfaWatchers.watchers}
 		restoring={historyRestoring}
 		onOpenChange={(value) => (historyOpen = value)}
 		onOpenEntry={(entry) => void openHistoryEntry(entry)}
@@ -635,6 +679,10 @@
 					{@const workspaceVisible = paneIsWorkspaceVisible(session.id)}
 					{@const active = paneIsActive(session.id)}
 					{@const telemetry = paneTelemetry[session.id]}
+					{@const selfWatcher = alfaWatchers.watcherOf(session.id)}
+					{@const parentAlfa = alfaWatchers.ownerOfTarget(session.id)}
+					{@const colorOwnerId = parentAlfa?.id ?? session.id}
+					{@const paneColor = sessionColors.colorOf(colorOwnerId)}
 					<div
 						class="terminal-slot"
 						data-session-id={session.id}
@@ -645,7 +693,7 @@
 						<PaneErrorBoundary>
 						<div
 							class="pane-frame"
-							style:--session-color={sessionColors.colorOf(session.id)}
+							style:--session-color={paneColor}
 							data-heartbeat={appSettings.settings.notifications.heartbeatGlow && telemetry?.activityState === 'working' || undefined}
 						>
 							<PaneChrome
@@ -660,16 +708,19 @@
 								activityLabel={telemetry?.activityLabel ?? 'Idle'}
 								showActivity={telemetry?.showActivity ?? false}
 								fullscreen={fullscreen.isFullscreen}
-								color={sessionColors.colorOf(session.id)}
-								hasColorOverride={sessionColors.hasOverride(session.id)}
+								color={paneColor}
+								hasColorOverride={sessionColors.hasOverride(colorOwnerId)}
+								{colorOwnerId}
+								{selfWatcher}
+								{parentAlfa}
 								agentProfiles={terminalSessions.agentProfiles}
 								boundAgentProfileId={paneAgentOverrides.overrideOf(session.id)?.agentProfileId}
 								onBindAgent={(agentProfileId) => paneAgentOverrides.bind(session.id, agentProfileId)}
 								onInjectAgent={(agentProfileId, command) => injectPaneAgent(session.id, agentProfileId, command)}
 								onCommand={(command) => sendPaneCommand(session.id, command)}
 								onUnbindAgent={() => paneAgentOverrides.clear(session.id)}
-								onColorPick={(color) => sessionColors.setColor(session.id, color)}
-								onColorClear={() => sessionColors.clearColor(session.id)}
+								onColorPick={(color) => sessionColors.setColor(colorOwnerId, color)}
+								onColorClear={() => sessionColors.clearColor(colorOwnerId)}
 								onRename={(id, title) => terminalSessions.rename(id, title)}
 								onDuplicate={duplicateSession}
 								onMoveToWorkspace={moveSession}
@@ -867,6 +918,7 @@
 		color: rgb(186 230 253);
 		font-size: 9px;
 	}
+	.topbar-count--alert { background: rgb(244 63 94 / 0.16); color: rgb(253 164 175); }
 	.grid-cols-control {
 		display: inline-flex;
 		align-items: center;
