@@ -18,7 +18,7 @@ agent on a parallel loopback port without touching the live Next service.
 Verified gates:
 
 - `bun install` succeeds with Svelte 5 / SvelteKit 2 / adapter-node.
-- `bun test` — **58/58** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color + history + pane-agent-override + launcher + pane-agent-command + pane-tools + overview + templates helper tests pass.
+- `bun test` — **63/63** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color + history + pane-agent-override + launcher + pane-agent-command + pane-tools + overview + templates + crons helper tests pass.
 - `bun run check` — **0 errors, 0 warnings**.
 - `bun run build` — production adapter-node build succeeds.
 - Official Svelte MCP `svelte-autofixer` reports no issues on the changed
@@ -79,6 +79,7 @@ Verified gates:
 - Authenticated read-only view smoke verifies `/view/[id]` keeps the same session requirement as React (unauthenticated requests redirect to `/login`), replays bootstrap + live SSE output from the same real PTY, exposes screen-reader rows, and sends **0** browser POSTs to terminal input/resize/upload endpoints even when keys are typed. The 390×844 view has no horizontal overflow; this is deliberately not a public share-token link.
 - Launcher smoke verifies the real 5 profile / 3 environment / 4 resolved-agent catalog through the lazy-loaded Svelte drawer: Base shell, `host-default` environment, and `codex-ops` Regular agent launch all create real PTYs with exact request semantics and no AI prompt. The fourth Saved tab is now backed by the real Templates SSOT instead of being hidden.
 - Templates/Saved smoke verifies the exact `vps-control-room.templates` storage key and original palette/shape across create, edit, duplicate, delete and full-page reload. A Saved launch re-created a real shell with exact create body, pinned workspace/history, custom title, and executed initial command; the test also caught the React-era literal `\r` bug, so Svelte now appends a real carriage-return byte 13. A 390×844 pass verifies Saved launcher, Templates drawer and edit form without overflow or PTY creation.
+- Crons smoke verifies authenticated CRUD against the unchanged agent cron manager: a disabled spawn cron was created, edited, enabled/disabled, run manually, and deleted; Run-now spawned a real shell at the requested cwd and executed its marker command. A second disabled `send_input` cron delivered the exact command to an existing PTY with a real carriage-return byte 13. All smoke crons/sessions were cleaned up, existing crons were preserved, unauthenticated `/api/crons` returns 401, and a 390×844 pass covers list + both form action modes with zero writes/PTY creation.
 
 No production cutover has happened. The existing Next frontend stays on its
 current service/port, and the agent source is not modified by this migration.
@@ -162,6 +163,7 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `use-pane-agent-overrides.ts` | `src/lib/features/terminals/pane-agent-overrides.svelte.ts` + `pane-agent-overrides.ts` — original `control-room:pane-agent-overrides` key, app-wide rune SSOT, bind/unbind metadata and React-parity live-session pruning |
 | `pane-ai-launch.tsx` | `src/lib/features/terminals/PaneAiLaunch.svelte` + `pane-agent-command.ts` — one compact catalog-backed menu preserves Track-only metadata binding and adds React-parity Regular/Bypass command injection into the same PTY; original per-profile bypass flags are unit-tested |
 | `launcher-card.tsx` + `launcher-drawer.tsx` | `src/lib/features/terminals/LauncherDrawer.svelte` + `launcher.ts` — lazy-loaded Base/Agents/Envs/Saved launcher using runtime catalog + Templates SSOT; profile/env/agent/template request semantics are tested and real-PTY verified |
+| `features/crons/{types,hooks,components}` + `app/api/crons/**` | `src/lib/features/crons/{crons.ts,crons.svelte.ts,CronsDrawer.svelte}` + `src/routes/api/crons/**` — authenticated list/create/get/update/delete/run proxies, rune CRUD state, spawn/send-input forms, exact control-character decode, lazy responsive drawer and real-agent CRUD/Run-now verification |
 | `features/templates/{types,hooks,components}` | `src/lib/features/templates/{templates.ts,templates.svelte.ts,TemplatesDrawer.svelte}` — exact `vps-control-room.templates` localStorage key, original palette/CRUD semantics, save-current-session, responsive edit/list UI, pinned workspace/custom title/initial-command launch, and Saved launcher integration |
 | `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts` | `src/lib/features/terminals/FileExplorerDialog.svelte` + `src/routes/api/fs/list/+server.ts` — lazy authenticated folder browser over the existing agent read-root policy; selected paths are shell-quoted and injected as source-only `cd` commands |
 | Skills subset of `pane-actions-menu.tsx` + `app/api/skills/route.ts` | `src/lib/features/terminals/PaneToolsMenu.svelte` + `pane-tools.ts` + `src/routes/api/skills/+server.ts` — cwd-aware project/global skill catalog, exact invocation injection to the current PTY, intentionally independent of broadcast fan-out |
@@ -222,7 +224,7 @@ guessed at — it's simply not written yet.
 - [x] `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts` — lazy Svelte explorer + authenticated proxy ported and real-PTY verified
 
 **Other feature areas**
-- [ ] Crons: `features/crons/*` (3 files) + `app/api/crons/**` routes
+- [x] Crons: types + rune CRUD state + responsive drawer + authenticated `app/api/crons/**` parity, with spawn/send-input real-agent Run-now verification and cleanup
 - [x] Templates: exact storage/CRUD + responsive drawer + save-current-session + Saved launcher + real PTY launch are ported and verified
 - [ ] Browser CRUD: `app/browser/**`, `app/api/browser/crud/route.ts` (see `docs/browser-crud.md` in the repo root)
 - [x] `app/view/[id]/**` — authenticated read-only SSE viewer ported with zero terminal write/resize/upload requests; React security semantics preserved (not a public share link)

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { onMount, untrack } from 'svelte';
-	import { Bookmark, Gauge, Grid2X2, History as HistoryIcon, Rocket, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
+	import { Bookmark, CalendarClock, Gauge, Grid2X2, History as HistoryIcon, Rocket, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
 
 	import DevicesDrawer from '$lib/components/devices-drawer.svelte';
 	import HistoryDrawer from '$lib/features/terminals/HistoryDrawer.svelte';
@@ -37,6 +37,7 @@
 	import { terminalSessions } from '$lib/state/terminal-sessions.svelte';
 	import { templatesState } from '$lib/features/templates/templates.svelte';
 	import { templateInitialCommandInput, templateLaunchRequest, type TerminalTemplate } from '$lib/features/templates/templates';
+	import { cronsState } from '$lib/features/crons/crons.svelte';
 
 	const workspaces = useWorkspaces();
 	const preferences = useTerminalPreferences();
@@ -56,6 +57,7 @@
 	let historyOpen = $state(false);
 	let overviewOpen = $state(false);
 	let templatesOpen = $state(false);
+	let cronsOpen = $state(false);
 	let launcherOpen = $state(false);
 	let launcherTab = $state<LauncherTab>('base');
 	let launcherCreatingKey = $state<string | null>(null);
@@ -472,6 +474,11 @@
 				{#if templatesState.templates.length > 0}<span class="topbar-count">{templatesState.templates.length}</span>{/if}
 			</Button>
 
+			<Button variant="outline" size="sm" onclick={() => (cronsOpen = true)} aria-label="Open cron jobs">
+				<CalendarClock size={14} /> Crons
+				{#if cronsState.crons.length > 0}<span class="topbar-count">{cronsState.crons.length}</span>{/if}
+			</Button>
+
 			<Button variant="outline" size="sm" onclick={() => (historyOpen = true)} aria-label="Open terminal history">
 				<HistoryIcon size={14} /> History
 				{#if restorableHistoryCount > 0}<span class="topbar-count">{restorableHistoryCount}</span>{/if}
@@ -519,6 +526,27 @@
 		{#await import('$lib/features/terminals/OverviewDrawer.svelte') then overviewModule}
 			{@const OverviewDrawer = overviewModule.default}
 			<OverviewDrawer onClose={() => (overviewOpen = false)} />
+		{/await}
+	{/if}
+
+	{#if cronsOpen}
+		{#await import('$lib/features/crons/CronsDrawer.svelte') then cronsModule}
+			{@const CronsDrawer = cronsModule.default}
+			<CronsDrawer
+				crons={cronsState.crons}
+				loading={cronsState.loading}
+				error={cronsState.error}
+				profiles={terminalSessions.profiles}
+				agentProfiles={terminalSessions.agentProfiles}
+				environments={terminalSessions.environments}
+				sessions={terminalSessions.sessions}
+				onClose={() => (cronsOpen = false)}
+				onRefresh={cronsState.refresh.bind(cronsState)}
+				onCreate={cronsState.create.bind(cronsState)}
+				onUpdate={cronsState.update.bind(cronsState)}
+				onDelete={cronsState.delete.bind(cronsState)}
+				onRun={cronsState.run.bind(cronsState)}
+			/>
 		{/await}
 	{/if}
 
