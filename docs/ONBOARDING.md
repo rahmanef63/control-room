@@ -151,8 +151,8 @@ $EDITOR .env.local
 **Required to edit:**
 - `CONTROL_ROOM_SECRET` — paste from 2.5
 - `CONTROL_ROOM_SESSION_SECRET` — paste from 2.5 (different value!)
-- `NEXT_PUBLIC_APP_HOST` — your domain from 2.4
-- `NEXT_PUBLIC_APP_URL` — full URL including `https://`
+- `CONTROL_ROOM_DOMAIN` — your domain from 2.4
+- `ORIGIN` — full URL including `https://`
 
 **Leave as default** unless you know what you're doing:
 - All `*_PORT`, `*_INTERVAL_MS`, `*_PERCENT` — sensible defaults
@@ -180,7 +180,7 @@ sudo bash scripts/install-systemd.sh
 
 This installs:
 - `vps-control-room-agent` — Node 22 host agent
-- `vps-control-room-frontend` — Next.js production server
+- `vps-control-room-frontend` — SvelteKit adapter-node production server on Bun
 - `vps-control-room-cleanup` service + timer — daily terminal-runtime sweep
 
 The script reads the current directory and writes
@@ -193,11 +193,12 @@ bash scripts/deploy.sh main
 ```
 
 This will:
-1. Typecheck + unit-test frontend (`bun run test:all`)
-2. Build agent (`tsc`)
-3. Build frontend (`next build`)
-4. Restart both systemd services
-5. Sync Traefik dynamic config
+1. Install frontend from the frozen Bun lockfile
+2. Run Svelte check + frontend unit tests
+3. Build the SvelteKit adapter-node frontend
+4. Build the Node agent only when `agent/` changed
+5. Create and activate an immutable frontend release with automatic rollback
+6. Sync Traefik and verify the resulting services
 
 First build takes 3–5 minutes. Subsequent deploys are faster.
 
@@ -270,23 +271,17 @@ git pull origin main
 bash scripts/deploy.sh main
 ```
 
-`scripts/deploy.sh` is **idempotent** and **atomic**:
-- Acquires a lockfile so two deploys don't race.
-- Builds into `.next-staging`, promotes to `.next` only on success.
-- Keeps `.next-previous` for one-shot rollback.
+`scripts/deploy.sh` is **idempotent** and release-oriented:
+- Acquires a lockfile so two deploys do not race.
+- Runs frontend check/tests/build before switching production.
+- Copies adapter-node output into `frontend/releases/svelte-<timestamp>-<sha>/`.
+- Changes the systemd frontend drop-in only after the release is ready.
+- Restores the previous immutable release automatically if health/login verification fails.
+- Leaves the Node agent running for frontend-only deploys.
 
 ### 5.2 Rollback
 
-If a deploy goes bad:
-
-```bash
-cd frontend
-mv .next .next-broken
-mv .next-previous .next
-sudo systemctl restart vps-control-room-frontend
-```
-
-Then investigate `.next-broken` at leisure.
+Automatic rollback is built into `scripts/deploy.sh`. For manual recovery, use the previous release path recorded under `~/.local/state/control-room-deploy/backups/`, point the frontend drop-in back to that immutable release, reload systemd, and restart only `vps-control-room-frontend`. Never rebuild or restart the agent just to roll back frontend UI code.
 
 ### 5.3 Rotate secrets
 
@@ -315,7 +310,7 @@ What to back up:
 - `agent/var/*.json` (workspace state, settings, log.json)
 
 What NOT to back up:
-- `node_modules/`, `.next/`, `dist/`, `.deploy-state/` — all rebuildable
+- `node_modules/`, `frontend/build/`, and `agent/dist/` are rebuildable. Immutable `frontend/releases/` are operational rollback assets managed by retention.
 - `*.log` — they rotate
 
 ### 5.5 Update Node

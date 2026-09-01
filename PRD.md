@@ -108,8 +108,7 @@ not depend on any of them to start.
 - **Tailscale only**: the dashboard is never published to the public internet.
 - **Single user**: simple, strict auth (shared secret → signed cookie); no complex
   user management.
-- **Resilient**: panel and agent are independent systemd units; one collector or
-  pane failing must not take down the rest.
+- **Resilient**: panel and agent are independent systemd units; one collector or pane failing must not take down the rest.
 - **Portable**: clone the repo, fill env, build, enable systemd, run.
 
 ## 5. Architecture
@@ -118,7 +117,7 @@ not depend on any of them to start.
 
 The monorepo has these parts:
 
-- `frontend/` — the Next.js 15 App Router PWA (UI + thin proxy API routes)
+- `frontend/` — the canonical SvelteKit 2 + Svelte 5 PWA (UI + thin server proxy routes), built with adapter-node and run on Bun
 - `agent/` — the host agent (Node 22, runs on the VPS, holds all host access)
 - `packages/` — shared `contracts/` (TS types) and `runtime-config/` (envs + agent profiles)
 - `ops/traefik/` — Traefik dynamic-config template
@@ -129,10 +128,10 @@ path**. The browser cannot read the Docker socket, systemd, host logs, or the
 filesystem directly, so the component that interacts with the OS is the host
 **agent**, reached over HTTP/WS — not a normal web backend and not a sync database.
 
-### 5.2 Runtime data flow (HTTP-only)
+### 5.2 Runtime data flow (HTTP + SSE browser boundary)
 
 ```
-browser ──► frontend (Next.js, :4000)
+browser ──► frontend (SvelteKit adapter-node/Bun, :4000)
                 │   HMAC-signed cookie auth; thin proxy routes add the
                 │   control-room secret header
                 ▼
@@ -144,21 +143,19 @@ browser ──► frontend (Next.js, :4000)
 ```
 
 1. The user acts in the frontend (open pane, type, browse files, launch an agent).
-2. The frontend's Next.js proxy routes forward the request to the agent's HTTP/WS
-   API, attaching the control-room secret via the `x-control-room-secret` header.
+2. The frontend's SvelteKit server routes forward ordinary requests to the agent over HTTP. For terminal output, the browser consumes SSE while the frontend server holds the WebSocket client connection to the agent. The gateway secret stays server-side.
 3. The agent authenticates the gateway secret, then executes on the host (pty I/O,
    path-jailed fs ops, command exec, telemetry, browser CRUD, patrol).
 4. Results stream back over HTTP/WS; durable state (workspaces, sessions, log) is
    persisted as JSON under the agent's `STATE_DIR` (`agent/var/`).
 
 No reactive database sits between the frontend and the agent. Cross-pane UI state
-(colors, heartbeat) is shared in-browser via a module-level
-`useSyncExternalStore` snapshot, hydrated from `localStorage`; cross-browser
+(colors, heartbeat) is shared in-browser through Svelte rune-backed module state, hydrated from `localStorage`; cross-browser
 workspace state is the agent's authoritative JSON (last-write-wins).
 
 ### 5.3 Runtime placement
 
-- `frontend`: Next.js app on the host via `systemd`
+- `frontend`: SvelteKit adapter-node build on Bun via `systemd`
   (`vps-control-room-frontend.service`, port `4000`).
 - `agent`: Node process on the host via `systemd`
   (`vps-control-room-agent.service`, HTTP + WS on `4001`). Binds loopback by
@@ -178,11 +175,11 @@ configuration the dashboard never reads.
 
 | Layer | Technology |
 |---|---|
-| UI framework | Next.js 15 App Router + React 19 |
+| UI framework | SvelteKit 2 + Svelte 5 runes |
 | Styling | Tailwind CSS |
-| Component library | shadcn/ui |
-| Terminal | xterm.js (frontend) ↔ node-pty (agent) over WebSocket |
-| Frontend → agent transport | HTTP + WebSocket (REST proxy routes + ws stream) |
+| Component model | shadcn-svelte-style primitives + local Svelte components |
+| Terminal | xterm.js in browser → SSE from frontend; frontend server → agent WebSocket → node-pty |
+| Frontend → agent transport | HTTP for APIs + server-side WebSocket for live terminal output; browser boundary is HTTP/SSE |
 | Host integration | Node.js 22, raw `child_process` (no command allowlist), Docker socket HTTP |
 | Durable state | JSON files under the agent's `STATE_DIR` (`agent/var/`) |
 | Auth | shared secret via env + HMAC-SHA256 signed session cookie |
@@ -192,11 +189,9 @@ configuration the dashboard never reads.
 
 Notes:
 
-- Live pty output streams over a per-pane WebSocket; other agent data is plain
-  HTTP. There is no SSE-as-backbone and no reactive sync DB.
-- Collectors and the executor live in the **agent**, never in a Next.js route handler.
-- The Next.js `api/*` routes are thin proxies that authenticate and forward to the
-  agent — they do not execute host commands themselves.
+- Live pty output reaches the browser over per-pane SSE. The SvelteKit server is the WebSocket client to the agent; ordinary agent APIs remain HTTP. There is no reactive sync DB.
+- Collectors and the executor live in the **agent**, never in a SvelteKit server route.
+- The SvelteKit `api/*` server routes are thin proxies that authenticate and forward to the agent — they do not execute host commands themselves.
 
 ## 7. Functional Requirements (shipped)
 
@@ -323,13 +318,13 @@ A single-row pane header (`[title] [activity chip] [⋮]`) opens a tabbed modal:
 - The dashboard stays usable even if other host services are down — they are not
   startup dependencies of the panel or agent.
 - One failing collector or pane must not break the rest of the UI; each dashboard
-  page has an `error.tsx` sibling and collectors are individually guarded.
+  route-level failures are handled by `+error.svelte` where appropriate, pane failures are isolated with `<svelte:boundary>`, and collectors are individually guarded.
 
 ### 8.2 Performance
 
 - Terminal interaction should feel local over a normal Tailscale link.
 - Telemetry sampling is interval-based, not an aggressive loop.
-- Light production servers (built, not `next dev`) are used in real deployments to
+- Light production servers (built adapter-node output, not Vite dev) are used in real deployments to
   avoid CPU spikes when many panes are open.
 
 ### 8.3 Security
@@ -343,7 +338,7 @@ A single-row pane header (`[title] [activity chip] [⋮]`) opens a tabbed modal:
   endpoint, loopback bind, Tailscale-only origin — plus filesystem path-jailing to
   home/projects roots. Commands themselves are not allowlist-validated; the
   single authenticated owner runs arbitrary shell by design.
-- Secrets are never sent to the client (never in `NEXT_PUBLIC_*`).
+- Secrets are never sent to the client or serialized into browser-visible data.
 - Only the agent may access the Docker socket and other privileged host interfaces.
 
 ### 8.4 Operability
@@ -355,7 +350,7 @@ A single-row pane header (`[title] [activity chip] [⋮]`) opens a tabbed modal:
 
 ## 9. Collector and Host-Integration Design
 
-Collectors and the executor run in the **agent**, never in a Next.js route.
+Collectors and the executor run in the **agent**, never in a SvelteKit route.
 
 ### 9.1 System telemetry collector
 
@@ -417,7 +412,7 @@ All host commands run inside the **agent**.
 
 ## 11. Frontend Route Structure
 
-Frontend lives in `frontend/`, App Router. The terminal workspace is the core
+Frontend lives in `frontend/` as the single SvelteKit application. The terminal workspace is the core
 feature surface (`frontend/src/features/terminals/`).
 
 ```text
@@ -453,22 +448,21 @@ frontend/
 
 Notes:
 
-- Frontend `api/*` routes are thin proxies: they authenticate the request, attach
+- Frontend SvelteKit `api/*` routes are thin proxies: they authenticate the request, attach
   the `x-control-room-secret` header, and forward to the agent. They do not execute
   host commands.
-- Live pty output is a WebSocket stream (`api/terminals/[id]/stream`), not a route
-  handler loop.
-- Every dashboard surface has an `error.tsx` so one panel crashing does not take
-  down the whole dashboard.
+- Live pty output is exposed to the browser by the SvelteKit `api/terminals/[id]/stream` SSE route; that server route bridges from the agent WebSocket without exposing the gateway secret.
+- Svelte route-level `+error.svelte` and pane-level `<svelte:boundary>` isolate failures so one pane or route cannot take down the whole dashboard.
 
 ## 12. Repo Structure
 
 ```text
 .
-├── frontend/                # Next.js 15 PWA (UI + thin proxy api/*)
-│   ├── app/                 # login, view, api/*, styles
-│   ├── src/features/        # terminals, crons, templates
-│   └── middleware.ts
+├── frontend/                # SvelteKit 2 PWA (UI + server proxy routes)
+│   ├── src/routes/          # pages, auth, api/*, browser CRUD
+│   ├── src/lib/features/    # terminals, crons, templates, patrol
+│   ├── src/lib/server/      # session + authenticated agent gateway
+│   └── src/hooks.server.ts  # global session guard
 ├── agent/                   # Node 22 host agent (all host access)
 │   └── src/
 │       ├── app/             # bootstrap + health-server (HTTP + WS)
@@ -504,8 +498,8 @@ Required (frontend + agent):
 ```env
 CONTROL_ROOM_SECRET=          # login secret + agent gateway header; openssl rand -hex 32
 CONTROL_ROOM_SESSION_SECRET=  # different value; HMAC key for the session cookie
-NEXT_PUBLIC_APP_URL=          # https://<tailnet-domain>
-NEXT_PUBLIC_APP_HOST=         # hostname only
+CONTROL_ROOM_DOMAIN=         # public hostname used by Traefik
+ORIGIN=                       # https://<public-domain>
 ```
 
 Optional:
@@ -525,7 +519,7 @@ SESSION_EXPIRY_HOURS=24        # cookie lifetime (middleware slides it forward o
 
 Notes:
 
-- Never put secrets in `NEXT_PUBLIC_*` — those are baked into the client bundle.
+- Never expose secrets through client-visible Svelte environment variables or serialized page data.
 - `CONTROL_ROOM_SESSION_SECRET` must differ from `CONTROL_ROOM_SECRET`: the former
   signs cookies, the latter gates login + the agent gateway header.
 
@@ -562,7 +556,7 @@ Both are generated by `scripts/install-systemd.sh` relative to the repo root, wi
 `WorkingDirectory` at the repo path and `EnvironmentFile` at `<repo>/.env.local`.
 `WantedBy=multi-user.target`, `Restart=always`.
 
-- Frontend: `bun --bun node_modules/.bin/next start --hostname 0.0.0.0 --port 4000`.
+- Frontend: `bun build/index.js` from an immutable SvelteKit adapter-node release; systemd supplies `HOST=0.0.0.0` and `PORT=4000`.
 - Agent: `node agent/dist/index.js` — the daemon stays on Node: under Bun 1.3
   node-pty never emits data and `Bun.Terminal` gives the child no controlling
   tty (no job control, no `setsid`), breaking Ctrl-C and process-group kill.
@@ -583,14 +577,7 @@ bash scripts/deploy.sh main
 `scripts/deploy.sh` (in order): acquires a flock lock; requires `.env.local` and the
 Traefik template; on CI it does `git reset --hard origin/<branch>`, otherwise builds
 the working tree; runs the typecheck preflight; stamps the build id
-(`scripts/bump-version.sh`); builds the frontend into `.next-staging`; rebuilds the
-agent if its source changed; restarts both systemd services; atomically promotes
-`.next-staging → .next` (keeping `.next-previous` for one-shot rollback); syncs the
-Traefik dynamic config; and verifies both services are active.
-
-> The deploy script and `docs/runbook.md` still contain a Convex deploy step. That
-> is the disclosed pending refactor — it is not required for the HTTP-only
-> dashboard to run, and the CLI is the only consumer of Convex.
+through `PUBLIC_BUILD_ID`; checks/tests/builds the canonical Svelte frontend; copies `frontend/build` to an immutable `frontend/releases/svelte-*` directory; rebuilds/restarts the agent only when `agent/` changed; regenerates the Svelte-native systemd unit; switches the frontend release with automatic rollback on failed health checks; syncs Traefik; and verifies the resulting runtime.
 
 ### 15.2 Edge routing (Traefik)
 

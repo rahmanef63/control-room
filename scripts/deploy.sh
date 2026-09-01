@@ -1,18 +1,23 @@
 #!/bin/bash
 set -euo pipefail
 
-# Resolve repo root from GITHUB_WORKSPACE (CI) or the script's own location.
+# VPS Control Room — SvelteKit adapter-node deploy with immutable frontend releases.
+# Default mode updates from origin/<branch>. Set DEPLOY_FROM_WORKTREE=1 to deploy
+# the current local worktree without fetching, checking out, pulling, or pushing.
+
 REPO_DIR="${GITHUB_WORKSPACE:-"$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"}"
 BRANCH="${1:-main}"
 LOCK_FILE="/tmp/vps-control-room-deploy.lock"
-DEPLOY_STATE_DIR="${REPO_DIR}/.deploy-state"
-AGENT_STAMP_FILE="${DEPLOY_STATE_DIR}/agent.commit"
+STATE_DIR="${HOME:-/home/$(id -un)}/.local/state/control-room-deploy"
+AGENT_STAMP_FILE="${STATE_DIR}/agent.commit"
 FRONTEND_DIR="${REPO_DIR}/frontend"
-LIVE_NEXT_DIR="${FRONTEND_DIR}/.next"
-STAGED_NEXT_DIR="${FRONTEND_DIR}/.next-staging"
-PREVIOUS_NEXT_DIR="${FRONTEND_DIR}/.next-previous"
-FRONTEND_STATIC_SNAPSHOT_DIR="${DEPLOY_STATE_DIR}/frontend-static"
-FRONTEND_STATIC_SNAPSHOT_RETENTION=3
+RELEASES_DIR="${FRONTEND_DIR}/releases"
+RELEASE_RETENTION="${FRONTEND_RELEASE_RETENTION:-5}"
+FRONTEND_SERVICE="vps-control-room-frontend.service"
+AGENT_SERVICE="vps-control-room-agent.service"
+FRONTEND_DROPIN_DIR="/etc/systemd/system/${FRONTEND_SERVICE}.d"
+FRONTEND_DROPIN="${FRONTEND_DROPIN_DIR}/10-release.conf"
+LEGACY_FRONTEND_DROPIN="${FRONTEND_DROPIN_DIR}/10-svelte.conf"
 
 exec 9>"${LOCK_FILE}"
 flock 9
@@ -21,11 +26,9 @@ log() {
   printf '[%s] %s\n' "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" "$*"
 }
 
-# Resolve bun once. systemd/CI invoke this with a minimal PATH that usually
-# lacks ~/.bun/bin, so fall back to the default install location.
 BUN="${BUN:-$(command -v bun || echo "${HOME:-}/.bun/bin/bun")}"
 if [ ! -x "${BUN}" ]; then
-  log "bun not found at '${BUN}' (looked in PATH and \$HOME/.bun/bin) — install bun or set BUN=/path/to/bun"
+  log "bun not found at '${BUN}' — install bun or set BUN=/path/to/bun"
   exit 1
 fi
 
@@ -41,262 +44,218 @@ load_env_file() {
   local path="$1"
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
-      ""|\#*)
-        continue
-        ;;
+      ""|\#*) continue ;;
     esac
-
     local key="${line%%=*}"
     local value="${line#*=}"
     export "${key}=${value}"
   done < "$path"
 }
 
-snapshot_frontend_static() {
-  if [ ! -d "${LIVE_NEXT_DIR}/static" ]; then
-    return
-  fi
-
-  mkdir -p "${FRONTEND_STATIC_SNAPSHOT_DIR}"
-
-  local snapshot_dir="${FRONTEND_STATIC_SNAPSHOT_DIR}/$(date -u '+%Y%m%d%H%M%S')-${PREVIOUS_COMMIT:0:12}"
-  mkdir -p "${snapshot_dir}"
-  cp -a "${LIVE_NEXT_DIR}/static/." "${snapshot_dir}/"
+service_pid() {
+  sudo systemctl show "$1" -p MainPID --value 2>/dev/null || printf '0\n'
 }
 
-prune_frontend_static_snapshots() {
-  if [ ! -d "${FRONTEND_STATIC_SNAPSHOT_DIR}" ]; then
-    return
+process_cwd() {
+  local pid="$1"
+  if [ -n "$pid" ] && [ "$pid" != "0" ] && [ -d "/proc/${pid}" ]; then
+    readlink -f "/proc/${pid}/cwd" 2>/dev/null || true
   fi
-
-  local snapshots=()
-  mapfile -t snapshots < <(find "${FRONTEND_STATIC_SNAPSHOT_DIR}" -mindepth 1 -maxdepth 1 -type d | sort)
-
-  if [ "${#snapshots[@]}" -le "${FRONTEND_STATIC_SNAPSHOT_RETENTION}" ]; then
-    return
-  fi
-
-  local remove_count=$(( ${#snapshots[@]} - FRONTEND_STATIC_SNAPSHOT_RETENTION ))
-  local index=0
-  while [ "${index}" -lt "${remove_count}" ]; do
-    rm -rf "${snapshots[${index}]}"
-    index=$((index + 1))
-  done
 }
 
-restore_frontend_static_snapshots() {
-  if [ ! -d "${STAGED_NEXT_DIR}/static" ] || [ ! -d "${FRONTEND_STATIC_SNAPSHOT_DIR}" ]; then
-    return
-  fi
-
-  local snapshots=()
-  mapfile -t snapshots < <(find "${FRONTEND_STATIC_SNAPSHOT_DIR}" -mindepth 1 -maxdepth 1 -type d | sort)
-
-  local snapshot
-  for snapshot in "${snapshots[@]}"; do
-    cp -a "${snapshot}/." "${STAGED_NEXT_DIR}/static/"
-  done
-}
-
-activate_frontend_build() {
-  if [ ! -d "${STAGED_NEXT_DIR}" ]; then
-    log "Missing staged frontend build: ${STAGED_NEXT_DIR}"
-    exit 1
-  fi
-
-  log "Promoting staged frontend build"
-  sudo systemctl stop vps-control-room-frontend
-
-  rm -rf "${PREVIOUS_NEXT_DIR}"
-  if [ -d "${LIVE_NEXT_DIR}" ]; then
-    mv "${LIVE_NEXT_DIR}" "${PREVIOUS_NEXT_DIR}"
-  fi
-  mv "${STAGED_NEXT_DIR}" "${LIVE_NEXT_DIR}"
-
-  # Type=simple means `systemctl start` returns as soon as systemd forks, so an
-  # immediate is-active check races a process that dies milliseconds later
-  # (e.g. ExecStart's binary not on the unit's PATH -> exit 127 -> restart loop).
-  # It would report success and then delete PREVIOUS_NEXT_DIR, destroying the
-  # only rollback material. Let it settle, then require it to still be up.
-  if sudo systemctl start vps-control-room-frontend; then
-    sleep 8
-    if sudo systemctl is-active --quiet vps-control-room-frontend; then
-      rm -rf "${PREVIOUS_NEXT_DIR}"
-      return
+write_release_dropin() {
+  local release_dir="$1"
+  local build_id="${2:-}"
+  sudo mkdir -p "${FRONTEND_DROPIN_DIR}"
+  sudo rm -f "${LEGACY_FRONTEND_DROPIN}"
+  {
+    printf '[Service]\n'
+    printf 'WorkingDirectory=%s\n' "${release_dir}"
+    if [ -n "${build_id}" ]; then
+      printf 'Environment=PUBLIC_BUILD_ID=%s\n' "${build_id}"
     fi
-  fi
-
-  log "Frontend failed to start after promotion, rolling back"
-  sudo systemctl stop vps-control-room-frontend || true
-  rm -rf "${LIVE_NEXT_DIR}"
-
-  if [ -d "${PREVIOUS_NEXT_DIR}" ]; then
-    mv "${PREVIOUS_NEXT_DIR}" "${LIVE_NEXT_DIR}"
-    sudo systemctl start vps-control-room-frontend || true
-  fi
-
-  exit 1
+  } | sudo tee "${FRONTEND_DROPIN}" >/dev/null
+  sudo systemctl daemon-reload
 }
 
-log "Starting deploy for branch: ${BRANCH}"
+rollback_frontend() {
+  local previous_release="$1"
+  if [ -n "${previous_release}" ] && [ -d "${previous_release}/build" ]; then
+    log "Rolling frontend back to ${previous_release}"
+    write_release_dropin "${previous_release}"
+    sudo systemctl restart "${FRONTEND_SERVICE}" || true
+  else
+    log "No valid previous frontend release was available for automatic rollback"
+  fi
+}
+
+verify_local_frontend() {
+  local attempts=20
+  local i
+  for ((i=1; i<=attempts; i++)); do
+    if sudo systemctl is-active --quiet "${FRONTEND_SERVICE}" \
+      && curl -fsS --max-time 3 http://127.0.0.1:4000/api/health >/dev/null \
+      && curl -fsS --max-time 3 http://127.0.0.1:4000/login >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+prune_releases() {
+  [ -d "${RELEASES_DIR}" ] || return 0
+  local releases=()
+  mapfile -t releases < <(find "${RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d -name 'svelte-*' | sort)
+  local count="${#releases[@]}"
+  [ "$count" -le "${RELEASE_RETENTION}" ] && return 0
+
+  local active_pid active_release remove_needed release
+  active_pid="$(service_pid "${FRONTEND_SERVICE}")"
+  active_release="$(process_cwd "${active_pid}")"
+  remove_needed=$((count - RELEASE_RETENTION))
+
+  for release in "${releases[@]}"; do
+    [ "$remove_needed" -le 0 ] && break
+    if [ "${release}" = "${active_release}" ]; then
+      continue
+    fi
+    log "Pruning old frontend release: ${release}"
+    rm -rf "${release}"
+    remove_needed=$((remove_needed - 1))
+  done
+}
+
+log "Starting deploy${DEPLOY_FROM_WORKTREE:+ (worktree mode)}"
 
 if ! sudo -n true >/dev/null 2>&1; then
-  log "Passwordless sudo is required for restarting services"
+  log "Passwordless sudo is required for service deployment"
   exit 1
 fi
 
 require_file "${REPO_DIR}/.env.local"
 require_file "${REPO_DIR}/ops/traefik/vps-control-room.yml"
-
+require_file "${FRONTEND_DIR}/package.json"
 load_env_file "${REPO_DIR}/.env.local"
 
-TERMINAL_ONLY_MODE="${TERMINAL_ONLY_MODE:-true}"
-if [ "${TERMINAL_ONLY_MODE}" = "true" ] || [ "${TERMINAL_ONLY_MODE}" = "1" ]; then
-  TERMINAL_ONLY_ENABLED=1
-else
-  TERMINAL_ONLY_ENABLED=0
-fi
-
-if [ -f "${REPO_DIR}/convex/.env.local" ]; then
-  load_env_file "${REPO_DIR}/convex/.env.local"
-elif [ "${TERMINAL_ONLY_ENABLED}" -eq 0 ]; then
-  log "Missing required file: ${REPO_DIR}/convex/.env.local"
-  exit 1
-fi
-
 cd "${REPO_DIR}"
-mkdir -p "${DEPLOY_STATE_DIR}"
+mkdir -p "${STATE_DIR}" "${RELEASES_DIR}"
 
-log "Updating repository"
 PREVIOUS_COMMIT="$(git rev-parse HEAD)"
-git fetch origin
-git checkout "${BRANCH}"
-# Reset any file patched during a previous deploy so ff-only pull remains clean.
-git restore frontend/public/sw.js 2>/dev/null || git checkout -- frontend/public/sw.js 2>/dev/null || true
-git pull --ff-only origin "${BRANCH}"
+if [ "${DEPLOY_FROM_WORKTREE:-0}" != "1" ]; then
+  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    log "Tracked worktree changes detected; refusing remote-mode deploy. Commit/stash them or use DEPLOY_FROM_WORKTREE=1."
+    exit 1
+  fi
+  log "Updating repository from origin/${BRANCH}"
+  git fetch origin
+  git checkout "${BRANCH}"
+  git pull --ff-only origin "${BRANCH}"
+else
+  log "Deploying current worktree without touching GitHub state"
+fi
 CURRENT_COMMIT="$(git rev-parse HEAD)"
-
-# Put vps-cr on PATH. Only install.sh (the LOCAL installer) ever created this
-# symlink, so on a VPS checkout the CLI shipped in bin/ was unreachable — and
-# it owns the device-approval commands you need exactly when you are locked out
-# of the dashboard. Idempotent; ln -sfn re-points it if the repo moved.
-if [ -x "${REPO_DIR}/bin/vps-cr" ] && [ -n "${HOME:-}" ]; then
-  mkdir -p "${HOME}/.local/bin"
-  ln -sfn "${REPO_DIR}/bin/vps-cr" "${HOME}/.local/bin/vps-cr"
-fi
-
-# Stamp SW cache keys + Next.js build id with the SAME 12-char commit slice
-# so every layer (SW cache name, NEXT_PUBLIC_BUILD_ID baked into the bundle,
-# /api/version response) reports the identical id. Makes "which build is
-# this?" debugging trivial.
 BUILD_ID_SHORT="${CURRENT_COMMIT:0:12}"
-bash "${REPO_DIR}/scripts/bump-version.sh" "${BUILD_ID_SHORT}"
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  BUILD_ID_SHORT="${BUILD_ID_SHORT}-dirty"
+fi
 export COMMIT_SHA="${CURRENT_COMMIT}"
-export NEXT_PUBLIC_BUILD_ID="${BUILD_ID_SHORT}"
-log "Stamped sw.js + build id: v${BUILD_ID_SHORT}"
+export PUBLIC_BUILD_ID="${BUILD_ID_SHORT}"
 
-CHANGED_FILES="$(git diff --name-only "${PREVIOUS_COMMIT}" "${CURRENT_COMMIT}" || true)"
-LOCAL_AGENT_CHANGES="$(git status --porcelain -- agent scripts/deploy.sh convex frontend/app/api/terminals frontend/app/\(dashboard\)/terminals frontend/lib/server/terminal-gateway.ts frontend/next.config.ts || true)"
-LOCAL_CONVEX_CHANGES="$(git status --porcelain -- convex package.json bun.lock || true)"
+PREVIOUS_FRONTEND_PID="$(service_pid "${FRONTEND_SERVICE}")"
+PREVIOUS_RELEASE="$(process_cwd "${PREVIOUS_FRONTEND_PID}")"
+AGENT_PID_BEFORE="$(service_pid "${AGENT_SERVICE}")"
+
 AGENT_RESTART_REQUIRED=0
-CONVEX_DEPLOY_REQUIRED=0
+LOCAL_AGENT_CHANGES="$(git status --porcelain -- agent || true)"
+if [ -n "${LOCAL_AGENT_CHANGES}" ]; then
+  AGENT_RESTART_REQUIRED=1
+fi
+if [ "${PREVIOUS_COMMIT}" != "${CURRENT_COMMIT}" ] && ! git diff --quiet "${PREVIOUS_COMMIT}" "${CURRENT_COMMIT}" -- agent; then
+  AGENT_RESTART_REQUIRED=1
+fi
 LAST_AGENT_DEPLOYED_COMMIT="$(cat "${AGENT_STAMP_FILE}" 2>/dev/null || true)"
-AGENT_CHANGES_SINCE_LAST_DEPLOY=""
-
 if [ -n "${LAST_AGENT_DEPLOYED_COMMIT}" ] && git cat-file -e "${LAST_AGENT_DEPLOYED_COMMIT}^{commit}" 2>/dev/null; then
-  AGENT_CHANGES_SINCE_LAST_DEPLOY="$(git diff --name-only "${LAST_AGENT_DEPLOYED_COMMIT}" "${CURRENT_COMMIT}" || true)"
-else
+  if ! git diff --quiet "${LAST_AGENT_DEPLOYED_COMMIT}" "${CURRENT_COMMIT}" -- agent; then
+    AGENT_RESTART_REQUIRED=1
+  fi
+elif [ "${DEPLOY_FROM_WORKTREE:-0}" != "1" ]; then
   AGENT_RESTART_REQUIRED=1
 fi
 
-if printf '%s\n%s\n%s\n' "${CHANGED_FILES}" "${LOCAL_AGENT_CHANGES}" "${AGENT_CHANGES_SINCE_LAST_DEPLOY}" | grep -qE '(^| )agent/|(^| )convex/|scripts/deploy\.sh|frontend/app/api/terminals|frontend/app/\(dashboard\)/terminals|frontend/lib/server/terminal-gateway\.ts'; then
-  AGENT_RESTART_REQUIRED=1
-fi
+log "Installing canonical Svelte frontend dependencies"
+"${BUN}" install --cwd "${FRONTEND_DIR}" --frozen-lockfile
 
-if printf '%s\n%s\n' "${CHANGED_FILES}" "${LOCAL_CONVEX_CHANGES}" | grep -qE '(^| )convex/|(^| )package\.json|(^| )bun\.lock'; then
-  CONVEX_DEPLOY_REQUIRED=1
-fi
+log "Running frontend check, tests, and production build"
+"${BUN}" run --cwd "${FRONTEND_DIR}" check
+"${BUN}" run --cwd "${FRONTEND_DIR}" test
+nice -n 15 ionice -c2 -n7 "${BUN}" run --cwd "${FRONTEND_DIR}" build
+git diff --check
 
-snapshot_frontend_static
-prune_frontend_static_snapshots
-
-log "Installing frontend deps"
-cd "${FRONTEND_DIR}"
-"${BUN}" install
-
-# Preflight: typecheck + unit tests must pass before we ever touch the live
-# build. Failures abort early, leaving the running server untouched.
-if [ "${SKIP_FRONTEND_TESTS:-0}" != "1" ]; then
-  log "Running frontend tests (typecheck + unit tests)"
-  "${BUN}" run test:all
-else
-  log "Skipping frontend tests (SKIP_FRONTEND_TESTS=1)"
-fi
-
-log "Building frontend"
-rm -rf "${STAGED_NEXT_DIR}"
-# Run the build at low CPU/IO priority so it yields to runtime + monitoring.
-# A single on-box `next build` is the control room's share of the build-storm
-# that tripped the 2026-05-28 Hostinger CPU throttle; nicing it keeps the box
-# responsive (and patrol unblinded) while it builds.
-NEXT_DIST_DIR="$(basename "${STAGED_NEXT_DIR}")" nice -n 15 ionice -c2 -n7 "${BUN}" run build
-cd "${REPO_DIR}"
-restore_frontend_static_snapshots
+STAMP="$(date -u '+%Y%m%dT%H%M%SZ')"
+RELEASE_DIR="${RELEASES_DIR}/svelte-${STAMP}-${CURRENT_COMMIT:0:7}"
+mkdir -p "${RELEASE_DIR}"
+cp -a "${FRONTEND_DIR}/build" "${RELEASE_DIR}/build"
+log "Prepared immutable frontend release: ${RELEASE_DIR}"
 
 if [ "${AGENT_RESTART_REQUIRED}" -eq 1 ]; then
-  log "Installing and building agent"
-  cd agent
-  "${BUN}" install
-  "${BUN}" run build
-  cd ..
-  printf '%s\n' "${CURRENT_COMMIT}" > "${AGENT_STAMP_FILE}"
+  log "Agent changes detected; installing, testing, and building agent"
+  "${BUN}" install --cwd "${REPO_DIR}/agent" --frozen-lockfile
+  "${BUN}" run --cwd "${REPO_DIR}/agent" test:all
+  "${BUN}" run --cwd "${REPO_DIR}/agent" build
 else
-  log "Skipping agent rebuild (no relevant changes)"
-fi
-
-if [ "${TERMINAL_ONLY_ENABLED}" -eq 1 ]; then
-  log "Skipping Convex deploy (terminal-only mode enabled)"
-elif [ "${CONVEX_DEPLOY_REQUIRED}" -eq 1 ]; then
-  log "Deploying Convex functions"
-  # The local self-hosted Convex endpoint uses a self-signed certificate.
-  # Disable TLS verification for this deploy call so schema pushes remain
-  # non-interactive during VPS rollouts.
-  # `bun x` is bunx; called via the resolved binary because PATH may lack ~/.bun/bin.
-  NODE_TLS_REJECT_UNAUTHORIZED=0 \
-    "${BUN}" x convex deploy --env-file convex/.env.local --typecheck disable -y
-else
-  log "Skipping Convex deploy (no relevant changes)"
+  log "Agent unchanged; preserving the running agent process"
 fi
 
 log "Syncing Traefik dynamic config"
-# envsubst substitutes CONTROL_ROOM_DOMAIN (and any other vars) from the
-# loaded .env.local so the template placeholder never reaches the live config.
 CONTROL_ROOM_DOMAIN="${CONTROL_ROOM_DOMAIN:-}" \
   envsubst '${CONTROL_ROOM_DOMAIN}' \
   < "${REPO_DIR}/ops/traefik/vps-control-room.yml" \
-  | sudo tee /etc/dokploy/traefik/dynamic/vps-control-room.yml > /dev/null
+  | sudo tee /etc/dokploy/traefik/dynamic/vps-control-room.yml >/dev/null
 
-# Regenerate the units from the repo BEFORE promoting the build. The unit files
-# encode the absolute bun path and the unit PATH; a unit written by an older
-# revision (e.g. the pre-bun `ExecStart=/usr/bin/npm run start`) would start a
-# shell that can't resolve bun and crash-loop, and the .next rollback below
-# cannot fix a unit-file problem. install-systemd.sh is idempotent and only
-# writes + daemon-reload + enable — it never starts or restarts anything.
-log "Regenerating systemd units"
-# APP_USER is pinned to whoever owns this deploy, not derived from SUDO_USER —
-# a CI runner invoking deploy.sh under a different account must not silently
-# rewrite the units' User=.
-sudo APP_USER="$(id -un)" BUN_BIN="${BUN}" bash "${REPO_DIR}/scripts/install-systemd.sh" > /dev/null
+log "Regenerating Svelte-native systemd units"
+SKIP_AGENT_UNIT=0
+if [ "${AGENT_RESTART_REQUIRED}" -eq 0 ]; then
+  SKIP_AGENT_UNIT=1
+fi
+sudo APP_USER="$(id -un)" \
+  BUN_BIN="${BUN}" \
+  SKIP_AGENT_UNIT="${SKIP_AGENT_UNIT}" \
+  AUTH_DEVICE_STORE="${AUTH_DEVICE_STORE:-${REPO_DIR}/agent/var/auth-devices.json}" \
+  bash "${REPO_DIR}/scripts/install-systemd.sh" >/dev/null
 
-log "Restarting systemd services"
-activate_frontend_build
-if [ "${AGENT_RESTART_REQUIRED}" -eq 1 ]; then
-  sudo systemctl restart vps-control-room-agent
+BACKUP_DIR="${STATE_DIR}/backups/${STAMP}-${CURRENT_COMMIT:0:7}"
+mkdir -p "${BACKUP_DIR}"
+printf '%s\n' "${PREVIOUS_RELEASE}" > "${BACKUP_DIR}/previous-release.txt"
+if sudo test -f "${FRONTEND_DROPIN}"; then
+  sudo cat "${FRONTEND_DROPIN}" > "${BACKUP_DIR}/10-release.conf"
+fi
+if sudo test -f "${LEGACY_FRONTEND_DROPIN}"; then
+  sudo cat "${LEGACY_FRONTEND_DROPIN}" > "${BACKUP_DIR}/10-svelte.conf"
 fi
 
-log "Verifying services are active"
-if [ "${AGENT_RESTART_REQUIRED}" -eq 1 ]; then
-  sudo systemctl is-active --quiet vps-control-room-agent
+log "Switching frontend service to new release"
+write_release_dropin "${RELEASE_DIR}" "${BUILD_ID_SHORT}"
+if ! sudo systemctl restart "${FRONTEND_SERVICE}" || ! verify_local_frontend; then
+  rollback_frontend "${PREVIOUS_RELEASE}"
+  exit 1
 fi
 
-log "Deployment complete"
+if [ "${AGENT_RESTART_REQUIRED}" -eq 1 ]; then
+  sudo systemctl restart "${AGENT_SERVICE}"
+  sudo systemctl is-active --quiet "${AGENT_SERVICE}"
+  printf '%s\n' "${CURRENT_COMMIT}" > "${AGENT_STAMP_FILE}"
+else
+  AGENT_PID_AFTER="$(service_pid "${AGENT_SERVICE}")"
+  if [ "${AGENT_PID_BEFORE}" != "${AGENT_PID_AFTER}" ]; then
+    log "Warning: agent PID changed externally (${AGENT_PID_BEFORE} -> ${AGENT_PID_AFTER}) even though deploy did not restart it"
+  else
+    log "Verified agent PID unchanged: ${AGENT_PID_AFTER}"
+  fi
+fi
+
+# Old migration previews are transient and must never survive a verified deploy.
+sudo systemctl stop vps-control-room-svelte-preview.service >/dev/null 2>&1 || true
+prune_releases
+
+log "Deployment complete: frontend=${RELEASE_DIR} build=${BUILD_ID_SHORT}"

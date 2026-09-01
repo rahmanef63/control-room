@@ -82,7 +82,7 @@ $T ws color <wsId> "#34d399"
 $T ws active <wsId>
 
 # author your OWN prompts (writes your watcher entry)
-$T watcher prompt <sid> "continue the Clerk→Convex migration, ultrathink"
+$T watcher prompt <sid> "continue the Svelte canonicalization, ultrathink"
 $T watcher default "please continue as ur recommended, ultrathink"
 $T watcher mode patrol-senior-fullstack
 $T watcher watch <sid>               # add a pane to your watch list
@@ -99,7 +99,7 @@ $T policy set loadGate 10
 $T policy set notifyWebhook "https://n8n.../webhook/alfa"
 
 # (1) memory — per-watcher journal, ring cap + TTL, trimmed every write
-$T mem set <sid> "pane on Clerk→Convex migration, last step: fixed redirect URI"
+$T mem set <sid> "pane on Svelte canonicalization, last step: verified adapter-node build"
 $T mem get <sid>                     # recall context after restart instead of re-deriving
 $T mem gc                            # drop journals for dead watchers (run at bootstrap)
 
@@ -245,10 +245,10 @@ done
      `watcher.defaultInstruction`, verbatim.
    - `mode === 'patrol-senior-fullstack'`: act as a senior fullstack
      engineer. Use the buffer tail + target session metadata (cwd, title,
-     inner_agent) to infer project context (Convex / Next.js App Router /
-     Clerk migration / design system / deploy pipeline / etc.). Pick the
+     inner_agent) to infer project context (SvelteKit / Node agent / design system /
+     deploy pipeline / etc.). Pick the
      next concrete step and invoke the most relevant skill if one fits
-     (`/audit-bp`, `/rr-prep`, `/rr-send`, `/sc-git`, `/sc-convex`,
+     (`/audit-bp`, `/rr-prep`, `/rr-send`, `/sc-git`,
      `/sc-dokploy`, `/verify`, ...). Send that tailored prompt — not the
      meta-template itself. Treat `watcher.defaultInstruction` as guidance
      for your own behaviour, not literal payload.
@@ -307,16 +307,16 @@ Also `TaskStop` the Monitor.
 - **This is the production VPS. Never-idle is OFF here.** Do NOT manufacture
   work to keep panes busy. Only act on a real `waiting`/`done` ping for a pane
   with a genuine next step. An idle pane is fine — leave it idle. Reason: on
-  2026-05-28, never-idle drove parallel `next build`s → sustained 100% CPU →
+  2026-05-28, never-idle drove parallel frontend builds → sustained 100% CPU →
   Hostinger CPU-throttle (95% steal) → dokploy 502. Don't recreate it.
 - **Load-aware backoff (data-driven).** Always gate on `$T cadence` before
   nudging — it reads live loadavg vs `policy.loadGate` and returns `nudgeOk` +
   the `pollMs` you should pace at. If `nudgeOk:false`, skip + `decision log`.
   The agent's patrol scheduler also gates at `PATROL_LOAD_GATE`, but you must
   respect cadence for direct actions. Never nudge while a build is running.
-- **Never auto-fire `policy.heavyCmds`** (`git push`, `next build`,
-  `bun/npm/pnpm/yarn build`, `docker build`, `convex deploy`, …). A `git push`
-  triggers the sc-git pre-push hook → a full on-box `next build`, and because
+- **Never auto-fire `policy.heavyCmds`** (`git push`, frontend/package builds,
+  `docker build`, deploy commands, …). A `git push` may trigger an on-box
+  verification build, and because
   pty panes live in the agent's cgroup, that build is charged to the agent and
   stalls EVERY terminal (2026-05-28: 84% memory-stall, typing froze). If a
   watched pane's task genuinely needs a build/push, do NOT send it yourself —

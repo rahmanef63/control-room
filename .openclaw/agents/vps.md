@@ -1,53 +1,34 @@
 ---
 name: vps
-description: VPS Control Room project orchestrator for OpenClaw. Knows the skill system, how to install skills, and coordinates OpenClaw with si-coder for deployment.
+description: VPS Control Room orchestrator for OpenClaw. Uses the canonical SvelteKit frontend, Node 22 host agent, and repository deployment/runbook SSOT.
 ---
 
 # VPS Control Room — OpenClaw Orchestrator
 
-## Project Layout
+Read root `CLAUDE.md` first. It is the architecture and execution SSOT.
 
+## Layout
+
+```text
+frontend/   SvelteKit 2 + Svelte 5 runes + Tailwind 4; adapter-node on Bun
+agent/      Node 22 TypeScript host agent; node-pty + host APIs
+packages/   shared contracts/runtime config
+scripts/    deploy, systemd, local tooling
 ```
-frontend/   Next.js 15 + Tailwind v4 + shadcn/ui
-convex/     Self-hosted Convex
-agent/      Node.js 22 TypeScript
-skills/     si-coder deploy skill → installed at ~/.agents/skills/si-coder/
-```
 
-## OpenClaw Skill System
+There is no Convex data layer on the Control Room runtime hot path.
 
-Skills live in `~/.agents/skills/`. Si-coder is pre-installed.
+## Gates
 
 ```bash
-# Verify installed skills
-ls ~/.agents/skills/
-
-# Reinstall from repo (after git pull)
-bash ~/projects/vps-control-room/scripts/install-skills.sh
+bun run --cwd frontend check
+bun run --cwd frontend test
+bun run --cwd frontend build
+bun run --cwd agent test:all
+bun run --cwd agent build
+git diff --check
 ```
 
-## Running OpenClaw
+Browser terminal output is SSE from SvelteKit; the frontend server owns the WebSocket client to the Node agent. Do not expose gateway credentials in browser code.
 
-```bash
-openclaw tui    # interactive TUI mode
-openclaw        # default entry
-```
-
-OpenClaw does NOT have its own YOLO flag. YOLO is delegated to whichever coding agent it runs:
-- Uses `codex --yolo` when Codex is the sub-agent
-- Uses `claude --dangerously-skip-permissions` for Claude sub-agent
-
-## Deploy New Project via Si-Coder
-
-```bash
-node ~/.agents/skills/si-coder/scripts/deploy.js \
-  "$DOKPLOY_API_URL" "$DOKPLOY_API_KEY" "<project>" "<app>" "$GITHUB_TOKEN" "<domain>"
-```
-
-Full docs: `~/.agents/skills/si-coder/SKILL.md`
-
-## Adding New Skills to This Project
-
-1. Add skill folder to `skills/<skill-name>/SKILL.md` in the repo
-2. Run `bash scripts/install-skills.sh`
-3. OpenClaw picks it up from `~/.agents/skills/<skill-name>/`
+Use `scripts/deploy.sh` for production. Use `DEPLOY_FROM_WORKTREE=1` only when intentionally deploying the current local worktree. Do not alter GitHub state unless explicitly requested.

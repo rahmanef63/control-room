@@ -315,14 +315,13 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 Copy `.env.example` and fill them in. **Two locations matter:**
 
-- The **agent** + `scripts/deploy.sh` read the **root** `.env.local`.
-- `next dev` only loads `.env.local` from **its own dir** (`frontend/.env.local`).
+- The **agent** and deploy tooling read the **root** `.env.local`.
+- SvelteKit/Vite local development reads `frontend/.env.local`.
 
-So for local dev you need the env in `frontend/.env.local` (the root copy alone
-is invisible to `next dev`):
+The local CLI keeps both files synchronized. If configuring manually, copy the root env into `frontend/.env.local`:
 
 ```bash
-# Linux / macOS — root copy for the agent, plus a copy Next can see
+# Linux / macOS — root copy for the agent, plus a frontend dev copy
 cp .env.example .env.local            # then edit secrets
 cp .env.local   frontend/.env.local
 ```
@@ -332,14 +331,13 @@ Copy-Item .env.example .env.local     # then edit secrets
 Copy-Item .env.local   frontend\.env.local
 ```
 
-For local use set the public URL to localhost and pick local ports:
+For local use bind both processes to loopback and pick local ports:
 
 ```
-NEXT_PUBLIC_APP_URL=http://localhost:4000
-NEXT_PUBLIC_APP_HOST=localhost
 CONTROL_ROOM_PORT=4000
+CONTROL_ROOM_HOST=127.0.0.1
 AGENT_HEALTH_PORT=4001
-CONTROL_ROOM_HOST=localhost
+AGENT_HEALTH_HOST=127.0.0.1
 ```
 
 (Optional, Windows/macOS) override the spawned terminal shell + start dir:
@@ -359,9 +357,7 @@ bun run --cwd frontend dev        # dashboard on :4000
 Open `http://localhost:4000`, paste `CONTROL_ROOM_SECRET`, then approve the
 device per [Phase 6.5](#phase-65--approve-your-device-first-login-always-lands-in-pending).
 
-> **Dev "new version" toast won't go away?** The dev build id changes on every
-> restart. Pin it to stop the reload prompt churning:
-> `NEXT_PUBLIC_BUILD_ID=unknown` (set it before `bun run dev`).
+> **Dev "new version" toast won't go away?** Pin `PUBLIC_BUILD_ID=dev-local` before starting the frontend so local restarts keep a stable development build id.
 
 ---
 
@@ -456,7 +452,7 @@ sequencing.
 | Login page returns "invalid" | Secret mismatch | Re-check `.env.local` on the VPS |
 | Right password still won't log in | Device not approved (lands in `pending`) | `node scripts/approve-device.js --list` then approve — [Phase 6.5](#phase-65--approve-your-device-first-login-always-lands-in-pending) |
 | Login bounces to `/login` on fresh install | `next` drifted off the pinned patch → node-runtime middleware gated off | Keep the exact pin in `frontend/package.json`; reinstall |
-| `next dev` ignores your secrets locally | env only at root, not `frontend/.env.local` | Copy env into `frontend/.env.local` too ([Phase L.2](#l2-secrets--env)) |
+| Frontend local dev cannot see expected env values | env only at root, not `frontend/.env.local` | Copy/sync env into `frontend/.env.local` too ([Phase L.2](#l2-secrets--env)) |
 | Terminal pane won't open on Windows/macOS | Shell defaults assume Linux | Set `SHELL` + `TERMINAL_DEFAULT_CWD` env vars |
 | White dashboard after deploy | Build failed silently | `journalctl -u vps-control-room-frontend` |
 | `systemctl` shows `failed` | Wrong WorkingDirectory | Re-run `scripts/install-systemd.sh` |

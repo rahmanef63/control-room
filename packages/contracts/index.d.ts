@@ -288,7 +288,7 @@ export type TerminalGatewayEvent =
   | { type: "pong"; ts: number };
 
 // ─── Alfa patrol ──────────────────────────────────────────────────────
-// Canonical shapes shared by the agent scheduler, the Next.js API
+// Canonical shapes shared by the agent scheduler and SvelteKit API
 // proxies, and the React UI. Adding a field here is the only authorised
 // way to extend the watcher / ping contract.
 
@@ -297,7 +297,7 @@ export type TerminalGatewayEvent =
  * - `static` (default): alfa sends `defaultInstruction` (or per-target
  *   override) verbatim when a ping fires.
  * - `patrol-senior-fullstack`: alfa reads each target's recent buffer,
- *   infers project context (Convex / Next.js / Clerk migration / design /
+ *   infers project context (SvelteKit / Node agent / design / deploy /
  *   etc.), picks a relevant skill if any (`/audit-bp`, `/rr-prep`,
  *   `/sc-git`, ...), and crafts a tailored continuation prompt per target
  *   as a senior fullstack engineer would. The `defaultInstruction` is then

@@ -65,11 +65,11 @@ export const ALFA_DEFAULT_PROMPT =
 
 export const ALFA_PATROL_SENIOR_FULLSTACK_PROMPT = [
   "[PATROL-MODE: SENIOR-FULLSTACK]",
-  "Read the target pane's recent buffer. Infer project context (Convex,",
-  "Next.js App Router, Clerk migration, design system, deploy pipeline,",
+  "Read the target pane's recent buffer. Infer project context (SvelteKit,",
+  "Node agent boundaries, design system, deploy pipeline,",
   "etc.). Pick the next concrete step a senior fullstack engineer would",
   "take. Invoke any relevant skill (/audit-bp, /rr-prep, /rr-send,",
-  "/sc-git, /sc-convex, /sc-dokploy, /verify, ...) when it actually helps.",
+  "/sc-git, /sc-dokploy, /verify, ...) when it actually helps.",
   "Continue autonomously, ultrathink.",
 ].join(" ");
 

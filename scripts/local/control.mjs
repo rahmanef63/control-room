@@ -107,8 +107,6 @@ function defaultValues() {
     AGENT_HEALTH_PORT: '4001',
     AGENT_HEALTH_HOST: '127.0.0.1',
     HOST_TELEMETRY_INTERVAL_MS: '15000',
-    NEXT_PUBLIC_APP_URL: 'http://localhost:4000',
-    NEXT_PUBLIC_APP_HOST: 'localhost',
     SHELL: IS_WIN ? 'powershell.exe' : (process.env.SHELL || '/bin/bash'),
     TERMINAL_DEFAULT_CWD: defaultCwd(),
   };
@@ -142,9 +140,6 @@ function renderEnv(v) {
     `AGENT_HEALTH_PORT=${v.AGENT_HEALTH_PORT || '4001'}\n` +
     `AGENT_HEALTH_HOST=${v.AGENT_HEALTH_HOST || '127.0.0.1'}\n` +
     `HOST_TELEMETRY_INTERVAL_MS=${v.HOST_TELEMETRY_INTERVAL_MS || '15000'}\n\n` +
-    `# --- Public env (ships to browser) — localhost, plain http ---\n` +
-    `NEXT_PUBLIC_APP_URL=${v.NEXT_PUBLIC_APP_URL || `http://localhost:${port}`}\n` +
-    `NEXT_PUBLIC_APP_HOST=${v.NEXT_PUBLIC_APP_HOST || 'localhost'}\n\n` +
     shellBlock
   );
 }
@@ -250,7 +245,7 @@ async function doctor() {
     note(ok('.env.local present'));
   }
   if (!existsSync(FRONTEND_ENV)) {
-    note(fail('frontend/.env.local missing (Next reads from frontend/)'));
+    note(fail('frontend/.env.local missing (SvelteKit dev reads env from frontend/)'));
     problems++;
     if (fix) { writeEnvFiles(applyDefaults(v)); note(ok('synced frontend/.env.local')); }
   } else {
@@ -374,7 +369,6 @@ async function config() {
     AGENT_HEALTH_PORT: agentPort,
     TERMINAL_DEFAULT_CWD: cwd,
     SHELL: shell,
-    NEXT_PUBLIC_APP_URL: `http://localhost:${port}`,
   });
   writeEnvFiles(merged);
   console.log('  ' + ok(`wrote ${ROOT_ENV}`));
@@ -445,13 +439,13 @@ function appWindow(url) {
 }
 
 function hasProdBuild() {
-  return existsSync(join(REPO, 'frontend', '.next', 'BUILD_ID')) &&
+  return existsSync(join(REPO, 'frontend', 'build', 'index.js')) &&
     existsSync(join(REPO, 'agent', 'dist', 'index.js'));
 }
 
 function build() {
-  const env = { ...process.env, NEXT_PUBLIC_BUILD_ID: 'unknown' };
-  console.log('== Building frontend (next build) — 1-3 min ==');
+  const env = { ...process.env, PUBLIC_BUILD_ID: 'dev-local' };
+  console.log('== Building frontend (SvelteKit adapter-node) ==');
   spawnSync(BUN, ['run', '--cwd', join(REPO, 'frontend'), 'build'], { stdio: 'inherit', cwd: REPO, env });
   console.log('== Building agent (tsc) ==');
   spawnSync(BUN, ['run', '--cwd', join(REPO, 'agent'), 'build'], { stdio: 'inherit', cwd: REPO, env });
@@ -460,19 +454,23 @@ function build() {
 
 function startServices() {
   // Spawn both servers detached + record PIDs so `stop` can find them.
-  // Prefer the PROD build (next start + node dist) when present — far lighter
+  // Prefer the PROD build (adapter-node + node dist) when present — far lighter
   // on CPU than the dev servers, so many terminal panes don't freeze the UI.
   // (On Windows the vps-cr.ps1 wrapper uses its windowed launcher instead.)
   const v = readEnv(ROOT_ENV);
   const port = v.CONTROL_ROOM_PORT || '4000';
-  const env = { ...process.env, ...v, NEXT_PUBLIC_BUILD_ID: 'unknown' };
+  const host = v.CONTROL_ROOM_HOST || '127.0.0.1';
+  const env = { ...process.env, ...v, PUBLIC_BUILD_ID: 'dev-local', PORT: port, HOST: host };
   const opts = { cwd: REPO, env, stdio: 'ignore', detached: true };
   const prod = hasProdBuild();
   const script = prod ? 'start' : 'dev';
   // bun runs the scripts; the agent's own script keeps its daemon on node
   // (node-pty streams no data under the bun runtime).
   const agent = spawn(BUN, ['run', '--cwd', join(REPO, 'agent'), script], opts);
-  const frontend = spawn(BUN, ['run', '--cwd', join(REPO, 'frontend'), script], opts);
+  const frontendArgs = prod
+    ? ['run', '--cwd', join(REPO, 'frontend'), 'start']
+    : ['run', '--cwd', join(REPO, 'frontend'), 'dev', '--', '--host', host, '--port', port];
+  const frontend = spawn(BUN, frontendArgs, opts);
   agent.unref();
   frontend.unref();
   try { writeFileSync(RUN_FILE, JSON.stringify({ frontend: frontend.pid, agent: agent.pid, port }, null, 2)); } catch {}

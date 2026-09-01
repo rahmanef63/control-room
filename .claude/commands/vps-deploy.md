@@ -1,115 +1,57 @@
-# VPS Control Room — Deploy Workflow
+# VPS Control Room — Deploy Pattern
 
-Gunakan skill ini saat deploy, redeploy, atau troubleshoot systemd services.
+`scripts/deploy.sh` is the deployment SSOT. Do not invent a parallel deployment path in an agent command.
 
-## Deploy Pertama Kali
+## Preconditions
+
+- Confirm the intended worktree/branch and current HEAD.
+- Confirm whether the user permits remote GitHub changes. If not, use local worktree deployment mode and do not fetch/pull/push.
+- Confirm `.env.local`, Traefik template, Bun, and systemd prerequisites exist.
+- Frontend-only work must not restart the Node agent.
+
+## Local gates
 
 ```bash
-# Set REPO_DIR to your actual repo path
-REPO_DIR="<your-repo-path>"
-cd "$REPO_DIR"
-
-# 1. Install dependencies
-bun install --cwd frontend
-bun install --cwd agent
-
-# 2. Setup env
-cp .env.example .env.local
-# Edit .env.local — isi semua secrets
-
-# 3. Build
+bun install --cwd frontend --frozen-lockfile
+bun run --cwd frontend check
+bun run --cwd frontend test
 bun run --cwd frontend build
+git diff --check
+```
+
+Run agent tests/build only if `agent/` changed:
+
+```bash
+bun install --cwd agent --frozen-lockfile
+bun run --cwd agent test:all
 bun run --cwd agent build
-
-# 4. Deploy Convex schema
-bunx convex deploy
-
-# 5. Setup permissions
-sudo usermod -aG docker "$USER"
-# Buat sudoers file
-sudo tee /etc/sudoers.d/vps-control-room << 'SUDOERS'
-# Replace <your-user> with your actual username
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart vps-control-room-*
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/fail2ban-client set sshd unbanip *
-SUDOERS
-sudo chmod 440 /etc/sudoers.d/vps-control-room
-
-# 6. Install systemd units (auto-detects user and repo path)
-sudo bash scripts/install-systemd.sh
-
-# 7. Enable dan start
-sudo systemctl enable --now vps-control-room-frontend
-sudo systemctl enable --now vps-control-room-agent
 ```
 
-## Redeploy (Update Kode)
+## Deployment model
 
-```bash
-cd <your-repo-path>
-git pull origin main
+The deploy script:
 
-# Build ulang
-bun install --cwd frontend && bun run --cwd frontend build
-bun install --cwd agent && bun run --cwd agent build
+1. serializes deployments with a lock;
+2. optionally fast-forwards a requested remote branch, or uses `DEPLOY_FROM_WORKTREE=1` for the current local tree;
+3. builds the canonical SvelteKit frontend;
+4. creates an immutable `frontend/releases/svelte-<timestamp>-<sha>/` release;
+5. regenerates the Svelte-native systemd unit;
+6. switches the frontend service to the new release;
+7. verifies local health/login and restores the previous release automatically on failure;
+8. restarts the agent only if agent source changed;
+9. verifies/preserves agent PID on frontend-only deploys;
+10. cleans stale inactive migration previews/releases only after a successful switch.
 
-# Deploy Convex (jika schema/functions berubah)
-bunx convex deploy
+## Post-deploy verification
 
-# Restart services
-sudo systemctl restart vps-control-room-frontend
-sudo systemctl restart vps-control-room-agent
-```
+- public `/login` responds over HTTPS
+- `/api/health` responds
+- protected APIs still reject unauthenticated access
+- HTML/assets are Svelte `/_app/immutable/` assets
+- real xterm output arrives through SSE
+- terminal input/resize/reconnect still works
+- agent PID is unchanged for frontend-only work
+- transient preview port/process is absent
+- rollback release still exists
 
-Atau jalankan: `bash scripts/deploy.sh`
-
-## Troubleshooting
-
-```bash
-# Cek status service
-sudo systemctl status vps-control-room-frontend
-sudo systemctl status vps-control-room-agent
-
-# Lihat logs
-sudo journalctl -u vps-control-room-frontend -f --no-pager
-sudo journalctl -u vps-control-room-agent -f --no-pager
-
-# Cek health endpoints
-curl http://127.0.0.1:4000/api/health    # frontend
-curl http://127.0.0.1:4001/health        # agent
-
-# Restart manual jika perlu
-sudo systemctl restart vps-control-room-frontend
-sudo systemctl restart vps-control-room-agent
-
-# Cek apakah port sudah listen
-ss -tlnp | grep -E "4000|4001"
-
-# Cek env loaded
-sudo systemctl show vps-control-room-agent --property=Environment
-```
-
-## systemd Unit Files
-
-Frontend: `/etc/systemd/system/vps-control-room-frontend.service`
-Agent: `/etc/systemd/system/vps-control-room-agent.service`
-
-Lihat `scripts/install-systemd.sh` untuk isi unit files terbaru.
-
-## Convex Deploy
-
-```bash
-# Dari root repo
-bunx convex deploy
-
-# Jika perlu reset (HATI-HATI: hapus semua data!)
-# bunx convex deploy --reset
-```
-
-## Checklist Sebelum Deploy
-
-1. [ ] `.env.local` sudah diisi semua required secrets
-2. [ ] `bun run build` sukses di frontend dan agent
-3. [ ] `bunx convex deploy` sukses
-4. [ ] Docker socket accessible oleh app user
-5. [ ] sudoers entry sudah ada
-6. [ ] Tailscale connected dan IP benar
+For UI work, include the relevant mobile/safe-area matrix. Never report GitHub CI as passing unless GitHub checks actually ran.

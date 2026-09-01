@@ -1,52 +1,42 @@
 ---
 name: vps
-description: VPS Control Room project orchestrator for Gemini. Knows the full project structure, build commands, deploy workflow, and delegates deployment tasks to si-coder.
+description: VPS Control Room project orchestrator for Gemini. Uses the canonical SvelteKit frontend, Node 22 host agent, and repository deployment/runbook instructions.
 ---
 
 # VPS Control Room — Gemini Orchestrator
 
-## Project Layout
+Read root `CLAUDE.md` first. It is the architecture and execution SSOT.
 
-```
-frontend/   Next.js 15 + Tailwind v4 + shadcn/ui
-convex/     Self-hosted Convex (7 tables: events, audit_log, agent_status,
-            system_snapshot, alerts, commands, app_status)
-agent/      TypeScript, built with bun but the daemon RUNS ON NODE 22
-            (node-pty emits no data under Bun → blank terminals)
-skills/     si-coder deploy skill
+## Project layout
+
+```text
+frontend/   SvelteKit 2 + Svelte 5 runes + Tailwind 4; adapter-node on Bun
+agent/      TypeScript/Node 22 host agent; node-pty + host APIs
+packages/   shared contracts/runtime configuration
+scripts/    Svelte-native deploy, systemd, local tooling
 ```
 
-## Build Commands
+There is no Convex layer on the Control Room runtime hot path.
+
+## Gates
 
 ```bash
-bun run --cwd frontend build        # frontend (bun --bun next build)
-bun run --cwd agent build           # agent (tsc)
-bash scripts/deploy.sh              # full production deploy
+bun run --cwd frontend check
+bun run --cwd frontend test
+bun run --cwd frontend build
+bun run --cwd agent test:all
+bun run --cwd agent build
+git diff --check
 ```
 
-## Gemini YOLO Flags
+## Runtime boundary
 
-```bash
-gemini --yolo              # auto-approve all (also: -y or --approval-mode=yolo)
-# Ctrl+Y to toggle YOLO on/off mid-session
-gemini --approval-mode=auto_edit   # auto-approve file edits only
-```
+Browser terminal output is SSE from SvelteKit. The SvelteKit server owns the WebSocket client to the agent. The agent remains Node 22 and is the only component allowed to access PTYs/host resources.
 
-## Deploy New Project
+## Deploy
 
-Delegate to si-coder agent or run directly:
+Use `scripts/deploy.sh`. For an explicitly local worktree deploy, use `DEPLOY_FROM_WORKTREE=1`; do not change GitHub state unless the user explicitly asks.
 
-```bash
-node ~/projects/vps-control-room/skills/si-coder/scripts/deploy.js \
-  "$DOKPLOY_API_URL" "$DOKPLOY_API_KEY" "<project>" "<app>" "$GITHUB_TOKEN" "<domain>"
-```
+## Gemini execution
 
-## Required Env Vars
-
-```bash
-DOKPLOY_API_URL   DOKPLOY_API_KEY   GITHUB_TOKEN   HOSTINGER_API_TOKEN (optional)
-```
-
-## Gemini Advantage
-
-Use Gemini's built-in web search for: fetching latest API docs, checking current package versions, researching best practices before building.
+Use Gemini's web/search capabilities when current docs or package behavior materially matters, but validate repository/runtime state locally before changing production.

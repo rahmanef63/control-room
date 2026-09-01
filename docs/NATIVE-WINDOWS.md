@@ -1,6 +1,6 @@
 # Native Windows (lightweight) — running Control Room without a heavy browser
 
-Control Room is a **web dashboard** (Next.js + React + xterm.js). It was built to
+Control Room is a **web dashboard** (SvelteKit + Svelte 5 + xterm.js). It was built to
 manage a *remote* VPS through a browser. Running it **locally** is fully
 supported, but the trap is rendering all those terminals inside a heavy everyday
 browser (an AI browser like Comet can be ~40 processes / 6+ GB). On a strong
@@ -20,7 +20,7 @@ a true packaged app. Nothing here touches the production VPS.
 | Dashboard in your normal browser | `vps-cr` | heaviest (your browser's overhead) |
 
 Always **`vps-cr build`** once first — it builds the production servers, which are
-far lighter than `next dev` (no on-demand compile, no double-render). `vps-cr` /
+far lighter than the Vite development server. `vps-cr` /
 `app` / `start` then auto-use the prod build (fallback: dev). Re-build after
 `git pull`.
 
@@ -34,8 +34,7 @@ The dashboard's feature set is large — multi-pane terminals, workspaces, sessi
 history, templates, crons, patrol/alfa AI orchestration, file explorer, host
 stats, device management, settings, backup/restore, broadcast input, soft
 keyboard, and more (see the feature inventory the team keeps for parity). Rebuilding
-all of that as a from-scratch native WinUI/WPF app would take months and throw away
-the React codebase.
+all of that as a from-scratch native WinUI/WPF app would duplicate the existing Svelte frontend and create a second UI source of truth.
 
 The right move is to **keep the existing frontend and host it in a native window**:
 
@@ -48,7 +47,7 @@ The right move is to **keep the existing frontend and host it in a native window
   fallback `appWindow()` in `scripts/local/control.mjs`.
 
 - **Phase 2 — Tauri packaged `.exe` (planned, opt-in).** A real installable app
-  that embeds the same WebView2 engine and bundles the Next.js build, for the
+  that embeds the same WebView2 engine and bundles/serves the SvelteKit adapter-node build, for the
   smallest footprint and a proper app identity (no Edge/Chrome dependency). It
   needs the **Rust toolchain** (`cargo`), so it's only set up on request. Scope
   when we do it: a `src-tauri/` shell that loads the local frontend, spawns the
@@ -59,7 +58,7 @@ The right move is to **keep the existing frontend and host it in a native window
 Even in a native window, the UI is still web tech, so the inherent cost of
 rendering many live `xterm.js` panes remains — Phase 1 removes the *browser
 bloat*, not the per-pane rendering cost. If you only need shells, the native
-`vps-cr term` path skips xterm/React/SSE entirely and is always the lightest.
+`vps-cr term` path skips xterm/Svelte/SSE entirely and is always the lightest.
 
 ## Files
 

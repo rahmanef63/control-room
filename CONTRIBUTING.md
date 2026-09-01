@@ -1,168 +1,114 @@
 # Contributing to VPS Control Room
 
-Thanks for considering a contribution! This project is a single-user,
-self-hosted dashboard, so contribution scope is intentionally narrow:
-**bug fixes, polish, and small features that fit a one-VPS owner.**
+Control Room is a single-owner, self-hosted terminal/operations PWA. Frontend and agent have deliberately different trust boundaries: the SvelteKit frontend owns browser UX and authenticated proxying; the Node 22 agent owns PTYs and host access.
 
-If you have a larger idea (multi-tenant, billing, public-internet exposure),
-please open an issue first to discuss — chances are it belongs in a fork.
+Read `CLAUDE.md` before changing architecture or runtime behavior.
 
----
-
-## Quick start (local dev, no VPS needed)
+## Local setup
 
 ```bash
-# 1. Fork on GitHub, then:
-git clone git@github.com:<your-fork>/control-room.git
+git clone <your-fork-or-repo>
 cd control-room
-
-# 2. Local env (loopback secrets, no real VPS data)
 cp .env.example .env.local
-# edit CONTROL_ROOM_SECRET + CONTROL_ROOM_SESSION_SECRET to ANY 32+ char value
-
-# 3. Install deps (per-component, no monorepo) — needs Bun 1.3+ and Node 22
+cp .env.local frontend/.env.local
 bun install --cwd frontend
 bun install --cwd agent
-
-# 4. Run two terminals
-bun run --cwd agent  dev         # http://127.0.0.1:4001/health (runs on Node via tsx)
-bun run --cwd frontend dev       # http://127.0.0.1:4000
-
-# 5. Login with the secret you set in step 2
 ```
 
-No Docker, no Convex, no Tailscale needed for local dev. The agent
-collectors that need host privileges (Docker socket, systemctl) just
-return `null` or empty arrays — they don't crash.
+For local-only use, configure `CONTROL_ROOM_SECRET`, `CONTROL_ROOM_SESSION_SECRET`, `AGENT_GATEWAY_SECRET`, `CONTROL_ROOM_HOST=127.0.0.1`, and the local ports. `vps-cr config` can generate/synchronize the local env files for you.
 
----
+Run the services with `vps-cr`, `vps-cr start`, or separately:
+
+```bash
+bun run --cwd agent dev
+bun run --cwd frontend dev -- --host 127.0.0.1 --port 4000
+```
+
+Host-only collectors that are unavailable on your machine should fail independently rather than crash the app.
 
 ## Project layout
 
+```text
+frontend/    SvelteKit 2 + Svelte 5 PWA; adapter-node production output
+agent/       Node 22 host agent; PTY gateway, telemetry, host APIs
+scripts/     deploy, systemd installer, local/Windows tooling
+ops/         Traefik dynamic configuration
+packages/    shared contracts + runtime configuration
+docs/        install, onboarding, runbook, historical audits
 ```
-frontend/    Next.js 15 App Router, Tailwind, shadcn/ui — the PWA
-agent/       Node 22 host agent — pty gateway, host telemetry, log.json
-scripts/     deploy.sh, install-systemd.sh, bump-version.sh
-docs/        install, onboarding, runbook
-ops/         traefik dynamic config templates
-packages/    shared TS contracts + runtime config
-```
 
-Each top-level component has its own `package.json` and `tsconfig.json`.
-Treat them as separate publishable units; **do not add cross-imports**
-between `frontend/` and `agent/`. Share via `packages/contracts`.
+Treat frontend and agent as separate trust/runtime units. Do not cross-import their implementation code. Shared contracts belong in `packages/contracts`.
 
----
+## Frontend conventions
 
-## Branch + commit
+- Svelte 5 runes only for new/modified code.
+- Do not introduce `export let`, reactive `$:` statements, `on:click`, legacy `<slot>`, or writable/readable shared-store patterns.
+- Use `$props()`, `$state`, `$derived`, `$effect`, snippets, and rune-backed `.svelte.ts` modules as appropriate.
+- UI primitives live in `frontend/src/lib/components/ui/`.
+- Feature code belongs in `frontend/src/lib/features/<feature>/`.
+- Server-only session/gateway helpers belong in `frontend/src/lib/server/`.
+- API endpoints are SvelteKit `+server.ts` routes.
+- Terminal output to the browser is SSE. The frontend server owns the agent WebSocket; do not expose the agent gateway secret to browser code.
+- Preserve safe-area, mobile, fullscreen, keyboard, and xterm-fit behavior when touching terminal layout.
+- Prefer Tailwind utilities and local component styles over one-off inline styling.
+- Delete obsolete implementations instead of keeping compatibility placeholders.
 
-- Branch from `main`: `feat/<slug>`, `fix/<slug>`, `docs/<slug>`,
-  `chore/<slug>`.
-- One feature per branch. No mixed bag PRs.
-- Conventional commits (`type(scope): subject`). Example:
-  - `fix(terminal): clamp grid row height to 2 rows on desktop`
-  - `feat(skills): scan project markers up to git root`
-  - `docs(readme): add quick-start section`
-- Imperative mood. Explain **why**, not what. The diff already shows what.
-- Sign-off optional, but include `Co-Authored-By:` if a tool helped.
+## Agent conventions
 
----
+- The daemon stays on Node.js 22 because interactive `node-pty` semantics are required.
+- Every privileged endpoint must authenticate the gateway secret before acting.
+- One collector failure must not terminate the process.
+- Avoid modifying `agent/` for frontend-only work.
+- New terminal profiles require a clear explanation of what they spawn and their resource/security implications.
 
-## Code style
+## Branches and commits
 
-- **TypeScript strict** — no `any` without a `// reason:` comment.
-- **ESLint** — `bun run --cwd frontend lint`. Don't disable rules
-  globally; disable inline with reason.
-- **Tailwind** — prefer utility classes over `style={{}}`. Use the
-  shadcn/ui primitives from `frontend/src/components/ui/`.
-- **No comments that restate the code.** Only comment hidden constraints,
-  subtle invariants, or non-obvious workarounds.
-- **No dead code.** Delete instead of commenting out.
+- Common branch patterns: `feat/<slug>`, `fix/<slug>`, `docs/<slug>`, `chore/<slug>`.
+- Keep changes coherent; avoid unrelated cleanup in feature diffs unless it is required to preserve SSOT.
+- Conventional commits are preferred, e.g. `fix(terminal): preserve first row after mobile refit`.
+- Use imperative mood and explain why the change exists.
+- Do not push, merge, or rewrite remote history unless the task explicitly calls for it.
 
----
+## Quality gates
 
-## Testing
-
-The test target is **typecheck + `bun test`** — fast and catches most
-regressions:
+Frontend:
 
 ```bash
-bun run --cwd frontend typecheck
-bun run --cwd agent     build      # tsc -p tsconfig.json
+bun run --cwd frontend check
+bun run --cwd frontend test
+bun run --cwd frontend build
 ```
 
-Unit tests run under `bun test` (`bun run --cwd frontend test`,
-`bun run --cwd agent test`, or `test:all` to gate on `tsc` too) — it executes the existing `node:test` +
-`node:assert` specs as-is. Place new specs next to the source as
-`*.test.ts(x)`. Don't add coverage tooling yet — the codebase is small.
+Agent:
 
-**Manual smoke tests** for UI changes:
-1. Login with the dev secret.
-2. Spawn a terminal (`bash` profile).
-3. Open settings drawer, toggle heartbeat-glow.
-4. Resize browser between mobile/tablet/desktop breakpoints.
-5. Verify no console errors.
+```bash
+bun run --cwd agent test:all
+bun run --cwd agent build
+```
 
----
+Repository:
 
-## Security rules (non-negotiable)
+```bash
+bun run test
+bun run build
+git diff --check
+```
 
-- **Never commit secrets.** `.env.local` is gitignored — keep it that
-  way. CI never reads from `process.env` directly; everything goes
-  through `frontend/src/lib/env.ts` and `agent/src/env.ts`.
-- **Never log secrets.** No `console.log(process.env)`.
-- **Never add a new terminal profile** (`agent/src/terminal/profiles.ts`)
-  without a paired issue explaining what it spawns and the worst case.
-- **No `NEXT_PUBLIC_*`** for anything secret. Anything with that prefix
-  ships to the browser.
-- **No telemetry beacons** to third-party servers. Self-host only.
+For UI changes, also test login, a real terminal session, xterm/SSE reconnect behavior, and the relevant responsive viewports. Any change to terminal layout/fullscreen/drawers/keyboard/safe areas should include narrow portrait and landscape verification.
 
-See [SECURITY.md](./SECURITY.md) for vulnerability reporting.
+For deploy/install changes, verify that systemd starts adapter-node with Bun, rollback material exists, the active immutable release is not pruned, and frontend-only deploys do not restart the agent.
 
----
+## Security rules
+
+- Never commit `.env.local`, tokens, passwords, session cookies, private keys, or browser credentials.
+- Never print complete environment objects or auth headers.
+- Never expose secrets through browser-visible environment variables, page data, logs, or error payloads.
+- Keep the agent loopback-bound unless a deliberate cross-host design provides equivalent authentication and network isolation.
+- No third-party telemetry beacons. The product is self-hosted.
+- Treat the authenticated terminal as intentionally powerful; the perimeter/auth boundary is critical.
+
+See `SECURITY.md` for vulnerability reporting.
 
 ## Pull requests
 
-1. Fill in the PR template fully. The "Why" matters more than "What".
-2. Link the issue (`Closes #123`).
-3. Screenshots for any UI change — before + after.
-4. Keep diffs small. <400 lines preferred. Split a refactor from a
-   feature.
-5. **No force-push to a branch with review comments** unless you've
-   addressed all of them and re-requested review.
-
-CI runs typecheck on the self-hosted runner. Workflows are
-`workflow_dispatch:` only — they don't trigger on push, by design.
-
----
-
-## What we WILL merge
-
-- Bug fixes with reproduction steps.
-- UX polish for the mobile PWA path.
-- Accessibility improvements (keyboard nav, ARIA, contrast).
-- New agent host-action endpoints with clear safety rationale.
-- Docs improvements.
-
-## What we WON'T merge (without prior discussion)
-
-- Multi-user / multi-tenant features.
-- Anything that requires exposing the dashboard to the public internet.
-- New runtime dependencies (npm packages) without a strong reason.
-- Migrations away from bun to npm/pnpm/yarn.
-- Telemetry, analytics, or "phone home" code.
-
----
-
-## Code of conduct
-
-Be kind. Assume the other person has more context than you can see.
-Reviewers: critique the code, not the contributor. Contributors:
-absorb feedback; if you disagree, explain why in the PR.
-
----
-
-## License
-
-By contributing, you agree your contributions are licensed under the
-[MIT License](./LICENSE).
+A useful PR description should state the problem, architecture impact, verification performed, and any operational/rollback considerations. Distinguish local gates from GitHub checks; do not claim CI passed when no GitHub check ran.

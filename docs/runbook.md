@@ -251,7 +251,7 @@ Expected response: `{"status":"ok"}`.
    ```
 2. Confirm the build output exists:
    ```bash
-   ls <your-repo-path>/frontend/.next/BUILD_ID
+   ls <your-repo-path>/frontend/build/index.js
    ```
    If missing, rebuild: `bun run --cwd frontend build`
 3. Confirm `.env.local` is present and readable by the app user:

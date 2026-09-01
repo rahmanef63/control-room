@@ -2,12 +2,12 @@
 node_modules/
 
 # Build outputs
-frontend/.next/
-frontend/.next-staging/
-frontend/.next-previous/
+frontend/build/
+frontend/.svelte-kit/
+frontend/package/
+frontend/releases/
 agent/dist/
 cli/dist/
-.deploy-state/
 
 # Logs
 *.log
@@ -32,11 +32,8 @@ id_ed25519*
 agent/var/
 var/
 
-# npm lockfiles — repo is bun-only; bun.lock IS committed
+# npm lockfiles — repo is bun-only; per-runtime bun.lock files are committed
 package-lock.json
-
-# Next.js
-frontend/next-env.d.ts
 
 # Internal working documents
 refactore.md

@@ -4,7 +4,11 @@
   "private": true,
   "scripts": {
     "agent:build": "bun run --cwd agent build",
+    "agent:test": "bun run --cwd agent test:all",
+    "frontend:check": "bun run --cwd frontend check",
+    "frontend:test": "bun run --cwd frontend test",
     "frontend:build": "bun run --cwd frontend build",
+    "test": "bun run agent:test && bun run frontend:check && bun run frontend:test",
     "build": "bun run agent:build && bun run frontend:build"
   }
 }

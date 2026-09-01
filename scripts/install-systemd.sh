@@ -14,6 +14,8 @@ fi
 # account happened to invoke sudo (a CI runner would otherwise rewrite User=).
 APP_USER="${APP_USER:-${SUDO_USER:-$(logname 2>/dev/null || echo "deploy")}}"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SKIP_AGENT_UNIT="${SKIP_AGENT_UNIT:-0}"
+AUTH_DEVICE_STORE_PATH="${AUTH_DEVICE_STORE:-${REPO_DIR}/agent/var/auth-devices.json}"
 
 # systemd runs with a minimal PATH, so bake the ABSOLUTE bun path into the unit.
 # Prefer the app user's install (this script runs as root via sudo).
@@ -49,12 +51,24 @@ User=${APP_USER}
 WorkingDirectory=${REPO_DIR}/frontend
 EnvironmentFile=${REPO_DIR}/.env.local
 Environment=PORT=4000
-Environment=HOSTNAME=0.0.0.0
+Environment=HOST=0.0.0.0
+Environment=NODE_ENV=production
+Environment=BODY_SIZE_LIMIT=30M
+# adapter-node gracefully drains open requests, then force-closes long-lived SSE
+# connections after this bound so deploy/restart cannot hang indefinitely.
+Environment=SHUTDOWN_TIMEOUT=5
+# This service is only exposed through the trusted reverse proxy. These headers
+# let SvelteKit reconstruct the public origin when ORIGIN is not explicitly set.
+Environment=PROTOCOL_HEADER=x-forwarded-proto
+Environment=HOST_HEADER=x-forwarded-host
+Environment=AUTH_DEVICE_STORE=${AUTH_DEVICE_STORE_PATH}
 Environment=PATH=${BUN_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-# Frontend runs ON the bun runtime (--bun). Absolute bun path: systemd's PATH is minimal.
-ExecStart=${BUN_BIN} --bun node_modules/.bin/next start --hostname 0.0.0.0 --port 4000
+# SvelteKit adapter-node output is build/index.js; Bun is the frontend runtime.
+ExecStart=${BUN_BIN} build/index.js
 Restart=always
-RestartSec=5
+RestartSec=1
+KillSignal=SIGTERM
+TimeoutStopSec=8
 # Resource guards — the frontend can spike RAM under many panes / login storms.
 # MemoryHigh throttles + reclaims before the hard MemoryMax backstop; CPUWeight
 # raises scheduling priority so the UI stays responsive under host contention.
@@ -77,6 +91,7 @@ echo "  Created /etc/systemd/system/vps-control-room-frontend.service"
 
 # --- Agent service ---
 
+if [ "${SKIP_AGENT_UNIT}" != "1" ]; then
 cat > /etc/systemd/system/vps-control-room-agent.service << EOF
 [Unit]
 Description=VPS Control Room Agent
@@ -103,7 +118,7 @@ Restart=always
 RestartSec=5
 # Resource guards. CRITICAL: node-pty spawns every terminal session as a CHILD
 # of this service, so the agent cgroup also accounts for ALL interactive
-# workloads users run in panes — including a `next build` kicked off inside a
+# workloads users run in panes — including a frontend build kicked off inside a
 # pane (or by a git pre-push CI hook). A tight cap here does NOT protect the
 # box; it strangles the terminals: on 2026-05-28 a 2G MemoryHigh drove the
 # cgroup to 84% memory-stall (572k reclaim events) and made typing lag.
@@ -125,7 +140,7 @@ RestartSec=5
 MemoryHigh=14G
 MemoryMax=18G
 # MemorySwapMax is the swap-bomb backstop (2026-06-21 incident): an orphaned pane
-# kicked off 6 parallel `next build`, which exceeded RAM and spilled UNBOUNDED
+# kicked off 6 parallel frontend builds, which exceeded RAM and spilled UNBOUNDED
 # into the host's 8G swap (swap=infinity here) — stalling the WHOLE VPS at 99%
 # memory-pressure, load 43. A small swap cap OOM-kills the runaway INSIDE this
 # cgroup instead of dragging the host into swap thrash. Unlike a tight RAM cap it
@@ -142,6 +157,9 @@ WantedBy=multi-user.target
 EOF
 
 echo "  Created /etc/systemd/system/vps-control-room-agent.service"
+else
+  echo "  Preserving existing agent unit (frontend-only deployment)"
+fi
 
 # --- Cleanup service/timer ---
 
@@ -152,6 +170,7 @@ After=network.target
 
 [Service]
 Type=oneshot
+User=${APP_USER}
 WorkingDirectory=${REPO_DIR}
 ExecStart=/bin/bash ${REPO_DIR}/scripts/cleanup-terminal-runtime.sh
 StandardOutput=journal
@@ -184,7 +203,11 @@ echo "  Created /etc/systemd/system/vps-control-room-cleanup.timer"
 # incident silently outranks this script forever — the repo says one number and
 # the box runs another. This script is the source of truth; anything set-property
 # left behind is stale by definition.
-for unit in frontend agent cleanup; do
+units=(frontend cleanup)
+if [ "${SKIP_AGENT_UNIT}" != "1" ]; then
+  units+=(agent)
+fi
+for unit in "${units[@]}"; do
   ctl="/etc/systemd/system.control/vps-control-room-${unit}.service.d"
   if [ -d "${ctl}" ]; then
     rm -rf "${ctl}"
@@ -198,8 +221,10 @@ echo "  Ran systemctl daemon-reload"
 systemctl enable vps-control-room-frontend
 echo "  Enabled vps-control-room-frontend (starts on boot)"
 
-systemctl enable vps-control-room-agent
-echo "  Enabled vps-control-room-agent (starts on boot)"
+if [ "${SKIP_AGENT_UNIT}" != "1" ]; then
+  systemctl enable vps-control-room-agent
+  echo "  Enabled vps-control-room-agent (starts on boot)"
+fi
 
 systemctl enable vps-control-room-cleanup.timer
 echo "  Enabled vps-control-room-cleanup.timer (runs daily)"

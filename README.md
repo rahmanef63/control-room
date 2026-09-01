@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
 &nbsp;![PWA installable](https://img.shields.io/badge/PWA-installable-38bdf8)
-&nbsp;![Next.js 15](https://img.shields.io/badge/Next.js-15-111821)
+&nbsp;![SvelteKit 2](https://img.shields.io/badge/SvelteKit-2-ff3e00)
 &nbsp;![Node 22](https://img.shields.io/badge/Node-22-339933)
 &nbsp;![self-hosted](https://img.shields.io/badge/self--hosted-single--owner-a855f7)
 
@@ -17,7 +17,7 @@ domain.
   <img src="./docs/media/dashboard-mobile.png" alt="VPS Control Room authenticated terminal dashboard on a phone-width viewport, rendered locally" width="280" />
 </p>
 
-<p align="center"><sub>Real authenticated captures of the running app, taken from a local <code>next dev</code> render with a local agent gateway and real terminal panes.</sub></p>
+<p align="center"><sub>Real authenticated captures of the running app, taken from the SvelteKit frontend with a local agent gateway and real terminal panes.</sub></p>
 
 > **What's new in v2.0**: single-kebab pane header, per-terminal skills
 > (project + global), Move-to-workspace, 4-step zoom, heartbeat
@@ -36,14 +36,14 @@ single-owner control surface: the browser sees a safe web UI, while the local
 agent owns host access behind an authenticated, loopback-bound gateway.
 
 ```
-┌─ frontend/  Next.js 15 App Router + Tailwind + shadcn/ui (Termux-style)
+┌─ frontend/  SvelteKit 2 + Svelte 5 runes + Tailwind 4, adapter-node on Bun
 ├─ agent/     Node 22 host agent — pty gateway, host telemetry, log.json
-└─ scripts/   deploy.sh + bump-version.sh + systemd installer
+└─ scripts/   Svelte-native deploy + systemd installer + local tooling
 ```
 
 > **Build id**: every deploy stamps a 12-char commit prefix into
-> `GET /api/version`, `NEXT_PUBLIC_BUILD_ID`, and the service-worker cache
-> name. `scripts/deploy.sh main` rebuilds, restarts systemd, and refreshes
+> `GET /api/version`, `PUBLIC_BUILD_ID`, and the service-worker cache
+> namespace. `scripts/deploy.sh main` rebuilds, restarts systemd, and refreshes
 > Traefik. Auto-deploy via GitHub Actions is intentionally disabled (the
 > workflow is `workflow_dispatch:` only) — day-to-day deploys happen on the
 > host.
@@ -74,7 +74,7 @@ from zero? **[docs/AI-ONBOARDING.md](docs/AI-ONBOARDING.md)**.
 | **Just understand the steps** | [docs/ONBOARDING.md](docs/ONBOARDING.md) — five-phase walkthrough |
 | **Fix a bug / send a PR** | [CONTRIBUTING.md](CONTRIBUTING.md) — local dev in 5 min, no VPS needed |
 | **Report a vulnerability** | [SECURITY.md](SECURITY.md) — GitHub Security Advisory, not public issues |
-| **Run a local dev server (any OS)** | [docs/INSTALL.md → Phase L](docs/INSTALL.md#phase-l--local--dev-install-any-os-no-vps) — Linux / macOS / Windows, no VPS. Note: `next dev` reads env from `frontend/.env.local`, not just the root copy. |
+| **Run a local dev server (any OS)** | [docs/INSTALL.md → Phase L](docs/INSTALL.md#phase-l--local--dev-install-any-os-no-vps) — Linux / macOS / Windows, no VPS. SvelteKit dev uses `frontend/.env.local`; the local CLI keeps it synchronized with the root env file. |
 
 ---
 
@@ -83,7 +83,7 @@ from zero? **[docs/AI-ONBOARDING.md](docs/AI-ONBOARDING.md)**.
 Three tiers, one direction-of-trust:
 
 ```
-browser ──► frontend (Next.js)            ─┐
+browser ──► frontend (SvelteKit adapter-node on Bun)            ─┐
                 ▼                          │ HMAC-signed cookie auth
                 HTTP / WS (control-room   ─┘ over Tailscale
                 secret)
@@ -98,7 +98,7 @@ browser ──► frontend (Next.js)            ─┐
 
 - The **agent** is the only component with host access. The frontend never
   shells out directly — it reaches the agent only over the authenticated
-  gateway (`x-control-room-secret` header), added by the Next.js proxy routes.
+  gateway (`x-control-room-secret` header), added by the SvelteKit server proxy routes.
 - This is a single-owner web shell: the authenticated owner runs commands in a
   real pty by design. There is **no command allowlist** — the perimeter is the
   security boundary, not per-command sandboxing.
@@ -223,7 +223,7 @@ named template; relaunch with one click. Persisted to `localStorage`
   Traefik. Public Internet should never reach the panel.
 - Same secret guards every agent HTTP endpoint (`/fs/list`, `/skills`,
   `/state/*`, terminal gateway), passed via `x-control-room-secret` header
-  by the Next.js proxy routes.
+  by the SvelteKit server proxy routes.
 
 ### PWA + cache recovery
 
@@ -295,25 +295,15 @@ bash scripts/deploy.sh main
 
 What it does (in order):
 
-1. Acquires `/tmp/vps-control-room-deploy.lock` (flock).
-2. `require_file` `.env.local`, `ops/traefik/vps-control-room.yml`. Loads env.
-3. `git fetch origin` → `git checkout <branch>` → restore the deploy-stamped
-   `sw.js` → `git pull --ff-only origin <branch>` (fast-forward only; aborts on
-   divergence rather than discarding local work).
-4. Preflight gate: `bun run test:all` (frontend typecheck + unit tests). Skip with
-   `SKIP_FRONTEND_TESTS=1`.
-5. `scripts/bump-version.sh <commit12>` — stamps `sw.js`,
-   `NEXT_PUBLIC_BUILD_ID`, and `/api/version`.
-6. Builds frontend (`bun run build`) into `.next-staging`.
-7. Builds agent (`bun run build`) only if any source under `agent/` changed
-   since the last deploy stamp.
-8. Atomically promotes `.next-staging → .next` by restarting the frontend
-   against the staged build; keeps `.next-previous` for one-shot rollback if
-   the new build fails to come up, plus recent static snapshots under
-   `.deploy-state/`.
-9. Restarts the agent (only when it was rebuilt in step 7).
-10. Syncs the Traefik dynamic config to `/etc/dokploy/traefik/dynamic/`.
-11. Verifies `systemctl is-active` for both services.
+1. Acquires `/tmp/vps-control-room-deploy.lock` so deploys cannot race.
+2. Validates `.env.local` and the Traefik template.
+3. In normal mode, fast-forwards from `origin/<branch>` without discarding local work. For an explicitly local deployment, `DEPLOY_FROM_WORKTREE=1` builds the current worktree without fetching, pulling, or changing GitHub state.
+4. Installs the canonical frontend with the frozen Bun lockfile, then runs `svelte-check`, unit tests, `vite build`, and `git diff --check`.
+5. Copies the adapter-node build into an immutable `frontend/releases/svelte-<timestamp>-<sha>/` release.
+6. Tests/builds/restarts the Node agent only when `agent/` changed; frontend-only deploys verify that the agent PID stays unchanged.
+7. Syncs Traefik and regenerates the Svelte-native systemd unit.
+8. Switches the frontend unit to the new immutable release. Adapter-node receives a bounded graceful drain window for long-lived SSE connections. If the new service fails health/login checks, the previous release is restored automatically.
+9. Stops stale migration preview units and prunes old inactive releases while retaining rollback material.
 
 ### GitHub Actions
 
@@ -335,7 +325,10 @@ Environment variables (all optional except auth secrets):
 | `CONTROL_ROOM_SESSION_SECRET` | (none) | HMAC key for session cookies. |
 | `AGENT_GATEWAY_SECRET` | falls back to `CONTROL_ROOM_SECRET` | Dedicated frontend→agent machine secret. |
 | `SESSION_EXPIRY_HOURS` | `72` | Cookie lifetime (3 days; slides forward on activity). |
-| `CONTROL_ROOM_PORT` | `4000` | Frontend listen port. |
+| `CONTROL_ROOM_PORT` | `4000` | Local/manual frontend listen port. Production systemd binds `:4000`. |
+| `CONTROL_ROOM_DOMAIN` | (none) | Public hostname used by the Traefik deploy template. |
+| `ORIGIN` | trusted proxy/public origin | Canonical SvelteKit production origin; recommended to set explicitly. |
+| `BODY_SIZE_LIMIT` | `30M` | adapter-node request-body cap; sized above terminal upload limits. |
 | `AGENT_HEALTH_PORT` | `4001` | Agent HTTP + WS listen port. |
 | `AGENT_HEALTH_HOST` | `127.0.0.1` | Agent bind interface (loopback by default). |
 | `TERMINAL_GATEWAY_URL` | `http://127.0.0.1:4001` | Frontend → agent base URL. |
@@ -343,11 +336,7 @@ Environment variables (all optional except auth secrets):
 | `STATE_DIR` | `<agent cwd>/var` | Where `/state/*` + `log.json` live. |
 | `HOST_TELEMETRY_INTERVAL_MS` | `15000` | Agent telemetry sample period. |
 
-Frontend client-side env (must be `NEXT_PUBLIC_*` and is therefore baked
-into the bundle):
-
-- `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_APP_HOST`
-- `NEXT_PUBLIC_BUILD_ID` (auto-stamped by deploy)
+The frontend does not require a public client-side origin secret/config pair. Deploys set `PUBLIC_BUILD_ID` at build time, while `ORIGIN` identifies the canonical production origin.
 
 ---
 
@@ -414,17 +403,17 @@ bump the constant and redeploy for a higher cap.
 │   │   └── terminal/                  # pty manager + ws/http gateways
 │   └── dist/
 ├── frontend/
-│   ├── app/                           # Next.js App Router (login, view, api/*)
+│   ├── src/routes/                    # SvelteKit pages + server API routes
 │   │   ├── api/auth/                  # HMAC login + logout
-│   │   ├── api/terminals/             # pty session/input/resize/stream
+│   │   ├── api/terminals/             # pty session/input/resize/SSE stream
 │   │   ├── api/state/[key]/           # agent JSON state proxy
 │   │   ├── api/log/                   # agent log.json proxy
 │   │   ├── api/skills/                # global + project skills (cwd-aware)
-│   │   └── styles/                    # base, drawers, keyboard, terminals…
-│   └── src/features/terminals/        # the entire terminal workspace
-│       ├── components/                # pane, kebab menu, soft keyboard …
-│       ├── hooks/                     # sessions, workspaces, settings …
-│       └── server/                    # gateway helpers (agent fetcher)
+│   │   └── browser/                    # optional browser CRUD console
+│   └── src/lib/                       # vertical slices, shared UI/state/server helpers
+│       ├── features/terminals/        # terminal workspace + Svelte rune state
+│       ├── components/                # drawers + UI primitives
+│       └── server/                    # authenticated agent gateway helpers
 ├── ops/traefik/                       # dynamic-config template
 ├── packages/
 │   ├── contracts/                     # shared TS types
@@ -432,7 +421,6 @@ bump the constant and redeploy for a higher cap.
 ├── scripts/
 │   ├── deploy.sh                      # canonical deploy (run on host)
 │   ├── install-systemd.sh             # one-shot systemd setup
-│   ├── bump-version.sh                # build-id stamper
 │   └── cleanup-terminal-runtime.sh
 ├── docs/                              # install, onboarding, runbook, AUDIT-2026-06,
 │                                      # PROGRESS-2026-06, NATIVE-WINDOWS

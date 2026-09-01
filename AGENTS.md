@@ -1,8 +1,7 @@
 # VPS Control Room — Agent Instructions
 
-The single source of truth for every coding agent (Claude, Codex, Gemini) is
-**[CLAUDE.md](./CLAUDE.md)** in the repo root. Read it before starting any task.
+The coding-agent source of truth is **[CLAUDE.md](./CLAUDE.md)**. Read it before changing this repository.
 
-This file is an intentional pointer — three near-identical instruction copies
-were collapsed into one to avoid drift. Runtime is HTTP-only
-(frontend → agent HTTP API → host); there is no Convex layer on the hot path.
+Architecture summary: browser → SvelteKit frontend → authenticated agent boundary → host. Ordinary calls use server-side HTTP proxies; terminal output reaches the browser over SSE while the SvelteKit server is the WebSocket client to the Node 22 agent. There is no Convex layer on the runtime hot path.
+
+Do not create parallel frontend implementations or compatibility placeholders. `frontend/` is the only frontend SSOT and uses SvelteKit 2 + Svelte 5 runes.

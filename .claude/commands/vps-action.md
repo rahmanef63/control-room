@@ -1,200 +1,69 @@
-# VPS Control Room — Action Pipeline Pattern
+# VPS Control Room — Action Pattern
 
-Gunakan skill ini saat menambahkan action baru ke pipeline executor.
+Use this pattern when a frontend interaction must cause host-side behavior.
 
-## Menambah Action Baru — 4 Langkah
+## Boundary
 
-### 1. Daftarkan di Allowlist
+```text
+Svelte component
+  -> authenticated SvelteKit `+server.ts` route
+  -> `$lib/server/gateway` / `proxyGatewayJson`
+  -> authenticated Node agent endpoint
+  -> host operation
+```
 
-```typescript
-// agent/src/executor/allowlist.ts
+Never execute Docker/systemd/filesystem/shell host commands from browser code or a frontend component.
 
-export interface ActionDefinition {
-  command_template: string;      // {target_id} dan {payload.*} akan di-replace
-  target_type: "container" | "service" | "agent" | "dokploy-app" | "fail2ban";
-  sensitive: boolean;            // true = butuh confirm dialog di frontend
-  timeout_ms: number;
-  validate_payload?: (payload: any) => boolean;
-}
+## Frontend component
 
-export const ALLOWLIST: Record<string, ActionDefinition> = {
-  "container.restart": {
-    command_template: "docker container restart {target_id}",
-    target_type: "container",
-    sensitive: false,
-    timeout_ms: 30000,
-  },
-  "container.stop": {
-    command_template: "docker container stop {target_id}",
-    target_type: "container",
-    sensitive: true,     // <-- sensitive, butuh konfirmasi
-    timeout_ms: 30000,
-  },
-  "container.logs": {
-    command_template: "docker logs --tail {payload.lines} {target_id}",
-    target_type: "container",
-    sensitive: false,
-    timeout_ms: 10000,
-    validate_payload: (p) => typeof p?.lines === "number" && p.lines > 0 && p.lines <= 500,
-  },
-  "service.restart": {
-    command_template: "sudo systemctl restart {target_id}",
-    target_type: "service",
-    sensitive: true,
-    timeout_ms: 30000,
-  },
-  "fail2ban.unban": {
-    command_template: "sudo fail2ban-client set sshd unbanip {target_id}",
-    target_type: "fail2ban",
-    sensitive: true,
-    timeout_ms: 10000,
-    validate_payload: (p) => true, // target_id divalidasi sebagai IP di validator
-  },
-  // Dokploy redeploy = HTTP call, bukan shell command
-  "dokploy.redeploy": {
-    command_template: "__HTTP__", // marker bahwa ini bukan shell command
-    target_type: "dokploy-app",
-    sensitive: true,
-    timeout_ms: 60000,
-  },
+Keep UI state local and explicit:
+
+```svelte
+<script lang="ts">
+  let busy = $state(false);
+  let error = $state<string | null>(null);
+
+  async function runAction() {
+    busy = true;
+    error = null;
+    try {
+      const response = await fetch('/api/example/action', { method: 'POST' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      busy = false;
+    }
+  }
+</script>
+```
+
+Sensitive/destructive actions need a clear confirmation UX and must remain inaccessible to unauthenticated requests.
+
+## SvelteKit server route
+
+```ts
+import type { RequestHandler } from './$types';
+import { proxyGatewayJson } from '$lib/server/proxy';
+import { requireSession } from '$lib/server/require-session';
+
+export const POST: RequestHandler = async (event) => {
+  const denied = await requireSession(event);
+  if (denied) return denied;
+  return proxyGatewayJson('/example/action', { method: 'POST' });
 };
 ```
 
-### 2. Tambah Validator
+Validate user-controlled input before forwarding it. Do not put gateway credentials in browser-visible code.
 
-```typescript
-// agent/src/executor/validators.ts
+## Agent endpoint
 
-import { ALLOWLIST } from "./allowlist";
+- Re-authenticate the gateway secret at the agent boundary.
+- Validate input and path/target constraints.
+- Execute using the existing host abstraction rather than inventing a second shell pathway.
+- Log useful audit metadata without secrets.
+- Return bounded, structured errors.
 
-interface ValidationResult {
-  valid: boolean;
-  reason?: string;
-}
+## Verification
 
-// knownTargets di-maintain dari collector results
-export function validateCommand(
-  action: string,
-  targetType: string,
-  targetId: string,
-  payload: any,
-  knownTargets: Map<string, Set<string>> // target_type → Set<target_id>
-): ValidationResult {
-  // 1. Action ada di allowlist?
-  const def = ALLOWLIST[action];
-  if (!def) return { valid: false, reason: `unknown action: ${action}` };
-
-  // 2. Target type cocok?
-  if (def.target_type !== targetType) {
-    return { valid: false, reason: `action ${action} expects target_type ${def.target_type}, got ${targetType}` };
-  }
-
-  // 3. Target ID dikenali? (dari collector)
-  const targets = knownTargets.get(targetType);
-  if (!targets?.has(targetId)) {
-    return { valid: false, reason: `unknown target: ${targetType}/${targetId}` };
-  }
-
-  // 4. Validasi IP format untuk fail2ban
-  if (targetType === "fail2ban") {
-    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
-    if (!ipRegex.test(targetId)) {
-      return { valid: false, reason: `invalid IP format: ${targetId}` };
-    }
-  }
-
-  // 5. Payload valid?
-  if (def.validate_payload && !def.validate_payload(payload)) {
-    return { valid: false, reason: `invalid payload for action ${action}` };
-  }
-
-  return { valid: true };
-}
-```
-
-### 3. Handle di Executor
-
-```typescript
-// agent/src/executor/index.ts — di dalam loop eksekusi
-
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
-
-async function executeCommand(action: string, targetId: string, payload: any): Promise<{ success: boolean; result?: string; error?: string }> {
-  const def = ALLOWLIST[action];
-  if (!def) return { success: false, error: "not in allowlist" };
-
-  // Special case: HTTP-based actions
-  if (def.command_template === "__HTTP__") {
-    return await executeHttpAction(action, targetId, payload);
-  }
-
-  // Build command dari template
-  let cmd = def.command_template.replace("{target_id}", targetId);
-  // Replace payload placeholders
-  cmd = cmd.replace(/\{payload\.(\w+)\}/g, (_, key) => String(payload?.[key] ?? ""));
-
-  try {
-    const { stdout, stderr } = await execAsync(cmd, { timeout: def.timeout_ms });
-    return { success: true, result: stdout.slice(0, 10000) }; // cap output
-  } catch (err: any) {
-    return { success: false, error: err.message?.slice(0, 2000) };
-  }
-}
-```
-
-### 4. Tambah di Frontend
-
-```tsx
-// Di page yang relevan, tambah button yang trigger action
-
-import { useMutation } from "convex/react";
-import { api } from "@/lib/convex";
-import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
-
-function ActionButton({ action, targetType, targetId, sensitive }: Props) {
-  const enqueue = useMutation(api.commands.enqueueCommand);
-  const [showConfirm, setShowConfirm] = useState(false);
-
-  async function execute() {
-    await enqueue({
-      action,
-      target_type: targetType,
-      target_id: targetId,
-      payload: {},
-      requested_by: "manual-dashboard",
-    });
-  }
-
-  if (sensitive) {
-    return (
-      <>
-        <Button variant="destructive" onClick={() => setShowConfirm(true)}>
-          {action}
-        </Button>
-        <ConfirmActionDialog
-          open={showConfirm}
-          action={action}
-          target={targetId}
-          onConfirm={() => { execute(); setShowConfirm(false); }}
-          onCancel={() => setShowConfirm(false)}
-        />
-      </>
-    );
-  }
-
-  return <Button onClick={execute}>{action}</Button>;
-}
-```
-
-## Checklist Tambah Action Baru
-
-1. [ ] Tambah entry di `ALLOWLIST` dengan command_template, target_type, sensitive, timeout
-2. [ ] Tambah validasi khusus di `validators.ts` jika perlu (e.g. IP format)
-3. [ ] Jika HTTP-based, tambah handler di `executeHttpAction`
-4. [ ] Jika butuh sudo, pastikan entry di `/etc/sudoers.d/vps-control-room`
-5. [ ] Tambah button/trigger di frontend page yang relevan
-6. [ ] Jika sensitive, wrap dengan `ConfirmActionDialog`
-7. [ ] Test: trigger action → cek command status → cek audit log
+Test unauthorized access, successful execution, expected failure, repeated clicks/idempotency where relevant, and UI recovery. Then run the owning frontend/agent quality gates from `CLAUDE.md`.

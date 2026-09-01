@@ -1,145 +1,79 @@
-# VPS Control Room — Dashboard Page Pattern
+# VPS Control Room — Svelte Page Pattern
 
-Gunakan skill ini saat membuat atau memodifikasi halaman dashboard.
+Use this pattern for new frontend pages or substantial page refactors. Root `CLAUDE.md` remains the SSOT.
 
-## File Structure per Page
+## Location
 
+```text
+frontend/src/routes/<route>/+page.svelte
+frontend/src/routes/<route>/+page.server.ts     # only when server-side page loading is useful
+frontend/src/routes/<route>/+error.svelte       # when route-level recovery needs custom UX
+frontend/src/lib/features/<feature>/            # reusable feature logic/components
 ```
-frontend/app/(dashboard)/<pageName>/
-  ├── page.tsx       # main page component
-  └── error.tsx      # error boundary (WAJIB)
-```
 
-## Page Template
+Do not build large feature logic directly into `+page.svelte`; keep the route as orchestration and place domain logic in a vertical slice.
 
-```tsx
-"use client";
+## Svelte 5 state
 
-import { useQuery } from "convex/react";
-import { api } from "@/lib/convex";
-// import components sesuai kebutuhan
+```svelte
+<script lang="ts">
+  let loading = $state(true);
+  let error = $state<string | null>(null);
+  let items = $state<Item[]>([]);
+  let count = $derived(items.length);
 
-export default function PageNamePage() {
-  const data = useQuery(api.<domain>.listItems, {});
-
-  // Loading state
-  if (data === undefined) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Page Title</h1>
-        <div className="grid gap-4">
-          {/* Skeleton loading */}
-          <div className="h-32 rounded-sm bg-muted animate-pulse" />
-          <div className="h-32 rounded-sm bg-muted animate-pulse" />
-        </div>
-      </div>
-    );
+  async function refresh() {
+    loading = true;
+    error = null;
+    try {
+      const response = await fetch('/api/example');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      items = await response.json();
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      loading = false;
+    }
   }
-
-  // Empty state
-  if (data.length === 0) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Page Title</h1>
-        <div className="flex items-center justify-center h-64 rounded-sm border border-dashed">
-          <p className="text-muted-foreground">No data available.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Data state
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Page Title</h1>
-      {/* Render data */}
-    </div>
-  );
-}
+</script>
 ```
 
-## Error Boundary Template (WAJIB untuk setiap page)
+Use `$props()`, `$state`, `$derived`, `$effect`, and snippets. Do not introduce legacy component syntax or shared writable/readable stores.
 
-```tsx
-"use client";
+## Data boundary
 
-export default function ErrorPage({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center h-64 space-y-4">
-      <p className="text-destructive">Something went wrong loading this panel.</p>
-      <button
-        onClick={reset}
-        className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
-      >
-        Try again
-      </button>
-    </div>
-  );
-}
+Frontend pages talk to authenticated SvelteKit server routes. Those server routes may proxy to the Node agent through `$lib/server/gateway`. Host access never occurs in the page/component itself.
+
+For privileged proxy routes:
+
+```ts
+const denied = await requireSession(event);
+if (denied) return denied;
+return proxyGatewayJson('/some-agent-path');
 ```
 
-## Dashboard Layout Pattern
+Terminal live output is a special case: browser SSE is bridged server-side to the agent WebSocket. Do not invent a direct browser-to-agent socket.
 
-```tsx
-// frontend/app/(dashboard)/layout.tsx
-import { Sidebar } from "@/components/Sidebar";
-import { ConnectionStatus } from "@/components/ConnectionStatus";
-import { ConvexProvider } from "@/lib/convex";
+## UX states
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <ConvexProvider>
-      <div className="flex h-screen">
-        <Sidebar />
-        <main className="flex-1 overflow-auto p-6">
-          <ConnectionStatus />
-          {children}
-        </main>
-      </div>
-    </ConvexProvider>
-  );
-}
+Every async surface should deliberately handle:
+
+1. loading
+2. empty
+3. data
+4. recoverable error
+
+Use route-level `+error.svelte` for route failures and `<svelte:boundary>` when a local component/pane should fail independently.
+
+## Responsive rules
+
+Respect `src/app.css` safe-area variables and `100dvh` conventions. Test narrow portrait, landscape, and touch-target/focus behavior for interactive pages.
+
+## Gate
+
+```bash
+bun run --cwd frontend check
+bun run --cwd frontend test
+bun run --cwd frontend build
+git diff --check
 ```
-
-## Component Patterns
-
-**MetricCard**: `{ label: string, value: string | number, unit?: string, trend?: "up" | "down" | "stable" }`
-**StatusBadge**: `{ status: string, label?: string }` — green=running/healthy, yellow=warning, red=error/stopped, gray=unknown
-**ConfirmActionDialog**: WAJIB untuk sensitive actions (container.stop, dokploy.redeploy, fail2ban.unban)
-
-## Convex Subscription di Page
-
-```tsx
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/lib/convex";
-
-// Query (auto-subscribe, live update)
-const data = useQuery(api.appStatus.listApps, {});
-
-// Mutation (untuk trigger action)
-const enqueueCommand = useMutation(api.commands.enqueueCommand);
-
-// Trigger action
-async function handleRestart(targetId: string) {
-  await enqueueCommand({
-    action: "container.restart",
-    target_type: "container",
-    target_id: targetId,
-    requested_by: "manual-dashboard",
-  });
-}
-```
-
-## Rules
-
-- SELALU buat error.tsx untuk setiap page folder.
-- SELALU handle 3 state: loading (skeleton), empty, data.
-- JANGAN fetch data di server component — semua data lewat Convex subscription (client component).
-- JANGAN taruh host command di frontend — tulis command ke Convex, agent yang eksekusi.
-- Gunakan shadcn/ui components dari `@/components/ui/`.

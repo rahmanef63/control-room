@@ -1,5 +1,7 @@
 # SI Coder — Setup Requirements
 
+> **Scope:** this is a generic SI Coder example for creating separate applications. It is **not** the Control Room frontend architecture or migration guide. Control Room itself uses the canonical SvelteKit frontend documented in `CLAUDE.md`.
+
 Everything needed to run the `si-coder` skill on a fresh VPS or after cloning this repo.
 
 ---

@@ -63,7 +63,7 @@ service to anything beyond loopback:
 - [ ] `CONTROL_ROOM_SESSION_SECRET` is **different** from the above
 - [ ] `.env.local` permissions are `600` (`chmod 600 .env.local`)
 - [ ] Traefik binds only to the Tailscale interface (not `0.0.0.0`)
-- [ ] No `NEXT_PUBLIC_*` variable contains a secret
+- [ ] No client-visible environment value, serialized page data, or error payload contains a secret
 - [ ] systemd services run as a **non-root user**
 - [ ] Docker socket access is intentional (`usermod -aG docker`)
 - [ ] You have an out-of-band way to rotate secrets (password manager)

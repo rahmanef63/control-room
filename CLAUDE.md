@@ -1,135 +1,154 @@
-# VPS Control Room
+# VPS Control Room — Canonical Agent Instructions
 
 ## Project
 
 - Repo: `git@github.com:rahmanef63/control-room.git`
-- Path: clone anywhere — systemd units are generated relative to the repo root by `scripts/install-systemd.sh`
-- Domain: `vps.rahmanef.com` (Tailscale only)
-- Host: Ubuntu 24.04.4 LTS, 8 vCPU, 31 GiB RAM, Bun 1.3.x + Node.js v22.22.1
-- Package manager: **bun** (lockfile `bun.lock`). Node.js 22 must stay installed — the agent daemon runs on it.
-- Deploy: systemd-managed (`vps-control-room-frontend.service`, `vps-control-room-agent.service`) via `scripts/deploy.sh main`. Workflow_dispatch only — no auto-deploy on push.
+- Production domain: `vps.rahmanef.com`
+- Host target: Ubuntu 24.04, Bun frontend runtime, Node.js 22 agent runtime
+- Package manager: Bun
+- Frontend SSOT: `frontend/`
+- Agent SSOT: `agent/`
+- Deploy: `scripts/deploy.sh <branch>`; GitHub Actions is manual/workflow-dispatch only
 
-## Architecture (current — 2026-05-27)
+## Architecture
 
+```text
+browser
+  -> SvelteKit 2 / Svelte 5 frontend (:4000, adapter-node on Bun)
+       -> ordinary agent APIs over authenticated HTTP
+       -> terminal browser stream over SSE
+       -> frontend server bridges SSE to the agent terminal WebSocket
+  -> Node 22 host agent (:4001, loopback by default)
+       -> node-pty, filesystem, telemetry, Docker/systemd/journal integrations
 ```
-frontend/ (Next.js 15 App Router + React 19 + Tailwind 4 + shadcn/ui)
-  └── PWA dashboard, multi-pane xterm.js terminals (up to 16 ptys, LRU-evicted)
-  └── REST + SSE to agent (no Convex on the hot path)
 
-agent/ (Node.js 22 TypeScript, runs on host via systemd)
-  └── collectors → in-memory + JSON state under ~/.openclaw/, /tmp/openclaw-*/
-  └── executor → runs shell actions in a pty (single-owner trust model)
-  └── HTTP API on AGENT_HEALTH_PORT (default 4001)
-  └── pty manager spawns per-session shells, alfa patrol watchers
-```
+The agent is the only component with host access. The frontend never shells out directly and never exposes `AGENT_GATEWAY_SECRET` or `CONTROL_ROOM_SECRET` to browser JavaScript. Durable cross-browser state lives in agent-side JSON; UI-local state uses Svelte rune-backed modules and localStorage where appropriate. There is no Convex data layer on the hot path.
 
-Data flow (runtime): **user → frontend (Next.js) → agent HTTP API (`/api/terminals`, `/api/state`, `/api/health`, `/api/patrol`, …) → host (pty, fs, systemctl).** No Convex on the hot path — the agent persists state to JSON under `~/.openclaw/`.
+## Non-negotiable frontend rules
 
-## Key Decisions
+- Use **SvelteKit 2 + Svelte 5 runes**.
+- Use current Svelte event/property syntax. Do not introduce legacy `export let`, `$:`, `on:click`, `<slot>`, or writable/readable shared-store patterns.
+- Prefer `$state`, `$derived`, `$effect`, snippets, component props via `$props()`, and rune-backed `.svelte.ts` state modules.
+- Keep one frontend SSOT under `frontend/`; never create a compatibility frontend or framework placeholder directory.
+- Use `lucide-svelte`, not React icon packages.
+- Route APIs live under `frontend/src/routes/api/**/+server.ts`.
+- Authentication is enforced globally by `src/hooks.server.ts` and privileged proxy routes re-check the session for defense in depth.
+- Terminal output to the browser is SSE. Do not convert it back to a browser-to-agent WebSocket or expose the gateway secret client-side.
+- Use `<svelte:boundary>` for pane-level isolation and `+error.svelte` for route-level failures where needed.
+- Preserve safe-area handling from `src/app.css` for notch, Dynamic Island, landscape cutouts, and home indicators.
+- Mobile portrait terminal grids must remain usable at narrow widths; do not regress the one-column mobile behavior or pane action sheet.
 
-- Agent is the ONLY component with host access (Docker socket, systemctl, journalctl, fail2ban, ufw).
-- Frontend NEVER executes host commands directly — always through the agent's authenticated HTTP gateway (`x-control-room-secret`).
-- Security model is **perimeter**, not per-command sandboxing: single-owner web shell, agent bound loopback by default, gateway secret + Tailscale-only origin. The authenticated owner runs arbitrary commands in a pty by design — there is no command allowlist.
-- Auth: HMAC-SHA256 signed cookie, single user, `CONTROL_ROOM_SECRET` for login, `CONTROL_ROOM_SESSION_SECRET` for signing.
-- Agent actions are logged to JSON audit (no Convex `audit_log`).
-- Color/heartbeat state via `useSyncExternalStore` module-level snapshot — sync across all panes realtime, hydrated from localStorage.
+## Agent rules
 
-### Runtime split — Bun frontend, Node agent (2026-08-06)
+- The agent daemon stays on **Node.js 22** because `node-pty` behavior is required for interactive terminal semantics.
+- Do not migrate the agent daemon to Bun without explicit measured proof that PTY data, controlling-TTY behavior, Ctrl-C, job control, resize, and process-group teardown all remain correct.
+- Every privileged agent endpoint must require the gateway secret before executing.
+- Collectors must fail independently; one collector failure must not terminate the agent.
+- Do not change `agent/` for frontend-only work unless the change is required and explicitly justified.
 
-- Frontend runs on the Bun runtime (`bun --bun next …`); bun also does every install/script.
-- The agent **daemon stays on Node** (`ExecStart=/usr/bin/node <repo>/agent/dist/index.js`). Measured on Bun 1.3.14: node-pty loads and spawns but `onData` never fires, so every terminal is silently blank. `Bun.Terminal` does stream, but gives the child no controlling tty and no `setsid` — no job control, so Ctrl-C and the process-group kill in `TerminalManager.killSessionTree` break.
+## Auth and environment
 
-## Env Files
+Required secrets:
 
-- `.env.local` at repo root (not committed, chmod 600)
-- `.env.example` for reference
+- `CONTROL_ROOM_SECRET` — human login secret
+- `CONTROL_ROOM_SESSION_SECRET` — separate HMAC session-cookie key
+- `AGENT_GATEWAY_SECRET` — recommended dedicated frontend-to-agent machine secret
 
-Required (frontend + agent):
-- `CONTROL_ROOM_SECRET` — login secret, openssl rand -hex 32
-- `CONTROL_ROOM_SESSION_SECRET` — different value, signs cookie
-- `NEXT_PUBLIC_APP_URL` — `https://<tailnet-domain>`
-- `NEXT_PUBLIC_APP_HOST` — hostname only
+Production frontend settings:
 
-Optional:
-- `AGENT_GATEWAY_SECRET` — dedicated machine secret for frontend→agent calls; falls back to `CONTROL_ROOM_SECRET`. Set it so the login password isn't reused as the gateway bearer.
-- `CONTROL_ROOM_PORT` (4000) — Next.js bind
-- `CONTROL_ROOM_HOST` — agent reach-address for frontend
-- `AGENT_HEALTH_PORT` (4001)
-- `AGENT_HEALTH_HOST` (127.0.0.1) — agent bind interface; loopback by default so the privileged host-control API isn't network-exposed. Set 0.0.0.0 only for cross-host.
-- `HOST_TELEMETRY_INTERVAL_MS` (15000)
-- `DOCKER_SOCKET_PATH` (/var/run/docker.sock)
-- `SESSION_EXPIRY_HOURS` (72 = 3 days; middleware slides it forward on activity, so an active dashboard never logs out — cap only applies after this many hours idle)
+- `CONTROL_ROOM_DOMAIN` — hostname used by the Traefik template
+- `ORIGIN` — canonical public origin, e.g. `https://vps.rahmanef.com`
+- `BODY_SIZE_LIMIT` — adapter-node request-body cap; keep above the terminal upload ceiling
+- `PORT=4000`, `HOST=0.0.0.0` are supplied by systemd
 
-NEVER put secrets in `NEXT_PUBLIC_*` (leaks to client bundle).
+Agent defaults:
 
-## Build & Run
+- `AGENT_HEALTH_PORT=4001`
+- `AGENT_HEALTH_HOST=127.0.0.1`
+- `TERMINAL_GATEWAY_URL=http://127.0.0.1:4001` when explicitly overridden
+
+Never place secrets in client-visible environment values or serialized page data.
+
+## Build, test, and run
 
 ```bash
-# Frontend (PWA dashboard)
-bun install --cwd frontend && bun run --cwd frontend build
-# systemd: bun --bun node_modules/.bin/next start --hostname 0.0.0.0 --port 4000
+# Frontend
+bun install --cwd frontend --frozen-lockfile
+bun run --cwd frontend check
+bun run --cwd frontend test
+bun run --cwd frontend build
 
-# Agent (host executor)
-bun install --cwd agent && bun run --cwd agent build
-# systemd: node agent/dist/index.js   (daemon stays on Node — see Runtime split)
+# Agent
+bun install --cwd agent --frozen-lockfile
+bun run --cwd agent test:all
+bun run --cwd agent build
+
+# Root gates
+bun run test
+bun run build
+git diff --check
 ```
 
-Deploy on the VPS:
+The production frontend is the adapter-node output started with:
+
 ```bash
-git pull origin main
-bash scripts/deploy.sh main
+bun build/index.js
 ```
 
-SW cache invalidation:
+The production agent is started with:
+
 ```bash
-bash scripts/bump-version.sh   # stamps COMMIT_SHA into frontend build
+node agent/dist/index.js
 ```
 
-## Agents & Skills
+## Deployment and rollback
 
-Specialized agents for token efficiency. Each has narrow scope:
+`scripts/deploy.sh` is the deployment SSOT.
 
-- `/vps-prd` — Quick PRD reference (compressed)
-- `/vps-page` — Dashboard page creation pattern
-- `/vps-collector` — Host collector creation pattern
-- `/vps-action` — Action pipeline addition pattern
-- `/vps-deploy` — Deploy workflow
-- `/vps-control-room` — Project playbook for runtime, deploy, firewall, asset delivery
-- `/vps-alfa` — Patrol/multi-pane orchestration
-- `/vps-cr` — Drive the LOCAL `vps-cr` CLI (start/stop, doctor, config, device acc/list/revoke, status)
+- Normal mode fast-forwards from the requested remote branch.
+- `DEPLOY_FROM_WORKTREE=1` deploys the current local worktree and must not fetch, pull, push, or otherwise change GitHub state.
+- Frontend deploys create immutable releases under `frontend/releases/svelte-<timestamp>-<sha>/`.
+- systemd points at the selected immutable release through a drop-in.
+- A failed frontend health/login verification rolls back to the previous release.
+- Frontend-only deploys must preserve the agent PID.
+- Old inactive releases are pruned only after a verified switch; the active release must never be pruned.
+- Long-lived SSE connections receive a bounded graceful drain window during frontend restart.
 
-Agents:
-- `vps-alfa` — Main orchestrator, delegates to specialists, generates new skills
-- `vps-frontend` — Frontend pages and components
-- `vps-host-agent` — Collectors and executor
-- `vps-control-room-master` — Project-specific coordinator for deploy/runtime issues
-- `si-coder` — Zero-human full-stack deployment: build from scratch, GitHub, Dokploy, DNS
-- `codex` — OpenAI Codex CLI coordinator + si-coder deployment
-- `gemini` — Google Gemini CLI coordinator + si-coder deployment
-- `openclaw` — OpenClaw TUI coordinator, skill management, multi-agent orchestration
+Before a production switch, require frontend check/tests/build and `git diff --check`. For UI changes, also run the relevant browser/mobile regression. After switching, verify public HTTPS, login/auth protection, `/api/health`, xterm/SSE behavior, and the agent PID.
 
-Skills (built-in to this VPS, installed at `~/.agents/skills/`):
-- `vps-alfa` — Alfa patrol agent with mode-aware behavior (static / senior-fullstack)
-- `si-coder` — Deploy script + SKILL.md for zero-human Dokploy deployment (see `skills/si-coder/`)
-- Run `bash scripts/install-skills.sh` to sync skills from repo to `~/.agents/skills/`
+## Local CLI
 
-## Distribution
+`scripts/local/control.mjs` is the cross-platform local-control SSOT. The Windows scripts delegate or mirror its behavior.
 
-Installer: `bunx rahman-cr install --vps user@<ip> --domain <tailnet>` clones this repo, generates two secrets, runs `install-systemd.sh` + `deploy.sh main`. The `rahman-cr` npm package is published separately — its source is NOT vendored in this repo (there is no `resources/packages/cr/`). Docs at https://resource.rahmanef.com/control-room.
+- `vps-cr build` builds adapter-node frontend output plus the Node agent.
+- `vps-cr start` uses `frontend/build/index.js` when available and Vite dev otherwise.
+- `vps-cr app` opens the same Svelte frontend in a lightweight app-mode browser window.
+- `vps-cr doctor` validates Bun, Node, env, dependencies, secrets, device store, and health.
 
-**Local (no VPS):** `install.sh` / `install.ps1` one-liners + the cross-platform `vps-cr` CLI (`scripts/local/control.mjs`, Windows wrapper `scripts/win-local/vps-cr.ps1`). When asked to onboard a user to a LOCAL install, follow the playbook in `docs/AI-ONBOARDING.md` (human guide: `docs/INSTALL-LOCAL.md`).
+## Code organization
 
-Local run paths (lightest → fullest), see `docs/NATIVE-WINDOWS.md`:
-- `vps-cr term [n]` / `vps-cr ssh [target]` — native Windows Terminal panes (no browser); Windows-only helpers.
-- `vps-cr app` — full dashboard in a native WebView2/Edge app window (all features, ~a few hundred MB vs multiple GB in a heavy browser). Cross-platform (`appWindow()` in control.mjs).
-- `vps-cr build` — production build; `vps-cr` / `app` / `start` then launch the prod servers (light) instead of `next dev`, falling back to dev if unbuilt. Fixes the CPU freeze when opening many panes.
-- A real packaged `.exe` (Tauri, reuses WebView2) is the planned phase-2; needs the Rust toolchain.
+- Favor vertical slices under `frontend/src/lib/features/<feature>/`.
+- Shared UI primitives live under `frontend/src/lib/components/ui/`.
+- Server-only helpers live under `frontend/src/lib/server/`.
+- Shared cross-process contracts belong in `packages/contracts/`; do not directly import frontend implementation code into the agent or vice versa.
+- Delete absorbed/obsolete implementations instead of keeping redirect files or compatibility shims.
+- Keep SSOT/DRY boundaries explicit and prefer small orchestration components over monolithic route files.
 
-## Rules
+## Verification expectations
 
-- Read PRD.md for full specs when needed, but prefer skills for patterns.
-- Every dashboard page MUST have an error.tsx sibling.
-- Every collector MUST be wrapped in try/catch — one failure must not stop others.
-- Every privileged agent endpoint MUST require the gateway secret before executing.
-- All hooks must run on every render — keep them above early `if (!open) return null` exits to avoid React error #310.
-- Commit messages: imperative mood, explain why not what.
+For frontend changes:
+
+1. `bun run --cwd frontend check`
+2. `bun run --cwd frontend test`
+3. `bun run --cwd frontend build`
+4. `git diff --check`
+5. browser smoke for login/API/terminal stream
+6. mobile matrix when layout, fullscreen, keyboard, drawer, safe-area, or xterm fitting changes
+
+For deployment changes, additionally verify the generated systemd unit points to `frontend`/adapter-node, release rollback remains possible, stale preview processes are absent, and the agent is unchanged unless intentionally rebuilt.
+
+## Git rules
+
+- Do not push, merge, rebase a remote branch, revoke credentials, or change GitHub state unless the user explicitly asks.
+- Local commits are allowed as traceable checkpoints when appropriate.
+- Conventional commits, imperative mood; explain the reason rather than narrating the diff.

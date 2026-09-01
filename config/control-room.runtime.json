@@ -11,10 +11,10 @@
     {
       "id": "frontend-workspace",
       "label": "Frontend Workspace",
-      "description": "Use this when operating the Next.js dashboard shell and UI slices.",
+      "description": "Use this when operating the SvelteKit dashboard shell and UI slices.",
       "cwd": "/opt/vps-control-room/frontend",
-      "envText": "APP_SCOPE=frontend\nNEXT_RUNTIME=nodejs\nPREFERRED_UI_STYLE=bento",
-      "tags": ["frontend", "nextjs", "ui"]
+      "envText": "APP_SCOPE=frontend\nSVELTEKIT_RUNTIME=adapter-node\nPREFERRED_UI_STYLE=bento",
+      "tags": ["frontend", "svelte", "sveltekit", "ui"]
     },
     {
       "id": "agent-workspace",
