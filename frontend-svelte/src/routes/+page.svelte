@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { onMount, untrack } from 'svelte';
-	import { Grid2X2, History as HistoryIcon, Rocket, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
+	import { Gauge, Grid2X2, History as HistoryIcon, Rocket, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
 
 	import DevicesDrawer from '$lib/components/devices-drawer.svelte';
 	import HistoryDrawer from '$lib/features/terminals/HistoryDrawer.svelte';
@@ -52,6 +52,7 @@
 	let devicesOpen = $state(false);
 	let settingsOpen = $state(false);
 	let historyOpen = $state(false);
+	let overviewOpen = $state(false);
 	let launcherOpen = $state(false);
 	let launcherTab = $state<LauncherTab>('base');
 	let launcherCreatingKey = $state<string | null>(null);
@@ -438,6 +439,10 @@
 				{#if restorableHistoryCount > 0}<span class="topbar-count">{restorableHistoryCount}</span>{/if}
 			</Button>
 
+			<Button variant="outline" size="sm" onclick={() => (overviewOpen = true)} aria-label="Open system overview">
+				<Gauge size={14} /> Overview
+			</Button>
+
 			<InstallAppControl />
 
 			<Button variant="outline" size="sm" onclick={() => (settingsOpen = true)} aria-label="Open settings">
@@ -466,6 +471,13 @@
 				onLaunchEnvironment={(environmentId) => createInActiveWorkspace(environmentLaunchRequest(environmentId), `env:${environmentId}`)}
 				onLaunchAgent={(agentId, options) => createInActiveWorkspace(agentLaunchRequest(agentId, options), `agent:${agentId}`)}
 			/>
+		{/await}
+	{/if}
+
+	{#if overviewOpen}
+		{#await import('$lib/features/terminals/OverviewDrawer.svelte') then overviewModule}
+			{@const OverviewDrawer = overviewModule.default}
+			<OverviewDrawer onClose={() => (overviewOpen = false)} />
 		{/await}
 	{/if}
 

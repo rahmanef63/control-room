@@ -18,7 +18,7 @@ agent on a parallel loopback port without touching the live Next service.
 Verified gates:
 
 - `bun install` succeeds with Svelte 5 / SvelteKit 2 / adapter-node.
-- `bun test` — **49/49** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color + history + pane-agent-override + launcher + pane-agent-command + pane-tools helper tests pass.
+- `bun test` — **52/52** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color + history + pane-agent-override + launcher + pane-agent-command + pane-tools + overview helper tests pass.
 - `bun run check` — **0 errors, 0 warnings**.
 - `bun run build` — production adapter-node build succeeds.
 - Official Svelte MCP `svelte-autofixer` reports no issues on the changed
@@ -75,6 +75,7 @@ Verified gates:
 - Runtime-catalog/agent-binding smoke verifies the real 5 profile / 3 environment / 4 resolved-agent catalog reaches Svelte, `Codex Ops` can be bound as tracking metadata, the backend PTY stays a plain shell with no `agent_profile_id`/`inner_agent`, activity tracking follows the binding, reload persists it, and unbind/close pruning clears it without launching or prompting AI.
 - Pane-AI injection smoke verifies `Codex Ops` Track-only sends zero input, Regular sends exactly `codex\r` to the same shell PTY, the local agent binding persists, the backend eventually detects `inner_agent=codex` through its existing `pstree` cache, and no AI prompt is sent. A 390×844 pass verifies the four-agent menu stays inside the viewport with no horizontal overflow.
 - Pane-tools smoke verifies authenticated `/api/skills` + `/api/fs/list` against the unchanged agent boundary: the live project exposes 35 skills, `si-coder` invocation is sent exactly to the source PTY even while broadcast is armed (sibling input stays 0), and the lazy folder explorer changes the same PTY cwd to `/home/rahman/projects`. Both routes return 401 without a session, and a 390×844 mobile pass verifies the tools menu + explorer have no horizontal overflow.
+- Overview smoke verifies the hardened authenticated `/api/overview` route against the real agent telemetry: 8 CPU cores, 7 disk entries and 5 terminal profiles were returned on the current VPS; the lazy drawer polled three times across the 5-second interval, closed via Escape/button, stayed read-only, and fit a 390×844 viewport without horizontal overflow. Unauthenticated overview returns 401.
 - Launcher smoke verifies the same real 5 profile / 3 environment / 4 resolved-agent catalog through the lazy-loaded Svelte drawer: Base shell, `host-default` environment, and `codex-ops` Regular agent launch all create real PTYs through the UI, preserve exact request semantics, land in the active workspace/history, and send no AI prompt. A 390×844 mobile pass verifies Base/Agents/Envs remain reachable with no horizontal overflow; the Saved tab stays hidden until Templates is actually ported.
 
 No production cutover has happened. The existing Next frontend stays on its
@@ -154,6 +155,7 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `terminal-profile-icon.tsx` | `src/lib/features/terminals/TerminalProfileIcon.svelte` — shell/OpenClaw/Codex/Claude/Gemini profile icon parity used in session tabs and pane chrome |
 | `hooks/sessions/storage.ts` + history portion of `hooks/sessions/types.ts` | `src/lib/features/terminals/history.ts` + `terminal-history.svelte.ts` — original `vps-control-room.terminal-history` key, 40-entry recency cap, workspace/cwd/agent/env metadata, closed retention and restoration-safe rune SSOT |
 | `history-drawer.tsx` | `src/lib/features/terminals/HistoryDrawer.svelte` — global open/closed history, focus live panes, restore closed panes, remove/clear actions, plus workspace-scoped “Restore where I left off” empty state |
+| `overview-drawer.tsx` | `src/lib/features/terminals/OverviewDrawer.svelte` + `overview.ts` — lazy read-only CPU/RAM/load/network/disk/runtime drawer, 5-second polling while mounted, formatter/usage helper tests, and defense-in-depth auth on the existing `/api/overview` proxy |
 | `use-pane-agent-overrides.ts` | `src/lib/features/terminals/pane-agent-overrides.svelte.ts` + `pane-agent-overrides.ts` — original `control-room:pane-agent-overrides` key, app-wide rune SSOT, bind/unbind metadata and React-parity live-session pruning |
 | `pane-ai-launch.tsx` | `src/lib/features/terminals/PaneAiLaunch.svelte` + `pane-agent-command.ts` — one compact catalog-backed menu preserves Track-only metadata binding and adds React-parity Regular/Bypass command injection into the same PTY; original per-profile bypass flags are unit-tested |
 | `launcher-card.tsx` + executable subset of `launcher-drawer.tsx` | `src/lib/features/terminals/LauncherDrawer.svelte` + `launcher.ts` — lazy-loaded Base/Agents/Envs launcher using the `terminalSessions` runtime catalog and shared create/workspace/history path; Regular/YOLO + active-dir request semantics are tested, while Saved stays deferred until Templates exists |
@@ -212,7 +214,7 @@ guessed at — it's simply not written yet.
 - [x] `use-workspaces.ts` and core `use-terminal-preferences.ts` (font size + view mode + grid columns + broadcast targets)
 - [ ] `use-media-query.ts`
 - [ ] `lib/backup.ts` — export/import of workspaces, templates, settings and history as one backup payload. History storage/types are now ported; session order/active-id persistence from the large React session hook remains part of topbar/session-order parity.
-- [ ] `overview-drawer.tsx`; History drawer and Settings drawer core are now ported, while Settings appearance/data/automation sections stay scoped to the corresponding remaining features
+- [x] `overview-drawer.tsx` — lazy Svelte system overview ported and real-agent/mobile verified; History and Settings drawer core are also ported, while Settings appearance/data/automation sections stay scoped to corresponding remaining features
 - [x] `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts` — lazy Svelte explorer + authenticated proxy ported and real-PTY verified
 
 **Other feature areas — not started**
