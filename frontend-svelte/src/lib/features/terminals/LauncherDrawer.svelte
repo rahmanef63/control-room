@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { ChevronDown, Cpu, Folder, Rocket, SquareTerminal, X, Zap } from 'lucide-svelte';
+	import { Bookmark, ChevronDown, Cpu, Folder, Rocket, SlidersHorizontal, SquareTerminal, X, Zap } from 'lucide-svelte';
 
 	import TerminalProfileIcon from './TerminalProfileIcon.svelte';
+	import type { TerminalTemplate } from '$lib/features/templates/templates';
 	import type { LauncherTab } from './launcher';
 	import type {
 		RuntimeEnvironmentSummary,
@@ -16,6 +17,7 @@
 		profiles: TerminalProfileDescriptor[];
 		environments: RuntimeEnvironmentSummary[];
 		agentProfiles: RuntimeResolvedAgentProfile[];
+		templates: TerminalTemplate[];
 		creatingKey: string | null;
 		onOpenChange: (open: boolean) => void;
 		onTabChange: (tab: LauncherTab) => void;
@@ -25,6 +27,8 @@
 			agentId: string,
 			options: { dangerouslyAllow?: boolean; useActiveDir?: boolean }
 		) => Promise<boolean>;
+		onLaunchTemplate: (template: TerminalTemplate) => Promise<boolean>;
+		onManageTemplates: () => void;
 	}
 
 	let {
@@ -33,12 +37,15 @@
 		profiles,
 		environments,
 		agentProfiles,
+		templates,
 		creatingKey,
 		onOpenChange,
 		onTabChange,
 		onLaunchProfile,
 		onLaunchEnvironment,
-		onLaunchAgent
+		onLaunchAgent,
+		onLaunchTemplate,
+		onManageTemplates
 	}: Props = $props();
 
 	let useActiveDir = $state(false);
@@ -55,6 +62,10 @@
 
 	async function launchEnvironment(id: string): Promise<void> {
 		if (await onLaunchEnvironment(id)) close();
+	}
+
+	async function launchTemplate(template: TerminalTemplate): Promise<void> {
+		if (await onLaunchTemplate(template)) close();
 	}
 
 	async function launchAgent(
@@ -84,7 +95,7 @@
 			<header class="launcher-header">
 				<div>
 					<h2>Launch terminal</h2>
-					<p>Pick a base profile, agent preset, or runtime environment.</p>
+					<p>Pick a base profile, agent preset, environment, or saved launch.</p>
 				</div>
 				<button type="button" class="launcher-close" onclick={close} aria-label="Close launcher">
 					<X size={16} />
@@ -100,6 +111,9 @@
 				</button>
 				<button type="button" data-active={tab === 'envs' || undefined} onclick={() => onTabChange('envs')}>
 					<Folder size={14} /> Envs
+				</button>
+				<button type="button" data-active={tab === 'saved' || undefined} onclick={() => onTabChange('saved')}>
+					<Bookmark size={14} /> Saved
 				</button>
 			</nav>
 
@@ -196,7 +210,7 @@
 							{/if}
 						</div>
 					</div>
-				{:else}
+				{:else if tab === 'envs'}
 					<div class="launcher-list">
 						{#if environments.length === 0}
 							<p class="launcher-empty">No environments configured.</p>
@@ -218,6 +232,29 @@
 								</button>
 							{/each}
 						{/if}
+					</div>
+				{:else if tab === 'saved'}
+					<div class="saved-pane">
+						<div class="launcher-list">
+							{#if templates.length === 0}
+								<p class="launcher-empty">No saved launches yet. Create one in Manage templates.</p>
+							{:else}
+								{#each templates as template (template.id)}
+									{@const busy = creatingKey === `template:${template.id}`}
+									<button type="button" class="launch-row" data-profile={template.profile ?? 'shell'} disabled={busy} onclick={() => void launchTemplate(template)}>
+										<span class="launch-icon" style:color={template.color}><TerminalProfileIcon profile={template.profile ?? 'shell'} size={18} /></span>
+										<span class="launch-copy">
+											<strong>{busy ? 'Launching…' : template.name}</strong>
+											<small class="mono">{template.description || template.cwd || template.initialCommand || 'Saved launch'}</small>
+										</span>
+										<span class="launch-chip">{template.profile ?? 'shell'}</span>
+									</button>
+								{/each}
+							{/if}
+						</div>
+						<button type="button" class="manage-templates" onclick={() => { close(); onManageTemplates(); }}>
+							<SlidersHorizontal size={14} /> Manage templates
+						</button>
 					</div>
 				{/if}
 			</div>
@@ -292,7 +329,7 @@
 	}
 	.launcher-tabs button[data-active='true'] { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: rgb(34 211 238 / 0.1); color: #cffafe; }
 	.launcher-body { min-height: 0; overflow-y: auto; padding: 11px; }
-	.launcher-list, .agents-pane { display: grid; gap: 8px; }
+	.launcher-list, .agents-pane, .saved-pane { display: grid; gap: 8px; }
 	.launch-row, .agent-card {
 		width: 100%;
 		min-width: 0;
@@ -340,6 +377,7 @@
 		white-space: nowrap;
 	}
 	.launcher-empty { margin: 0; border: 1px dashed var(--border); border-radius: 10px; padding: 24px 12px; color: var(--ink-muted); font-size: 0.72rem; text-align: center; }
+	.manage-templates { display: inline-flex; width: 100%; min-height: 36px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--ink-muted); font: inherit; font-size: 0.68rem; font-weight: 650; cursor: pointer; }
 	.launcher-option-row {
 		display: flex;
 		align-items: center;

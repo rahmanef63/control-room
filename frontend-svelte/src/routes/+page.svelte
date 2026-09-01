@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { onMount, untrack } from 'svelte';
-	import { Gauge, Grid2X2, History as HistoryIcon, Rocket, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
+	import { Bookmark, Gauge, Grid2X2, History as HistoryIcon, Rocket, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
 
 	import DevicesDrawer from '$lib/components/devices-drawer.svelte';
 	import HistoryDrawer from '$lib/features/terminals/HistoryDrawer.svelte';
@@ -35,6 +35,8 @@
 	import { useWakeLock } from '$lib/features/terminals/use-wake-lock.svelte';
 	import { DEFAULT_WORKSPACE_ID, useWorkspaces } from '$lib/features/terminals/use-workspaces.svelte';
 	import { terminalSessions } from '$lib/state/terminal-sessions.svelte';
+	import { templatesState } from '$lib/features/templates/templates.svelte';
+	import { templateInitialCommandInput, templateLaunchRequest, type TerminalTemplate } from '$lib/features/templates/templates';
 
 	const workspaces = useWorkspaces();
 	const preferences = useTerminalPreferences();
@@ -53,6 +55,7 @@
 	let settingsOpen = $state(false);
 	let historyOpen = $state(false);
 	let overviewOpen = $state(false);
+	let templatesOpen = $state(false);
 	let launcherOpen = $state(false);
 	let launcherTab = $state<LauncherTab>('base');
 	let launcherCreatingKey = $state<string | null>(null);
@@ -92,6 +95,7 @@
 		paneAgentOverrides.init();
 		sessionColors.init();
 		terminalHistory.init();
+		templatesState.init();
 		void terminalSessions.refresh().finally(() => {
 			sessionsLoaded = true;
 		});
@@ -165,6 +169,35 @@
 	function openLauncher(tab: LauncherTab = 'base'): void {
 		launcherTab = tab;
 		launcherOpen = true;
+	}
+
+	async function launchTemplate(template: TerminalTemplate): Promise<boolean> {
+		const targetWorkspace = template.workspaceId ?? workspaces.activeId;
+		if (template.workspaceId && template.workspaceId !== workspaces.activeId) {
+			workspaces.setActive(template.workspaceId);
+		}
+		const creatingKey = `template:${template.id}`;
+		launcherCreatingKey = creatingKey;
+		try {
+			const created = await terminalSessions.create(templateLaunchRequest(template));
+			if (!created) return false;
+			workspaces.assignSession(created.id, targetWorkspace);
+
+			if (template.customTitle && template.customTitle !== created.title) {
+				await terminalSessions.rename(created.id, template.customTitle);
+			}
+			const session = terminalSessions.sessions.find((item) => item.id === created.id) ?? created;
+			terminalHistory.upsert(session, targetWorkspace);
+
+			if (template.initialCommand) {
+				await new Promise((resolveDelay) => setTimeout(resolveDelay, 600));
+				pageInputQueue.enqueue(session.id, `${template.initialCommand}\r`);
+				await pageInputQueue.flush(session.id);
+			}
+			return true;
+		} finally {
+			if (launcherCreatingKey === creatingKey) launcherCreatingKey = null;
+		}
 	}
 
 	function updatePaneTelemetry(id: string, next: TerminalTelemetry): void {
@@ -434,6 +467,11 @@
 				<Rocket size={14} /> Launch
 			</Button>
 
+			<Button variant="outline" size="sm" onclick={() => openLauncher('saved')} aria-label="Open saved terminal templates">
+				<Bookmark size={14} /> Saved
+				{#if templatesState.templates.length > 0}<span class="topbar-count">{templatesState.templates.length}</span>{/if}
+			</Button>
+
 			<Button variant="outline" size="sm" onclick={() => (historyOpen = true)} aria-label="Open terminal history">
 				<HistoryIcon size={14} /> History
 				{#if restorableHistoryCount > 0}<span class="topbar-count">{restorableHistoryCount}</span>{/if}
@@ -464,12 +502,15 @@
 				profiles={terminalSessions.profiles}
 				environments={terminalSessions.environments}
 				agentProfiles={terminalSessions.agentProfiles}
+				templates={templatesState.templates}
 				creatingKey={launcherCreatingKey}
 				onOpenChange={(value) => (launcherOpen = value)}
 				onTabChange={(value) => (launcherTab = value)}
 				onLaunchProfile={(profile) => createInActiveWorkspace(profileLaunchRequest(profile), `profile:${profile}`)}
 				onLaunchEnvironment={(environmentId) => createInActiveWorkspace(environmentLaunchRequest(environmentId), `env:${environmentId}`)}
 				onLaunchAgent={(agentId, options) => createInActiveWorkspace(agentLaunchRequest(agentId, options), `agent:${agentId}`)}
+				onLaunchTemplate={launchTemplate}
+				onManageTemplates={() => (templatesOpen = true)}
 			/>
 		{/await}
 	{/if}
@@ -478,6 +519,27 @@
 		{#await import('$lib/features/terminals/OverviewDrawer.svelte') then overviewModule}
 			{@const OverviewDrawer = overviewModule.default}
 			<OverviewDrawer onClose={() => (overviewOpen = false)} />
+		{/await}
+	{/if}
+
+	{#if templatesOpen}
+		{#await import('$lib/features/templates/TemplatesDrawer.svelte') then templatesModule}
+			{@const TemplatesDrawer = templatesModule.default}
+			<TemplatesDrawer
+				templates={templatesState.templates}
+				profiles={terminalSessions.profiles}
+				agentProfiles={terminalSessions.agentProfiles}
+				environments={terminalSessions.environments}
+				workspaces={workspaces.workspaces}
+				activeSession={terminalSessions.active}
+				activeWorkspaceId={workspaces.activeId}
+				onClose={() => (templatesOpen = false)}
+				onCreate={templatesState.create.bind(templatesState)}
+				onUpdate={templatesState.update.bind(templatesState)}
+				onDelete={templatesState.delete.bind(templatesState)}
+				onDuplicate={templatesState.duplicate.bind(templatesState)}
+				onLaunch={launchTemplate}
+			/>
 		{/await}
 	{/if}
 

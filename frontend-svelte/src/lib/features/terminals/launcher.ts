@@ -1,6 +1,6 @@
 import type { TerminalCreateRequest, TerminalProfile } from './types';
 
-export type LauncherTab = 'base' | 'agents' | 'envs';
+export type LauncherTab = 'base' | 'agents' | 'envs' | 'saved';
 
 export function profileLaunchRequest(profile: TerminalProfile): TerminalCreateRequest {
 	return { profile };

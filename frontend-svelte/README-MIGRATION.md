@@ -18,7 +18,7 @@ agent on a parallel loopback port without touching the live Next service.
 Verified gates:
 
 - `bun install` succeeds with Svelte 5 / SvelteKit 2 / adapter-node.
-- `bun test` — **52/52** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color + history + pane-agent-override + launcher + pane-agent-command + pane-tools + overview helper tests pass.
+- `bun test` — **58/58** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color + history + pane-agent-override + launcher + pane-agent-command + pane-tools + overview + templates helper tests pass.
 - `bun run check` — **0 errors, 0 warnings**.
 - `bun run build` — production adapter-node build succeeds.
 - Official Svelte MCP `svelte-autofixer` reports no issues on the changed
@@ -77,7 +77,8 @@ Verified gates:
 - Pane-tools smoke verifies authenticated `/api/skills` + `/api/fs/list` against the unchanged agent boundary: the live project exposes 35 skills, `si-coder` invocation is sent exactly to the source PTY even while broadcast is armed (sibling input stays 0), and the lazy folder explorer changes the same PTY cwd to `/home/rahman/projects`. Both routes return 401 without a session, and a 390×844 mobile pass verifies the tools menu + explorer have no horizontal overflow.
 - Overview smoke verifies the hardened authenticated `/api/overview` route against the real agent telemetry: 8 CPU cores, 7 disk entries and 5 terminal profiles were returned on the current VPS; the lazy drawer polled three times across the 5-second interval, closed via Escape/button, stayed read-only, and fit a 390×844 viewport without horizontal overflow. Unauthenticated overview returns 401.
 - Authenticated read-only view smoke verifies `/view/[id]` keeps the same session requirement as React (unauthenticated requests redirect to `/login`), replays bootstrap + live SSE output from the same real PTY, exposes screen-reader rows, and sends **0** browser POSTs to terminal input/resize/upload endpoints even when keys are typed. The 390×844 view has no horizontal overflow; this is deliberately not a public share-token link.
-- Launcher smoke verifies the same real 5 profile / 3 environment / 4 resolved-agent catalog through the lazy-loaded Svelte drawer: Base shell, `host-default` environment, and `codex-ops` Regular agent launch all create real PTYs through the UI, preserve exact request semantics, land in the active workspace/history, and send no AI prompt. A 390×844 mobile pass verifies Base/Agents/Envs remain reachable with no horizontal overflow; the Saved tab stays hidden until Templates is actually ported.
+- Launcher smoke verifies the real 5 profile / 3 environment / 4 resolved-agent catalog through the lazy-loaded Svelte drawer: Base shell, `host-default` environment, and `codex-ops` Regular agent launch all create real PTYs with exact request semantics and no AI prompt. The fourth Saved tab is now backed by the real Templates SSOT instead of being hidden.
+- Templates/Saved smoke verifies the exact `vps-control-room.templates` storage key and original palette/shape across create, edit, duplicate, delete and full-page reload. A Saved launch re-created a real shell with exact create body, pinned workspace/history, custom title, and executed initial command; the test also caught the React-era literal `\r` bug, so Svelte now appends a real carriage-return byte 13. A 390×844 pass verifies Saved launcher, Templates drawer and edit form without overflow or PTY creation.
 
 No production cutover has happened. The existing Next frontend stays on its
 current service/port, and the agent source is not modified by this migration.
@@ -160,7 +161,8 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `readonly-terminal-view.tsx` + `app/view/[id]/**` | `src/lib/features/terminals/ReadOnlyTerminalView.svelte` + `src/routes/view/[id]/**` — authenticated SSE-only xterm viewer with `disableStdin`, screen-reader mode, local fit only, nested retry error UI and no input/resize/upload actions |
 | `use-pane-agent-overrides.ts` | `src/lib/features/terminals/pane-agent-overrides.svelte.ts` + `pane-agent-overrides.ts` — original `control-room:pane-agent-overrides` key, app-wide rune SSOT, bind/unbind metadata and React-parity live-session pruning |
 | `pane-ai-launch.tsx` | `src/lib/features/terminals/PaneAiLaunch.svelte` + `pane-agent-command.ts` — one compact catalog-backed menu preserves Track-only metadata binding and adds React-parity Regular/Bypass command injection into the same PTY; original per-profile bypass flags are unit-tested |
-| `launcher-card.tsx` + executable subset of `launcher-drawer.tsx` | `src/lib/features/terminals/LauncherDrawer.svelte` + `launcher.ts` — lazy-loaded Base/Agents/Envs launcher using the `terminalSessions` runtime catalog and shared create/workspace/history path; Regular/YOLO + active-dir request semantics are tested, while Saved stays deferred until Templates exists |
+| `launcher-card.tsx` + `launcher-drawer.tsx` | `src/lib/features/terminals/LauncherDrawer.svelte` + `launcher.ts` — lazy-loaded Base/Agents/Envs/Saved launcher using runtime catalog + Templates SSOT; profile/env/agent/template request semantics are tested and real-PTY verified |
+| `features/templates/{types,hooks,components}` | `src/lib/features/templates/{templates.ts,templates.svelte.ts,TemplatesDrawer.svelte}` — exact `vps-control-room.templates` localStorage key, original palette/CRUD semantics, save-current-session, responsive edit/list UI, pinned workspace/custom title/initial-command launch, and Saved launcher integration |
 | `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts` | `src/lib/features/terminals/FileExplorerDialog.svelte` + `src/routes/api/fs/list/+server.ts` — lazy authenticated folder browser over the existing agent read-root policy; selected paths are shell-quoted and injected as source-only `cd` commands |
 | Skills subset of `pane-actions-menu.tsx` + `app/api/skills/route.ts` | `src/lib/features/terminals/PaneToolsMenu.svelte` + `pane-tools.ts` + `src/routes/api/skills/+server.ts` — cwd-aware project/global skill catalog, exact invocation injection to the current PTY, intentionally independent of broadcast fan-out |
 | `pane-header.tsx` + non-duplicated action subset | `src/lib/features/terminals/PaneChrome.svelte` + `PaneToolsMenu.svelte` — profile icon, session-color picker, Track/Regular/Bypass AI menu, project/global Skills injection, lazy Change-directory explorer, in-place rename, activity chip, stream/RTT badge, move workspace, font +/- controls, duplicate, grid focus, fullscreen enter/exit and close. React actions already represented by these quick controls were deliberately not duplicated in a second menu |
@@ -207,7 +209,7 @@ guessed at — it's simply not written yet.
 - [x] Runtime catalog + pane-agent override SSOT + pane AI injection — `GET /api/terminals` profiles/environments/agentProfiles are retained in `terminalSessions`; original override key/shape and live-only pruning are preserved; Track-only plus Regular/Bypass same-PTY injection are real-browser verified without sending an AI prompt.
 - [ ] Full `terminals-main.tsx` / `terminals-topbar.tsx` parity: row-stretch polish, patrol controls, and the remaining compact chrome; the core launcher is now ported
 - [ ] Advanced pane chrome remaining: `pane-menu-cluster.tsx` and any genuinely unique action behavior not already represented by quick controls. `readonly-terminal-view.tsx`, `pane-actions-menu.tsx` Skills + folder-browse behavior, `pane-ai-launch.tsx`, profile/color/keyboard/scroll/error/connection/activity controls and fullscreen are already absorbed by current Svelte components without duplicate action sources.
-- [x] `launcher-card.tsx` + `launcher-drawer.tsx` core — Base/Agents/Envs are lazy-loaded and real-agent verified, including Regular agent launch; Saved is intentionally deferred with the Templates feature rather than exposed as a non-functional tab
+- [x] `launcher-card.tsx` + `launcher-drawer.tsx` — Base/Agents/Envs/Saved are lazy-loaded and real-agent verified; Saved is backed by the fully ported Templates CRUD/launch SSOT
 - [ ] `use-alfa-watchers.ts`, `patrol/*` (4 components) — alfa patrol/registry feature, plus `app/api/alfa/watchers/**` and `app/api/patrol/pending/**` routes
 - [x] ~~`use-devices.ts`, `devices-drawer.tsx` — device approval UI~~ ported this round, see the table above
 - [x] `use-fullscreen.ts` — ported and wired into pane chrome + grid Focus, with browser fullscreen/resize verification.
@@ -215,13 +217,13 @@ guessed at — it's simply not written yet.
 - [x] `use-app-settings.ts` + settings drawer core — heartbeat glow, soft-keyboard master/per-key persistence, reset and Trusted Devices handoff are wired. Legacy `enter`/`ctrlHold` flags remain storage-compatible but hidden because the React keyboard never implemented them.
 - [x] `use-workspaces.ts` and core `use-terminal-preferences.ts` (font size + view mode + grid columns + broadcast targets)
 - [ ] `use-media-query.ts`
-- [ ] `lib/backup.ts` — export/import of workspaces, templates, settings and history as one backup payload. History storage/types are now ported; session order/active-id persistence from the large React session hook remains part of topbar/session-order parity.
+- [ ] `lib/backup.ts` — export/import of workspaces, templates, settings and history as one backup payload. Workspaces/history/templates/settings storage are now ported; session-order/active-id persistence from the large React session hook remains part of topbar/session-order parity.
 - [x] `overview-drawer.tsx` — lazy Svelte system overview ported and real-agent/mobile verified; History and Settings drawer core are also ported, while Settings appearance/data/automation sections stay scoped to corresponding remaining features
 - [x] `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts` — lazy Svelte explorer + authenticated proxy ported and real-PTY verified
 
-**Other feature areas — not started**
+**Other feature areas**
 - [ ] Crons: `features/crons/*` (3 files) + `app/api/crons/**` routes
-- [ ] Templates: `features/templates/*` (3 files)
+- [x] Templates: exact storage/CRUD + responsive drawer + save-current-session + Saved launcher + real PTY launch are ported and verified
 - [ ] Browser CRUD: `app/browser/**`, `app/api/browser/crud/route.ts` (see `docs/browser-crud.md` in the repo root)
 - [x] `app/view/[id]/**` — authenticated read-only SSE viewer ported with zero terminal write/resize/upload requests; React security semantics preserved (not a public share link)
 - [x] `app/api/skills/route.ts` — cwd-aware authenticated proxy ported and Skills injection real-browser verified
