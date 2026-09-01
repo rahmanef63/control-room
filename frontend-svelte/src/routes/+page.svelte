@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { onMount, untrack } from 'svelte';
-	import { Bookmark, Bot, CalendarClock, Gauge, Grid2X2, History as HistoryIcon, Rocket, Rows3, Settings2, ShieldCheck } from 'lucide-svelte';
+	import { Bookmark, Bot, CalendarClock, Gauge, Grid2X2, History as HistoryIcon, Menu, Rocket, Rows3, Settings2, ShieldCheck, X } from 'lucide-svelte';
 
 	import DevicesDrawer from '$lib/components/devices-drawer.svelte';
 	import HistoryDrawer from '$lib/features/terminals/HistoryDrawer.svelte';
@@ -66,6 +66,7 @@
 	let launcherOpen = $state(false);
 	let launcherTab = $state<LauncherTab>('base');
 	let launcherCreatingKey = $state<string | null>(null);
+	let mobileActionsOpen = $state(false);
 	let historyRestoring = $state(false);
 	let sessionsLoaded = $state(false);
 	let paneTelemetry = $state<Record<string, TerminalTelemetry>>({});
@@ -475,18 +476,53 @@
 			<Button variant="ghost" size="sm" onclick={newShell}>+ New shell</Button>
 		</div>
 
-		<div class="topbar__controls">
-			<Button
-				variant={preferences.viewMode === 'grid' ? 'default' : 'outline'}
-				size="sm"
-				onclick={() => preferences.setViewMode(preferences.viewMode === 'grid' ? 'single' : 'grid')}
-			>
-				{#if preferences.viewMode === 'grid'}
+		<button
+			type="button"
+			class="mobile-actions-trigger"
+			aria-label="Open terminal controls"
+			aria-controls="terminal-topbar-controls"
+			aria-expanded={mobileActionsOpen}
+			onclick={() => (mobileActionsOpen = true)}
+		>
+			<Menu size={16} />
+			<span>Controls</span>
+		</button>
+
+		{#if mobileActionsOpen}
+			<button
+				type="button"
+				class="topbar-actions-backdrop"
+				aria-label="Close terminal controls"
+				onclick={() => (mobileActionsOpen = false)}
+			></button>
+		{/if}
+
+		<div id="terminal-topbar-controls" class="topbar__controls" data-open={mobileActionsOpen || undefined}>
+			<div class="mobile-actions-heading">
+				<strong>Terminal controls</strong>
+				<button type="button" aria-label="Close terminal controls" onclick={() => (mobileActionsOpen = false)}>
+					<X size={16} />
+				</button>
+			</div>
+
+			<div class="view-mode-control" role="group" aria-label="Terminal layout">
+				<Button
+					variant={preferences.viewMode === 'single' ? 'default' : 'outline'}
+					size="sm"
+					aria-pressed={preferences.viewMode === 'single'}
+					onclick={() => preferences.setViewMode('single')}
+				>
 					<Rows3 size={14} /> Single
-				{:else}
+				</Button>
+				<Button
+					variant={preferences.viewMode === 'grid' ? 'default' : 'outline'}
+					size="sm"
+					aria-pressed={preferences.viewMode === 'grid'}
+					onclick={() => preferences.setViewMode('grid')}
+				>
 					<Grid2X2 size={14} /> Grid
-				{/if}
-			</Button>
+				</Button>
+			</div>
 
 			{#if preferences.viewMode === 'grid'}
 				<label class="grid-cols-control">
@@ -902,6 +938,17 @@
 		white-space: nowrap;
 		font-size: 0.76rem;
 	}
+	.mobile-actions-trigger,
+	.mobile-actions-heading,
+	.topbar-actions-backdrop {
+		display: none;
+	}
+	.view-mode-control {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		flex: 0 0 auto;
+	}
 	.topbar__controls {
 		display: flex;
 		align-items: center;
@@ -1055,21 +1102,127 @@
 	}
 	@media (max-width: 900px) {
 		.topbar {
-			flex-wrap: wrap;
+			flex-wrap: nowrap;
+			gap: 6px;
+			padding: 6px 8px;
 		}
 		.topbar__brand {
 			display: none;
 		}
 		.session-tabs {
-			order: 2;
-			flex-basis: 100%;
+			flex: 1 1 auto;
+			min-width: 0;
+			overscroll-behavior-inline: contain;
+			-webkit-overflow-scrolling: touch;
+		}
+		.session-tab {
+			min-width: min(11.5rem, 72vw);
+			max-width: min(16rem, 82vw);
+		}
+		.mobile-actions-trigger {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			flex: 0 0 auto;
+			gap: 5px;
+			height: 32px;
+			padding: 0 10px;
+			border: 1px solid var(--border);
+			border-radius: 999px;
+			background: var(--surface-2);
+			color: var(--ink);
+			font-size: 11px;
+			font-weight: 600;
+			cursor: pointer;
+		}
+		.topbar-actions-backdrop {
+			display: block;
+			position: fixed;
+			inset: 0;
+			z-index: 79;
+			border: 0;
+			background: rgb(2 6 23 / 0.66);
 		}
 		.topbar__controls {
-			margin-left: auto;
+			position: fixed;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			z-index: 80;
+			width: min(20rem, 88vw);
+			min-width: 0;
+			flex-direction: column;
+			align-items: stretch;
+			justify-content: flex-start;
+			gap: 8px;
+			padding: max(12px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom));
+			border-left: 1px solid var(--border);
+			background: var(--surface);
+			overflow-y: auto;
+			overscroll-behavior: contain;
+			transform: translateX(100%);
+			visibility: hidden;
+			pointer-events: none;
+			transition: transform 160ms ease, visibility 160ms ease;
 		}
-		.terminal-grid[data-view='grid'] {
+		.topbar__controls[data-open='true'] {
+			transform: none;
+			visibility: visible;
+			pointer-events: auto;
+		}
+		.mobile-actions-heading {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+			min-height: 36px;
+			padding: 0 2px 7px;
+			border-bottom: 1px solid var(--border);
+			font-size: 12px;
+		}
+		.mobile-actions-heading button {
+			display: inline-grid;
+			width: 32px;
+			height: 32px;
+			place-items: center;
+			border: 1px solid var(--border);
+			border-radius: 999px;
+			background: var(--surface-2);
+			color: var(--ink);
+		}
+		.view-mode-control {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			width: 100%;
+		}
+		.view-mode-control :global(button),
+		.topbar__controls > :global(button) {
+			width: 100%;
+		}
+		.grid-cols-control {
+			display: grid;
+			grid-template-columns: auto minmax(0, 1fr);
+			width: 100%;
+		}
+		.grid-cols-control select {
+			width: 100%;
+		}
+		.terminal-stage {
+			padding: 6px;
+		}
+	}
+
+	@media (max-width: 768px) and (orientation: portrait) {
+		.terminal-grid[data-view='grid'][data-grid-cols] {
 			grid-template-columns: minmax(0, 1fr);
-			grid-auto-rows: minmax(300px, 1fr);
+			grid-auto-rows: 60dvh;
+			height: auto;
+		}
+	}
+
+	@media (max-width: 1024px) and (orientation: landscape) {
+		.terminal-grid[data-view='grid'][data-grid-cols] {
+			grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
 		}
 	}
 </style>
