@@ -333,10 +333,14 @@
 		return true;
 	}
 
-	function injectPaneAgent(sessionId: string, agentProfileId: string, command: string): void {
+	function sendPaneCommand(sessionId: string, command: string): void {
 		const session = terminalSessions.sessions.find((item) => item.id === sessionId);
 		if (!session || session.status !== 'running' || !command.trim()) return;
 		pageInputQueue.enqueue(sessionId, `${command}\r`);
+	}
+
+	function injectPaneAgent(sessionId: string, agentProfileId: string, command: string): void {
+		sendPaneCommand(sessionId, command);
 		paneAgentOverrides.bind(sessionId, agentProfileId);
 	}
 </script>
@@ -537,6 +541,7 @@
 								boundAgentProfileId={paneAgentOverrides.overrideOf(session.id)?.agentProfileId}
 								onBindAgent={(agentProfileId) => paneAgentOverrides.bind(session.id, agentProfileId)}
 								onInjectAgent={(agentProfileId, command) => injectPaneAgent(session.id, agentProfileId, command)}
+								onCommand={(command) => sendPaneCommand(session.id, command)}
 								onUnbindAgent={() => paneAgentOverrides.clear(session.id)}
 								onColorPick={(color) => sessionColors.setColor(session.id, color)}
 								onColorClear={() => sessionColors.clearColor(session.id)}

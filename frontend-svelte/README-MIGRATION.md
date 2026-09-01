@@ -18,7 +18,7 @@ agent on a parallel loopback port without touching the live Next service.
 Verified gates:
 
 - `bun install` succeeds with Svelte 5 / SvelteKit 2 / adapter-node.
-- `bun test` — **45/45** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color + history + pane-agent-override + launcher + pane-agent-command helper tests pass.
+- `bun test` — **49/49** upload + broadcast + ordered-input + telemetry + build-id + PWA-asset + pinch-zoom + soft-keyboard + session-color + history + pane-agent-override + launcher + pane-agent-command + pane-tools helper tests pass.
 - `bun run check` — **0 errors, 0 warnings**.
 - `bun run build` — production adapter-node build succeeds.
 - Official Svelte MCP `svelte-autofixer` reports no issues on the changed
@@ -74,6 +74,7 @@ Verified gates:
 - History smoke verifies a real PTY close is retained as a closed entry, survives reload, restores to a new PTY with the same title/workspace, keeps its color while restorable, and prunes the old color only after successful restoration.
 - Runtime-catalog/agent-binding smoke verifies the real 5 profile / 3 environment / 4 resolved-agent catalog reaches Svelte, `Codex Ops` can be bound as tracking metadata, the backend PTY stays a plain shell with no `agent_profile_id`/`inner_agent`, activity tracking follows the binding, reload persists it, and unbind/close pruning clears it without launching or prompting AI.
 - Pane-AI injection smoke verifies `Codex Ops` Track-only sends zero input, Regular sends exactly `codex\r` to the same shell PTY, the local agent binding persists, the backend eventually detects `inner_agent=codex` through its existing `pstree` cache, and no AI prompt is sent. A 390×844 pass verifies the four-agent menu stays inside the viewport with no horizontal overflow.
+- Pane-tools smoke verifies authenticated `/api/skills` + `/api/fs/list` against the unchanged agent boundary: the live project exposes 35 skills, `si-coder` invocation is sent exactly to the source PTY even while broadcast is armed (sibling input stays 0), and the lazy folder explorer changes the same PTY cwd to `/home/rahman/projects`. Both routes return 401 without a session, and a 390×844 mobile pass verifies the tools menu + explorer have no horizontal overflow.
 - Launcher smoke verifies the same real 5 profile / 3 environment / 4 resolved-agent catalog through the lazy-loaded Svelte drawer: Base shell, `host-default` environment, and `codex-ops` Regular agent launch all create real PTYs through the UI, preserve exact request semantics, land in the active workspace/history, and send no AI prompt. A 390×844 mobile pass verifies Base/Agents/Envs remain reachable with no horizontal overflow; the Saved tab stays hidden until Templates is actually ported.
 
 No production cutover has happened. The existing Next frontend stays on its
@@ -156,7 +157,9 @@ straight into a normal `+server.ts` returning a `ReadableStream` — see
 | `use-pane-agent-overrides.ts` | `src/lib/features/terminals/pane-agent-overrides.svelte.ts` + `pane-agent-overrides.ts` — original `control-room:pane-agent-overrides` key, app-wide rune SSOT, bind/unbind metadata and React-parity live-session pruning |
 | `pane-ai-launch.tsx` | `src/lib/features/terminals/PaneAiLaunch.svelte` + `pane-agent-command.ts` — one compact catalog-backed menu preserves Track-only metadata binding and adds React-parity Regular/Bypass command injection into the same PTY; original per-profile bypass flags are unit-tested |
 | `launcher-card.tsx` + executable subset of `launcher-drawer.tsx` | `src/lib/features/terminals/LauncherDrawer.svelte` + `launcher.ts` — lazy-loaded Base/Agents/Envs launcher using the `terminalSessions` runtime catalog and shared create/workspace/history path; Regular/YOLO + active-dir request semantics are tested, while Saved stays deferred until Templates exists |
-| `pane-header.tsx` + action subset | `src/lib/features/terminals/PaneChrome.svelte` — profile icon, session-color picker, Track/Regular/Bypass AI menu, in-place rename, activity chip, stream/RTT badge, move workspace, font +/- controls, duplicate, grid focus, fullscreen enter/exit and close; skills and advanced actions remain backlog |
+| `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts` | `src/lib/features/terminals/FileExplorerDialog.svelte` + `src/routes/api/fs/list/+server.ts` — lazy authenticated folder browser over the existing agent read-root policy; selected paths are shell-quoted and injected as source-only `cd` commands |
+| Skills subset of `pane-actions-menu.tsx` + `app/api/skills/route.ts` | `src/lib/features/terminals/PaneToolsMenu.svelte` + `pane-tools.ts` + `src/routes/api/skills/+server.ts` — cwd-aware project/global skill catalog, exact invocation injection to the current PTY, intentionally independent of broadcast fan-out |
+| `pane-header.tsx` + non-duplicated action subset | `src/lib/features/terminals/PaneChrome.svelte` + `PaneToolsMenu.svelte` — profile icon, session-color picker, Track/Regular/Bypass AI menu, project/global Skills injection, lazy Change-directory explorer, in-place rename, activity chip, stream/RTT badge, move workspace, font +/- controls, duplicate, grid focus, fullscreen enter/exit and close. React actions already represented by these quick controls were deliberately not duplicated in a second menu |
 | `use-workspaces.ts` + `workspace-tabs.tsx` | `src/lib/features/terminals/use-workspaces.svelte.ts` + `WorkspaceTabs.svelte` — local-first + remote agent-state sync, create/rename/delete/select workspace, session assignment |
 | `use-terminal-preferences.ts` (core) | `src/lib/features/terminals/use-terminal-preferences.svelte.ts` — font-size map, single/grid mode, grid columns, reactive `SvelteSet` broadcast targets |
 | `terminals-broadcast.tsx` + broadcast input slice | `src/lib/features/terminals/BroadcastMenu.svelte` + `broadcast.ts` + `input-queue.ts` — current-workspace running-target selection, All/None, source-inclusive fan-out, shared per-terminal ordered input queue |
@@ -199,7 +202,7 @@ guessed at — it's simply not written yet.
 - [x] Terminal history SSOT + History drawer — exact storage key/40-entry cap, live snapshot updates, closed retention, workspace-aware single/bulk restore, reload persistence, and real-agent restore E2E.
 - [x] Runtime catalog + pane-agent override SSOT + pane AI injection — `GET /api/terminals` profiles/environments/agentProfiles are retained in `terminalSessions`; original override key/shape and live-only pruning are preserved; Track-only plus Regular/Bypass same-PTY injection are real-browser verified without sending an AI prompt.
 - [ ] Full `terminals-main.tsx` / `terminals-topbar.tsx` parity: row-stretch polish, patrol controls, and the remaining compact chrome; the core launcher is now ported
-- [ ] Advanced pane chrome: `pane-actions-menu.tsx`, `pane-menu-cluster.tsx`, `readonly-terminal-view.tsx` plus skills and remaining actions integrations. `pane-ai-launch.tsx`, `terminal-profile-icon.tsx`, `session-color-picker.tsx`, `pane-soft-keyboard.tsx`, `pane-scroll-rail.tsx`, `pane-error-boundary.tsx`, `pane-conn-badge.tsx`, `pane-activity-chip.tsx`, and fullscreen behavior are already absorbed by the current Svelte pane components.
+- [ ] Advanced pane chrome remaining: `pane-menu-cluster.tsx`, `readonly-terminal-view.tsx` and any genuinely unique action behavior not already represented by quick controls. `pane-actions-menu.tsx` Skills + folder-browse behavior, `pane-ai-launch.tsx`, profile/color/keyboard/scroll/error/connection/activity controls and fullscreen are already absorbed by current Svelte components without duplicate action sources.
 - [x] `launcher-card.tsx` + `launcher-drawer.tsx` core — Base/Agents/Envs are lazy-loaded and real-agent verified, including Regular agent launch; Saved is intentionally deferred with the Templates feature rather than exposed as a non-functional tab
 - [ ] `use-alfa-watchers.ts`, `patrol/*` (4 components) — alfa patrol/registry feature, plus `app/api/alfa/watchers/**` and `app/api/patrol/pending/**` routes
 - [x] ~~`use-devices.ts`, `devices-drawer.tsx` — device approval UI~~ ported this round, see the table above
@@ -210,14 +213,15 @@ guessed at — it's simply not written yet.
 - [ ] `use-media-query.ts`
 - [ ] `lib/backup.ts` — export/import of workspaces, templates, settings and history as one backup payload. History storage/types are now ported; session order/active-id persistence from the large React session hook remains part of topbar/session-order parity.
 - [ ] `overview-drawer.tsx`; History drawer and Settings drawer core are now ported, while Settings appearance/data/automation sections stay scoped to the corresponding remaining features
-- [ ] `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts`
+- [x] `file-explorer-dialog.tsx` + `app/api/fs/list/route.ts` — lazy Svelte explorer + authenticated proxy ported and real-PTY verified
 
 **Other feature areas — not started**
 - [ ] Crons: `features/crons/*` (3 files) + `app/api/crons/**` routes
 - [ ] Templates: `features/templates/*` (3 files)
 - [ ] Browser CRUD: `app/browser/**`, `app/api/browser/crud/route.ts` (see `docs/browser-crud.md` in the repo root)
 - [ ] `app/view/[id]/**` — read-only pane share view
-- [ ] `app/api/skills/route.ts`, `app/api/log/route.ts`
+- [x] `app/api/skills/route.ts` — cwd-aware authenticated proxy ported and Skills injection real-browser verified
+- [ ] `app/api/log/route.ts`
 - [ ] `components/ui/{separator,tooltip}.tsx` — the other two shadcn components in the original; add via `bunx shadcn-svelte@latest add separator tooltip` once npm access exists
 
 **Styling parity**

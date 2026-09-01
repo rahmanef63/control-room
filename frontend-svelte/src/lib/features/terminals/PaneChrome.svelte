@@ -16,6 +16,7 @@
 	} from 'lucide-svelte';
 
 	import PaneAiLaunch from '$lib/features/terminals/PaneAiLaunch.svelte';
+	import PaneToolsMenu from '$lib/features/terminals/PaneToolsMenu.svelte';
 	import SessionColorPicker from '$lib/features/terminals/SessionColorPicker.svelte';
 	import TerminalProfileIcon from '$lib/features/terminals/TerminalProfileIcon.svelte';
 	import {
@@ -45,6 +46,7 @@
 		boundAgentProfileId?: string;
 		onBindAgent: (agentProfileId: string) => void;
 		onInjectAgent: (agentProfileId: string, command: string) => void;
+		onCommand: (command: string) => void;
 		onUnbindAgent: () => void;
 		onColorPick: (color: string) => void;
 		onColorClear: () => void;
@@ -75,6 +77,7 @@
 		boundAgentProfileId,
 		onBindAgent,
 		onInjectAgent,
+		onCommand,
 		onUnbindAgent,
 		onColorPick,
 		onColorClear,
@@ -199,6 +202,11 @@
 			onTrack={onBindAgent}
 			onInject={onInjectAgent}
 			onUnbind={onUnbindAgent}
+		/>
+		<PaneToolsMenu
+			cwd={session.cwd}
+			canSendInput={session.status === 'running'}
+			{onCommand}
 		/>
 		<span
 			class="pane-chrome__latency"
