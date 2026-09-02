@@ -1,4 +1,5 @@
 <script lang="ts">
+	import './terminal.css';
 	// Svelte 5 runes port of the core of
 	// frontend/src/features/terminals/hooks/use-pane-terminal.ts +
 	// components/terminal-pane.tsx.
@@ -20,15 +21,14 @@
 	import { Loader2, UploadCloud } from 'lucide-svelte';
 	import PaneSoftKeyboard from '$lib/features/terminals/PaneSoftKeyboard.svelte';
 	import PaneScrollRail from '$lib/features/terminals/PaneScrollRail.svelte';
-	import { FitAddon } from '@xterm/addon-fit';
-	import { WebglAddon } from '@xterm/addon-webgl';
-	import { Terminal as XTerm } from '@xterm/xterm';
-	import '@xterm/xterm/css/xterm.css';
+	import type { FitAddon } from '@xterm/addon-fit';
+	import type { Terminal as XTerm } from '@xterm/xterm';
 
 	import { filesFromDrop, imageFileFromBlob, partitionBySize, quoteShellPath } from '$lib/features/terminals/upload';
 	import { OrderedTerminalInputQueue } from '$lib/features/terminals/input-queue';
 	import type { SoftKeyboardAction } from '$lib/features/terminals/soft-keyboard';
-	import { fontSizeForPinch, touchDistance } from '$lib/features/terminals/pinch-zoom';
+	import { attachTerminalPinchZoom } from '$lib/features/terminals/terminal-pinch-attachment';
+	import { attachWebgl, createXtermRuntime } from '$lib/features/terminals/xterm-runtime';
 	import {
 		ACTIVITY_LABELS,
 		detectIdleActivity,
@@ -41,7 +41,6 @@
 		clampFontSize,
 		DEFAULT_FONT_SIZE,
 		getStreamUrl,
-		TERMINAL_SCROLLBACK,
 		type ConnectionState,
 		type TerminalGatewayEvent,
 		type TerminalSession,
@@ -107,16 +106,6 @@
 	let isAgent = $derived(Boolean(boundAgentProfileId) || isAgentSession(session));
 	let showActivity = $derived(isAgent && (activityState !== 'idle' || session.status === 'exited'));
 	let activityLabel = $derived(ACTIVITY_LABELS[activityState]);
-
-	function tryLoadWebgl(t: XTerm): void {
-		try {
-			const addon = new WebglAddon();
-			addon.onContextLoss(() => addon.dispose());
-			t.loadAddon(addon);
-		} catch {
-			// No WebGL context available — DOM renderer stays in place.
-		}
-	}
 
 	function postResize(cols: number, rows: number): void {
 		void fetch(`/api/terminals/${encodeURIComponent(session.id)}/resize`, {
@@ -358,53 +347,8 @@
 		});
 	}
 
-	function pinchZoomAttachment(node: HTMLElement) {
-		let startDistance = 0;
-		let startFontSize = resolvedFontSize;
-		let lastAppliedSize = resolvedFontSize;
-
-		const reset = () => {
-			startDistance = 0;
-		};
-
-		const start = (event: TouchEvent) => {
-			if (!onFontSizeChange || event.touches.length !== 2) {
-				reset();
-				return;
-			}
-			startDistance = touchDistance(event.touches[0], event.touches[1]);
-			startFontSize = resolvedFontSize;
-			lastAppliedSize = resolvedFontSize;
-			if (startDistance > 0) event.preventDefault();
-		};
-
-		const move = (event: TouchEvent) => {
-			if (!onFontSizeChange || startDistance <= 0 || event.touches.length !== 2) return;
-			event.preventDefault();
-			const next = fontSizeForPinch(
-				startFontSize,
-				startDistance,
-				touchDistance(event.touches[0], event.touches[1])
-			);
-			if (next === lastAppliedSize) return;
-			lastAppliedSize = next;
-			onFontSizeChange(session.id, next);
-		};
-
-		const end = (event: TouchEvent) => {
-			if (event.touches.length < 2) reset();
-		};
-
-		node.addEventListener('touchstart', start, { passive: false });
-		node.addEventListener('touchmove', move, { passive: false });
-		node.addEventListener('touchend', end);
-		node.addEventListener('touchcancel', reset);
-		return () => {
-			node.removeEventListener('touchstart', start);
-			node.removeEventListener('touchmove', move);
-			node.removeEventListener('touchend', end);
-			node.removeEventListener('touchcancel', reset);
-		};
+	function pinchZoomAttachment(node: HTMLElement): () => void {
+		return attachTerminalPinchZoom(node, () => resolvedFontSize, (size) => onFontSizeChange?.(session.id, size));
 	}
 
 	function connectStream(): void {
@@ -504,42 +448,11 @@
 	function startTerminal(): void {
 		if (!mounted || started || !containerEl) return;
 		started = true;
-		term = new XTerm({
-			scrollback: TERMINAL_SCROLLBACK,
-			fontSize: clampFontSize(fontSize),
-			fontFamily: "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-			lineHeight: 1.18,
-			convertEol: true,
-			cursorBlink: true,
-			rightClickSelectsWord: true,
-			macOptionClickForcesSelection: true,
-			allowProposedApi: true,
-			theme: {
-				background: '#08111f',
-				foreground: '#d7e3f6',
-				cursor: '#f8fafc',
-				black: '#08111f',
-				red: '#fb7185',
-				green: '#4ade80',
-				yellow: '#facc15',
-				blue: '#60a5fa',
-				magenta: '#f472b6',
-				cyan: '#22d3ee',
-				white: '#d7e3f6',
-				brightBlack: '#334155',
-				brightRed: '#fda4af',
-				brightGreen: '#86efac',
-				brightYellow: '#fde047',
-				brightBlue: '#93c5fd',
-				brightMagenta: '#f9a8d4',
-				brightCyan: '#67e8f9',
-				brightWhite: '#f8fafc'
-			}
-		});
-		fitAddon = new FitAddon();
-		term.loadAddon(fitAddon);
+		const runtime = createXtermRuntime(fontSize);
+		term = runtime.term;
+		fitAddon = runtime.fitAddon;
 		term.open(containerEl);
-		tryLoadWebgl(term);
+		attachWebgl(term);
 		resizeTerminal(true);
 
 		term.onData((data) => {
@@ -673,86 +586,3 @@
 </div>
 <PaneScrollRail onScroll={railScroll} />
 </div>
-
-<style>
-	.terminal-pane-shell {
-		display: flex;
-		height: 100%;
-		min-height: 0;
-		min-width: 0;
-		overflow: hidden;
-	}
-	.terminal-pane {
-		position: relative;
-		display: flex;
-		flex-direction: column;
-		flex: 1 1 0%;
-		width: auto;
-		height: 100%;
-		min-width: 0;
-		min-height: 0;
-		background: #0b1220;
-		border-radius: var(--radius);
-		overflow: hidden;
-	}
-	.terminal-pane__screen {
-		position: relative;
-		flex: 1 1 0;
-		min-height: 0;
-		background: #101418;
-		padding: 7px;
-		-webkit-user-select: text;
-		user-select: text;
-		-webkit-touch-callout: default;
-		touch-action: manipulation;
-	}
-	.terminal-pane__surface {
-		height: 100%;
-		min-height: 0;
-		padding: 0;
-	}
-	.terminal-pane__screen :global(.xterm),
-	.terminal-pane__screen :global(.xterm-screen),
-	.terminal-pane__screen :global(.xterm-rows) {
-		-webkit-user-select: text;
-		user-select: text;
-		-webkit-touch-callout: default;
-	}
-	.terminal-pane__drop-overlay {
-		position: absolute;
-		inset: 7px;
-		z-index: 3;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 10px;
-		pointer-events: none;
-		border: 1px dashed rgba(125, 211, 252, 0.7);
-		border-radius: calc(var(--radius) - 2px);
-		background: rgba(8, 18, 32, 0.88);
-		color: #bae6fd;
-		font-size: 13px;
-		font-weight: 600;
-	}
-	:global(.terminal-pane__spinner) {
-		animation: terminal-spin 0.8s linear infinite;
-	}
-	@keyframes terminal-spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-	.terminal-pane__error {
-		position: absolute;
-		bottom: 8px;
-		left: 8px;
-		right: 8px;
-		z-index: 2;
-		background: rgba(248, 113, 113, 0.16);
-		color: #fca5a5;
-		border: 1px solid rgba(248, 113, 113, 0.3);
-		border-radius: 8px;
-		padding: 6px 10px;
-		font-size: 12px;
-	}
-</style>
