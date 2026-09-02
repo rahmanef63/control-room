@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-02T18:57:03.243Z",
+  "repo": "control-room-wt-docs-v2",
+  "commit": "54cc21c748f6acd94d6ad2e372cd84204d47e45a",
+  "dirty": false,
+  "environment": "development",
+  "target": "v2 terminal-first documentation and residue audit",
+  "assertions": [
+    {
+      "claim": "all 38 tracked Markdown files reviewed",
+      "status": "passed"
+    },
+    {
+      "claim": "relative Markdown links resolve",
+      "status": "passed"
+    },
+    {
+      "claim": "root frontend agent versions match 2.0.0",
+      "status": "passed"
+    },
+    {
+      "claim": "removed terminal-first residue absent from active tracked tree",
+      "status": "passed"
+    },
+    {
+      "claim": "Playwright uses Node 22 production adapter runtime",
+      "status": "passed"
+    }
+  ],
+  "checks": {
+    "docs-check": "passed",
+    "shell-syntax": "passed",
+    "agent-tests-35": "passed",
+    "agent-coverage-48.93-lines-52.62-functions": "passed",
+    "frontend-coverage-93.84-lines-92.36-functions": "passed",
+    "dependency-audit": "passed",
+    "production-build": "passed",
+    "bundle-budget": "passed",
+    "playwright-5-of-5": "passed",
+    "root-verify": "passed"
+  },
+  "browser": {
+    "result": "passed",
+    "console_errors": 0,
+    "network_errors": 0
+  },
+  "deployment_state": "not-deployed",
+  "artifacts": [],
+  "notes": "Reviewed all tracked Markdown, updated 28 that were stale, preserved 10 that remained valid, removed dead runtime/config/contracts residue, and passed literal bun run verify. PowerShell parser was unavailable on the Linux host; changed PowerShell lines were limited to Node-version/runtime wording."
+}
