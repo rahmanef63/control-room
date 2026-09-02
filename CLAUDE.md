@@ -64,6 +64,7 @@ Optional third-party CLI programs may be launched as normal terminal processes. 
 - Server-only helpers: `frontend/src/lib/server/`.
 - Route APIs: `frontend/src/routes/api/**/+server.ts`.
 - Preserve safe-area, mobile keyboard, fullscreen, viewport and xterm-fit behavior.
+- Preserve the app-chrome hierarchy: compact app/status bar → workspace rail → session/command bar → terminal stage; collapse labels/secondary utilities before allowing toolbar wrapping.
 - Delete obsolete implementations; do not keep compatibility placeholder files.
 
 ## Agent rules

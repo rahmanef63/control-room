@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { onMount, untrack } from 'svelte';
 
+	import ControlRoomMenuBar from '$lib/features/terminals/ControlRoomMenuBar.svelte';
 	import ControlRoomTopbar from '$lib/features/terminals/ControlRoomTopbar.svelte';
 	import ControlRoomOverlays from '$lib/features/terminals/ControlRoomOverlays.svelte';
 	import TerminalWorkspaceStage from '$lib/features/terminals/TerminalWorkspaceStage.svelte';
@@ -55,6 +56,10 @@
 		terminalSessions.sessions.filter(
 			(session) => workspaces.resolveSessionWorkspace(session.id) === workspaces.activeId
 		)
+	);
+
+	let activeWorkspaceName = $derived(
+		workspaces.workspaces.find((workspace) => workspace.id === workspaces.activeId)?.name ?? 'Workspace'
 	);
 
 	let sessionCounts = $derived.by(() => {
@@ -393,6 +398,20 @@
 </svelte:head>
 
 <div class="terminal-shell" data-fullscreen={fullscreen.isFullscreen || undefined}>
+	<ControlRoomMenuBar
+		workspaceName={activeWorkspaceName}
+		sessionCount={terminalSessions.runningCount}
+		viewMode={preferences.viewMode}
+		onNewShell={newShell}
+		onSetViewMode={preferences.setViewMode}
+		onOpenLauncher={openLauncher}
+		onOpenHistory={() => (historyOpen = true)}
+		onOpenOverview={() => (overviewOpen = true)}
+		onOpenSettings={() => (settingsOpen = true)}
+		onOpenDevices={() => (devicesOpen = true)}
+		onLogout={logout}
+	/>
+
 	<WorkspaceTabs
 		workspaces={workspaces.workspaces}
 		activeId={workspaces.activeId}

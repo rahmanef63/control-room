@@ -21,7 +21,7 @@ session       →             workspace
 window/pane   →             terminal pane
 attach        →             open in browser/PWA
 detach        →             close browser; PTY keeps running
-status line   →             topbar + connection/activity state
+status line   →             app bar + workspace/session rails + pane status
 keyboard      →             desktop keyboard + mobile soft controls
 ```
 
@@ -53,6 +53,7 @@ An AI CLI is just another terminal process. Control Room may show a launcher, ac
 - Saved terminal templates.
 - File/folder picker for choosing a working directory.
 - Desktop and mobile/PWA layouts with safe-area handling.
+- Adaptive app chrome: compact desktop menu/status bar, workspace rail, session/command toolbar, and mobile icon/action-sheet controls.
 - Mobile soft-key controls for terminal navigation.
 - Optional CLI launch profiles; any normal shell command still works.
 - Lightweight host overview for context while operating terminals.

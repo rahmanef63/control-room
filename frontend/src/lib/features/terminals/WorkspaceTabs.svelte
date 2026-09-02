@@ -51,7 +51,7 @@
 	}
 </script>
 
-<div class="workspace-tabs" role="toolbar" aria-label="Workspaces">
+<nav class="workspace-tabs" aria-label="Workspaces">
 	{#each workspaces as workspace (workspace.id)}
 		<div class="workspace-tab" data-active={workspace.id === activeId || undefined}>
 			{#if editingId === workspace.id}
@@ -103,15 +103,15 @@
 	<button type="button" class="workspace-tab__add" onclick={onCreate} title="New workspace" aria-label="New workspace">
 		<Plus size={14} />
 	</button>
-</div>
+</nav>
 
 <style>
 	.workspace-tabs {
 		display: flex;
 		align-items: center;
-		gap: 4px;
-		min-height: 38px;
-		padding: calc(5px + var(--safe-top)) calc(10px + var(--safe-right)) 5px calc(10px + var(--safe-left));
+		gap: 3px;
+		min-height: 32px;
+		padding: 2px calc(7px + var(--safe-right)) 2px calc(7px + var(--safe-left));
 		overflow-x: auto;
 		border-bottom: 1px solid var(--border);
 		background: color-mix(in srgb, var(--surface) 92%, transparent);
@@ -125,7 +125,7 @@
 		align-items: center;
 		flex: 0 0 auto;
 		border: 1px solid transparent;
-		border-radius: 8px;
+		border-radius: 6px;
 		background: transparent;
 	}
 	.workspace-tab[data-active='true'] {
@@ -136,12 +136,12 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		min-height: 28px;
-		padding: 4px 8px;
+		min-height: 26px;
+		padding: 3px 7px;
 		border: 0;
 		background: transparent;
 		color: var(--ink-muted);
-		font-size: 0.78rem;
+		font-size: 0.68rem;
 		cursor: pointer;
 	}
 	.workspace-tab[data-active='true'] .workspace-tab__main {
@@ -173,8 +173,8 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 26px;
-		height: 26px;
+		width: 24px;
+		height: 24px;
 		border: 0;
 		border-radius: 7px;
 		background: transparent;
@@ -188,13 +188,13 @@
 	}
 	.workspace-tab__input {
 		width: 120px;
-		min-height: 28px;
+		min-height: 26px;
 		border: 0;
 		border-radius: 6px;
 		outline: 1px solid var(--accent);
 		background: var(--surface-2);
 		color: var(--ink);
 		padding: 4px 7px;
-		font-size: 0.78rem;
+		font-size: 0.68rem;
 	}
 </style>

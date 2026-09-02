@@ -122,7 +122,30 @@ Required operations:
 
 Workspaces must not become nested project-management objects.
 
-## 8. Pane UX
+## 8. Application chrome and responsive hierarchy
+
+Global controls must preserve terminal area while keeping navigation predictable.
+
+Desktop hierarchy:
+
+1. compact application menu/status bar for discoverability and low-frequency commands;
+2. horizontally scrollable workspace rail;
+3. session rail plus frequent terminal toolbar;
+4. terminal stage consuming the remaining viewport.
+
+At medium desktop/tablet widths, toolbar text labels may collapse to icon-only controls when every control keeps an accessible name/title. Secondary utilities should move to menus instead of wrapping the toolbar.
+
+Mobile hierarchy:
+
+1. safe-area-aware context bar with current workspace/live-session context;
+2. horizontal workspace rail;
+3. horizontal session rail with only primary quick actions visible;
+4. secondary terminal/app controls in a dismissible action sheet;
+5. focused terminal stage below the chrome.
+
+Global bars must never cause document-level horizontal overflow. Fullscreen terminal mode hides global chrome while retaining safe-area spacing.
+
+## 9. Pane UX
 
 Each pane should expose terminal-relevant actions only:
 
@@ -139,19 +162,19 @@ Each pane should expose terminal-relevant actions only:
 
 On mobile, low-frequency actions may move into a compact action sheet/menu.
 
-## 9. Optional CLI assistance
+## 10. Optional CLI assistance
 
 Runtime config may define convenient CLI profiles. A profile is only a command/cwd/environment launch description.
 
 Recognized CLI activity may produce UI states such as `working`, `planning`, `asking`, or `done`, but the detection layer must not become a separate orchestration system.
 
-## 10. History and templates
+## 11. History and templates
 
 History exists to restore terminal context. Templates exist to recreate terminal launch configuration.
 
 Neither system should grow into a scheduler, workflow engine, or deployment engine.
 
-## 11. Mobile requirements
+## 12. Mobile requirements
 
 At minimum:
 
@@ -163,7 +186,7 @@ At minimum:
 - viewport/keyboard changes must refit the terminal;
 - portrait and landscape must remain usable.
 
-## 12. Security model
+## 13. Security model
 
 Control Room is a single-owner administrative terminal surface.
 
@@ -174,7 +197,7 @@ Control Room is a single-owner administrative terminal surface.
 - Interactive terminal shells must not inherit Control Room's own master secrets.
 - Arbitrary shell execution is expected inside an authenticated PTY; the perimeter is the primary security boundary.
 
-## 13. Reliability
+## 14. Reliability
 
 A change is not complete merely because it compiles.
 
@@ -190,13 +213,13 @@ Required verification is selected by scope and may include:
 - deployment health verification;
 - evidence receipt for significant changes.
 
-## 14. Engineering memory
+## 15. Engineering memory
 
 Repository-local developer memory may store task, debug, test, decision, and failure records. It exists only to make future maintenance faster and more reliable.
 
 It must never become a user-facing knowledge product or runtime dependency.
 
-## 15. Definition of done
+## 16. Definition of done
 
 For relevant changes:
 

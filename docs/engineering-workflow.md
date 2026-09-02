@@ -40,7 +40,7 @@ bun run evidence:create -- \
   --check "frontend-check=passed" \
   --check "playwright=passed" \
   --browser passed \
-  --artifact .agent/evidence/artifacts/terminal-workspace-after-mobile.png
+  --artifact .agent/evidence/artifacts/layout-after-mobile-compact.png
 ```
 
 For UI work, the reusable pipeline is:

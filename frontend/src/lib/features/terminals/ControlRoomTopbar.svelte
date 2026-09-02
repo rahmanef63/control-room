@@ -5,6 +5,7 @@
     Grid2X2,
     History as HistoryIcon,
     Menu,
+    Plus,
     Rocket,
     Rows3,
     Settings2,
@@ -71,10 +72,8 @@
   let mobileActionsOpen = $state(false);
 </script>
 
-<header class="topbar">
-  <span class="topbar__brand">VPS Control Room</span>
-
-  <div class="session-tabs" aria-label="Terminal sessions">
+<header class="terminal-commandbar">
+  <nav class="session-tabs" aria-label="Terminal sessions">
     {#each sessions as session (session.id)}
       {@const visualState = resolveSessionVisualState(session, telemetry[session.id]?.activityState)}
       <div
@@ -96,20 +95,27 @@
         >×</button>
       </div>
     {/each}
-    <Button variant="ghost" size="sm" onclick={() => void onNewShell()}>+ New shell</Button>
-  </div>
+  </nav>
 
-  <button
-    type="button"
-    class="mobile-actions-trigger"
-    aria-label="Open terminal controls"
-    aria-controls="terminal-topbar-controls"
-    aria-expanded={mobileActionsOpen}
-    onclick={() => (mobileActionsOpen = true)}
-  >
-    <Menu size={16} />
-    <span>Controls</span>
-  </button>
+  <div class="terminal-commandbar__quick">
+    <Button class="new-shell-button" variant="ghost" size="sm" aria-label="+ New shell" title="New shell" onclick={() => void onNewShell()}>
+      <Plus size={14} /><span class="toolbar-label">New shell</span>
+    </Button>
+    <Button class="mobile-launch-button" variant="outline" size="sm" aria-label="Open terminal launcher" title="Launcher" onclick={() => onOpenLauncher('base')}>
+      <Rocket size={14} />
+    </Button>
+    <button
+      type="button"
+      class="mobile-actions-trigger"
+      aria-label="Open terminal controls"
+      aria-controls="terminal-topbar-controls"
+      aria-expanded={mobileActionsOpen}
+      title="More terminal controls"
+      onclick={() => (mobileActionsOpen = true)}
+    >
+      <Menu size={16} />
+    </button>
+  </div>
 
   {#if mobileActionsOpen}
     <button
@@ -120,9 +126,12 @@
     ></button>
   {/if}
 
-  <div id="terminal-topbar-controls" class="topbar__controls" data-open={mobileActionsOpen || undefined}>
+  <div id="terminal-topbar-controls" class="topbar__controls" data-open={mobileActionsOpen || undefined} role="group" aria-label="Terminal toolbar">
     <div class="mobile-actions-heading">
-      <strong>Terminal controls</strong>
+      <div>
+        <strong>Terminal controls</strong>
+        <span>{sessions.length} session{sessions.length === 1 ? '' : 's'} in workspace</span>
+      </div>
       <button type="button" aria-label="Close terminal controls" onclick={() => (mobileActionsOpen = false)}>
         <X size={16} />
       </button>
@@ -133,14 +142,16 @@
         variant={viewMode === 'single' ? 'default' : 'outline'}
         size="sm"
         aria-pressed={viewMode === 'single'}
+        title="Single terminal"
         onclick={() => onSetViewMode('single')}
-      ><Rows3 size={14} /> Single</Button>
+      ><Rows3 size={14} /><span class="toolbar-label">Single</span></Button>
       <Button
         variant={viewMode === 'grid' ? 'default' : 'outline'}
         size="sm"
         aria-pressed={viewMode === 'grid'}
+        title="Terminal grid"
         onclick={() => onSetViewMode('grid')}
-      ><Grid2X2 size={14} /> Grid</Button>
+      ><Grid2X2 size={14} /><span class="toolbar-label">Grid</span></Button>
     </div>
 
     {#if viewMode === 'grid'}
@@ -152,14 +163,19 @@
       </label>
     {/if}
 
+    <span class="toolbar-divider" aria-hidden="true"></span>
     <BroadcastMenu {sessions} targets={broadcastTargets} onChange={onBroadcastChange} />
-    <Button variant="outline" size="sm" onclick={() => onOpenLauncher('base')} aria-label="Open terminal launcher"><Rocket size={14} /> Launch</Button>
-    <Button variant="outline" size="sm" onclick={() => onOpenLauncher('saved')} aria-label="Open saved terminal templates"><Bookmark size={14} /> Saved {#if templateCount > 0}<span class="topbar-count">{templateCount}</span>{/if}</Button>
-    <Button variant="outline" size="sm" onclick={onOpenHistory} aria-label="Open terminal history"><HistoryIcon size={14} /> History {#if historyCount > 0}<span class="topbar-count">{historyCount}</span>{/if}</Button>
-    <Button variant="outline" size="sm" onclick={onOpenOverview} aria-label="Open system overview"><Gauge size={14} /> Overview</Button>
-    <InstallAppControl />
-    <Button variant="outline" size="sm" onclick={onOpenSettings} aria-label="Open settings"><Settings2 size={14} /> Settings</Button>
-    <Button variant="outline" size="sm" onclick={onOpenDevices}><ShieldCheck size={14} /> Devices</Button>
-    <Button variant="outline" size="sm" onclick={() => void onLogout()}>Sign out</Button>
+    <Button variant="outline" size="sm" onclick={() => { mobileActionsOpen = false; onOpenLauncher('base'); }} aria-label="Open terminal launcher" title="Launcher"><Rocket size={14} /><span class="toolbar-label">Launch</span></Button>
+    <Button variant="outline" size="sm" onclick={() => { mobileActionsOpen = false; onOpenLauncher('saved'); }} aria-label="Open saved terminal templates" title="Saved terminals"><Bookmark size={14} /><span class="toolbar-label">Saved</span> {#if templateCount > 0}<span class="topbar-count">{templateCount}</span>{/if}</Button>
+    <Button variant="outline" size="sm" onclick={() => { mobileActionsOpen = false; onOpenHistory(); }} aria-label="Open terminal history" title="Terminal history"><HistoryIcon size={14} /><span class="toolbar-label">History</span> {#if historyCount > 0}<span class="topbar-count">{historyCount}</span>{/if}</Button>
+
+    <div class="toolbar-utility-actions">
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <Button variant="outline" size="sm" onclick={() => { mobileActionsOpen = false; onOpenOverview(); }} aria-label="Open system overview"><Gauge size={14} /> Overview</Button>
+      <InstallAppControl />
+      <Button variant="outline" size="sm" onclick={() => { mobileActionsOpen = false; onOpenSettings(); }} aria-label="Open settings"><Settings2 size={14} /> Settings</Button>
+      <Button variant="outline" size="sm" onclick={() => { mobileActionsOpen = false; onOpenDevices(); }}><ShieldCheck size={14} /> Devices</Button>
+      <Button variant="outline" size="sm" onclick={() => { mobileActionsOpen = false; void onLogout(); }}>Sign out</Button>
+    </div>
   </div>
 </header>

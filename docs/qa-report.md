@@ -13,7 +13,8 @@ without touching the production PTY agent.
 | Gate | Coverage | Current baseline |
 |---|---|---:|
 | Documentation consistency | 38 tracked Markdown files; relative links; package-version sync; stale terminal-first residue markers | PASS |
-| Responsive overflow | 320×568, 360×800, 390×844, 430×932, 768×1024, 1366×768, 844×390 landscape | PASS |
+| Responsive overflow | 320×568, 360×800, 390×844, 430×932, 768×1024, 1366×768, 1440×900, 1920×1080, 844×390 landscape | PASS |
+| App-chrome density | desktop menu ≤32px, workspace ≤34px, command bar ≤40px, terminal stage >620px at 1366×768; mobile bars bounded independently | PASS |
 | Accessibility | Axe WCAG 2 A/AA + 2.1 AA; zero critical/serious violations on login and authenticated app shell | PASS |
 | Visual regression | 390×844 login baseline + terminal workspace evidence | PASS |
 | Svelte diagnostics | `svelte-check` | 0 errors / 0 warnings |
