@@ -48,7 +48,7 @@ spawned shell + start dir with the `SHELL` and `TERMINAL_DEFAULT_CWD` env vars.
 | 🛠️ Manual | follow [ONBOARDING.md](./ONBOARDING.md) | ~30 min | Want to understand each step |
 | 💻 Local / dev | [Phase L below](#phase-l--local--dev-install-any-os-no-vps) | ~5 min | Run on your own laptop (any OS), no VPS/Tailscale/DNS |
 
-The first three end at the same place: dashboard live on a Tailscale-only
+The first three end at the same place: dashboard live on a HTTPS
 domain. The roadmap below is identical for them — the AI just walks it with
 you, the one-liner walks it for you. The **Local / dev** path skips the VPS,
 SSH, Tailscale, DNS, and systemd entirely — jump to [Phase L](#phase-l--local--dev-install-any-os-no-vps).
@@ -129,8 +129,8 @@ Then `sudo systemctl restart sshd`.
 
 ## Phase 3 — Tailscale (on the VPS)
 
-The dashboard is designed for **Tailscale-only** access. The reverse
-proxy binds to the Tailscale interface; the public IP never sees it.
+The dashboard is designed for **HTTPS** access. The reverse
+proxy routes only to the unprivileged frontend; the privileged agent is never exposed directly.
 
 ### 3.1 Generate a Tailscale auth key
 
@@ -190,7 +190,7 @@ dig +short control.yourdomain.com    # → 100.x.y.z
 ```
 
 ⚠️ **Do NOT set the A record to your public IP.** That defeats the
-threat model — Traefik will bind to Tailscale only, so a public record
+threat model — Traefik will bind to HTTPS by default; Tailscale optional, so a public record
 just leaks the IP.
 
 ---
@@ -267,9 +267,7 @@ node scripts/approve-device.js --list
 node scripts/approve-device.js <deviceId> "my phone"
 ```
 
-Reload the login page and sign in again — now it succeeds. The store lives at
-`agent/var/auth-devices.json` (override with `AUTH_DEVICE_STORE`; it must match
-the path the frontend process sees). Revoke with `--revoke <deviceId>`.
+Reload the login page and sign in again — now it succeeds. Production stores approvals at `/var/lib/control-room/frontend/auth-devices.json`. After systemd installation use the stable helper `control-room-device --list`, `control-room-device <deviceId> "my phone"`, or `control-room-device --revoke <deviceId>`; it executes the store mutation as the unprivileged frontend user.
 
 > First login looking "stuck" or "wrong password" is almost always an
 > unapproved device, not a bad secret. Check `--list` first.
@@ -294,9 +292,6 @@ bun install --cwd agent         # node-pty ships prebuilt binaries — no Visual
 > Needs **Bun 1.3+** and **Node 22**: bun installs and runs the frontend; the
 > agent daemon runs on Node (node-pty streams no data under Bun).
 
-> Pin note: `frontend/package.json` pins `next` to an exact version. Don't
-> loosen it to a `^` range — a newer 15.x patch changes how node-runtime
-> middleware is gated and breaks login on a fresh install.
 
 ### L.2 Secrets + env
 
@@ -432,13 +427,11 @@ If you have the `sc-all` skill installed at `~/.claude/skills/sc-all/`
 
 - GitHub repo ensure (private fork) + push
 - Dokploy project + application creation
-- Self-hosted Convex deploy (skipped for control-room — terminal-only)
+- Self-hosted Convex deploy for projects that use it (Control Room does not)
 - DNS record creation
 - Deploy poll until done
 
-For control-room, `/sc-all` skips Convex but reuses the GitHub + Dokploy
-+ DNS phases. The control-room one-line installer also reuses this
-sequencing.
+That `/sc-all` section documents the generic project bootstrap path. Control Room itself has no Convex runtime dependency and uses its own Svelte/agent deployment script.
 
 ---
 
@@ -451,7 +444,6 @@ sequencing.
 | `dig` returns nothing | DNS not propagated | Wait 5 min, try `+trace` |
 | Login page returns "invalid" | Secret mismatch | Re-check `.env.local` on the VPS |
 | Right password still won't log in | Device not approved (lands in `pending`) | `node scripts/approve-device.js --list` then approve — [Phase 6.5](#phase-65--approve-your-device-first-login-always-lands-in-pending) |
-| Login bounces to `/login` on fresh install | `next` drifted off the pinned patch → node-runtime middleware gated off | Keep the exact pin in `frontend/package.json`; reinstall |
 | Frontend local dev cannot see expected env values | env only at root, not `frontend/.env.local` | Copy/sync env into `frontend/.env.local` too ([Phase L.2](#l2-secrets--env)) |
 | Terminal pane won't open on Windows/macOS | Shell defaults assume Linux | Set `SHELL` + `TERMINAL_DEFAULT_CWD` env vars |
 | White dashboard after deploy | Build failed silently | `journalctl -u vps-control-room-frontend` |

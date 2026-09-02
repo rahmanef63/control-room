@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Inbox, Loader2, Sparkles, Trash2 } from 'lucide-svelte';
+	import { Loader2, Sparkles, Trash2 } from 'lucide-svelte';
 	import type { TerminalSession } from '$lib/features/terminals/types';
 	import { pendingPingGroups } from './alfa';
 	import { patrolPings } from './patrol-pings.svelte';

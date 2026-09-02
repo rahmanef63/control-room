@@ -107,14 +107,14 @@ node agent/dist/index.js
 
 - Normal mode fast-forwards from the requested remote branch.
 - `DEPLOY_FROM_WORKTREE=1` deploys the current local worktree and must not fetch, pull, push, or otherwise change GitHub state.
-- Frontend deploys create immutable releases under `frontend/releases/svelte-<timestamp>-<sha>/`.
-- systemd points at the selected immutable release through a drop-in.
-- A failed frontend health/login verification rolls back to the previous release.
-- Frontend-only deploys must preserve the agent PID.
-- Old inactive releases are pruned only after a verified switch; the active release must never be pruned.
+- Frontend and agent deploys create immutable releases under `/srv/control-room/{frontend,agent}/releases/`; stable `current` symlinks are the only runtime switch.
+- Mutable state is outside Git under `/var/lib/control-room/`; production env is root-owned `/etc/control-room/control-room.env`.
+- A failed agent gateway, frontend health/login, or public HTTPS verification restores the previous frontend+agent pair.
+- The last deployed agent commit is tracked explicitly so worktree-mode deploys cannot miss agent source changes.
+- Old inactive releases are pruned only after a verified switch; active targets must never be pruned.
 - Long-lived SSE connections receive a bounded graceful drain window during frontend restart.
 
-Before a production switch, require frontend check/tests/build and `git diff --check`. For UI changes, also run the relevant browser/mobile regression. After switching, verify public HTTPS, login/auth protection, `/api/health`, xterm/SSE behavior, and the agent PID.
+Before a production switch, require check, ESLint, coverage gates, Playwright/Axe responsive regression, build, and `git diff --check`. For UI changes, also run the relevant browser/mobile regression. After switching, verify public HTTPS, login/auth protection, `/api/health`, xterm/SSE behavior, and the agent PID.
 
 ## Local CLI
 

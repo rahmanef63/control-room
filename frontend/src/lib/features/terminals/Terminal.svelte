@@ -433,13 +433,13 @@
 		// `TerminalGatewayEvent`), which is a different thing from a dropped
 		// connection.
 		es.onmessage = (ev) => {
-			let parsed: TerminalGatewayEvent | null = null;
+			let parsed: TerminalGatewayEvent;
 			try {
 				parsed = JSON.parse(ev.data) as TerminalGatewayEvent;
 			} catch {
 				return;
 			}
-			if (!parsed || !term) return;
+			if (!term) return;
 			switch (parsed.type) {
 				case 'bootstrap':
 					term.reset();
@@ -605,10 +605,8 @@
 	// CSS fallback mode. Re-fit the existing xterm instead of remounting it so
 	// scrollback and the live SSE connection are preserved.
 	$effect(() => {
-		fullscreen;
-		keyboardVisible;
-		active;
-		if (term && active) resizeTerminal(true);
+		const layoutActive = fullscreen || keyboardVisible || active;
+		if (layoutActive && term && active) resizeTerminal(true);
 	});
 
 	$effect(() => {

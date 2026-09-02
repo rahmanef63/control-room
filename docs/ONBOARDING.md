@@ -20,7 +20,7 @@ on their own VPS, end-to-end. Five phases, ~30 minutes total.
 A **single-user**, **mobile-first**, **PWA** web dashboard that turns
 your phone into a VPS control panel. Multi-pane terminals (up to 16
 concurrent ptys, LRU-evicted), AI-agent launchers, host telemetry, and
-raw shell actions — all behind one shared secret on a Tailscale-only
+raw shell actions — all behind one shared secret on a HTTPS
 domain. The single owner runs arbitrary commands by design; there is no
 command allowlist (the security model is perimeter, not per-command).
 
@@ -29,7 +29,7 @@ command allowlist (the security model is perimeter, not per-command).
 - ❌ Not multi-user. One secret = one operator. Sharing the secret =
   sharing the host. There's no per-user permissions.
 - ❌ Not public-internet-safe. The default Traefik config binds to a
-  Tailscale-only domain. Exposing it to the public web defeats the
+  HTTPS domain. Exposing it to the public web defeats the
   threat model.
 - ❌ Not a SaaS. You host it. You own the data. You patch it.
 - ❌ Not a Kubernetes / multi-host orchestrator. One VPS, one agent.
@@ -88,7 +88,7 @@ sudo usermod -aG docker $USER
 
 ### 2.3 Install Tailscale
 
-The dashboard is designed for **Tailscale-only access**. The frontend
+The dashboard is designed for **HTTPS access**. The frontend
 listens on `4000`; the agent health/control API binds `127.0.0.1:4001`
 (loopback only) by default, so the privileged host API is never
 network-exposed. Traefik in front locks the frontend to a Tailnet domain.
@@ -113,7 +113,7 @@ sudo tailscale serve --bg --https=443 127.0.0.1:4000
 **b) Public DNS + Tailnet-only Traefik rule** (custom subdomain)
 
 Set an A record for `control.yourdomain.com` → your Tailscale 100.x IP.
-Configure your Traefik to bind to the Tailscale interface only.
+Configure your Traefik to route only to the unprivileged frontend; keep agent port 4001 on loopback.
 
 ### 2.5 Generate strong secrets
 
@@ -183,8 +183,7 @@ This installs:
 - `vps-control-room-frontend` — SvelteKit adapter-node production server on Bun
 - `vps-control-room-cleanup` service + timer — daily terminal-runtime sweep
 
-The script reads the current directory and writes
-`WorkingDirectory=` into the unit files. Run from the repo root.
+The installer stages stable production paths: `/srv/control-room/.../current` for runtime code, `/var/lib/control-room/` for mutable state, and `/etc/control-room/control-room.env` for the root-owned runtime environment. The frontend runs as `control-room-web`; the agent remains the privileged host boundary.
 
 ### 3.5 Build + start
 
@@ -193,12 +192,12 @@ bash scripts/deploy.sh main
 ```
 
 This will:
-1. Install frontend from the frozen Bun lockfile
-2. Run Svelte check + frontend unit tests
-3. Build the SvelteKit adapter-node frontend
-4. Build the Node agent only when `agent/` changed
-5. Create and activate an immutable frontend release with automatic rollback
-6. Sync Traefik and verify the resulting services
+1. Prepare canonical runtime/state/env directories outside Git
+2. Run check + lint + coverage + Playwright/Axe responsive tests
+3. Build immutable Svelte frontend and, when required, Node agent releases
+4. Verify the machine-authenticated agent gateway on loopback
+5. Switch frontend/agent `current` symlinks with pair rollback on failure
+6. Publish the frontend-only Traefik route and verify public HTTPS
 
 First build takes 3–5 minutes. Subsequent deploys are faster.
 
@@ -274,14 +273,14 @@ bash scripts/deploy.sh main
 `scripts/deploy.sh` is **idempotent** and release-oriented:
 - Acquires a lockfile so two deploys do not race.
 - Runs frontend check/tests/build before switching production.
-- Copies adapter-node output into `frontend/releases/svelte-<timestamp>-<sha>/`.
-- Changes the systemd frontend drop-in only after the release is ready.
-- Restores the previous immutable release automatically if health/login verification fails.
-- Leaves the Node agent running for frontend-only deploys.
+- Stages frontend and agent artifacts under `/srv/control-room/*/releases`.
+- Switches stable `current` symlinks only after gates pass.
+- Restores the previous frontend+agent release pair automatically if gateway/health/public verification fails.
+- Restarts the Node agent only when its deployed source commit changes.
 
 ### 5.2 Rollback
 
-Automatic rollback is built into `scripts/deploy.sh`. For manual recovery, use the previous release path recorded under `~/.local/state/control-room-deploy/backups/`, point the frontend drop-in back to that immutable release, reload systemd, and restart only `vps-control-room-frontend`. Never rebuild or restart the agent just to roll back frontend UI code.
+Automatic pair rollback is built into `scripts/deploy.sh`. Previous frontend and agent targets are recorded under `~/.local/state/control-room-deploy/backups/`. For manual recovery, repoint `/srv/control-room/frontend/current` and `/srv/control-room/agent/current` to the recorded releases and restart only the tier that changed.
 
 ### 5.3 Rotate secrets
 
@@ -306,11 +305,13 @@ All active sessions are invalidated on session-secret rotation.
 ### 5.4 Backup
 
 What to back up:
-- `.env.local` (secrets — store in password manager, NOT git)
-- `agent/var/*.json` (workspace state, settings, log.json)
+- the canonical source secrets in your password manager (NOT git)
+- `/var/lib/control-room/frontend/auth-devices.json`
+- `/var/lib/control-room/agent/*.json`
+- Git commits that have not yet been replicated to an off-host remote
 
 What NOT to back up:
-- `node_modules/`, `frontend/build/`, and `agent/dist/` are rebuildable. Immutable `frontend/releases/` are operational rollback assets managed by retention.
+- checkout `node_modules/`, `frontend/build/`, and `agent/dist/` are rebuildable. `/srv/control-room/*/releases` are operational rollback assets managed by retention.
 - `*.log` — they rotate
 
 ### 5.5 Update Node

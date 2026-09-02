@@ -1,186 +1,164 @@
 #!/bin/bash
-set -e
-
-# VPS Control Room — systemd service installer
-# Run with: sudo bash scripts/install-systemd.sh
+set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Error: this script must be run as root (use sudo)." >&2
   exit 1
 fi
 
-# Detect the invoking user and resolve the repo root from the script's location.
-# APP_USER is overridable so deploy.sh can pin it instead of inheriting whatever
-# account happened to invoke sudo (a CI runner would otherwise rewrite User=).
-APP_USER="${APP_USER:-${SUDO_USER:-$(logname 2>/dev/null || echo "deploy")}}"
+APP_USER="${APP_USER:-${SUDO_USER:-$(logname 2>/dev/null || echo rahman)}}"
+WEB_USER="${CONTROL_ROOM_WEB_USER:-control-room-web}"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SKIP_AGENT_UNIT="${SKIP_AGENT_UNIT:-0}"
-AUTH_DEVICE_STORE_PATH="${AUTH_DEVICE_STORE:-${REPO_DIR}/agent/var/auth-devices.json}"
-
-# systemd runs with a minimal PATH, so bake the ABSOLUTE bun path into the unit.
-# Prefer the app user's install (this script runs as root via sudo).
-APP_USER_HOME="$(getent passwd "${APP_USER}" | cut -d: -f6)"
+RUNTIME_ROOT="${CONTROL_ROOM_RUNTIME_ROOT:-/srv/control-room}"
+STATE_ROOT="${CONTROL_ROOM_STATE_ROOT:-/var/lib/control-room}"
+RUNTIME_ENV="${CONTROL_ROOM_ENV_FILE:-/etc/control-room/control-room.env}"
+RUNTIME_BUN="${CONTROL_ROOM_BUN_BIN:-/usr/local/bin/control-room-bun}"
 BUN_BIN="${BUN_BIN:-}"
-if [ -z "${BUN_BIN}" ] && [ -n "${APP_USER_HOME}" ] && [ -x "${APP_USER_HOME}/.bun/bin/bun" ]; then
+
+APP_USER_HOME="$(getent passwd "${APP_USER}" | cut -d: -f6)"
+if [ -z "${BUN_BIN}" ] && [ -x "${APP_USER_HOME}/.bun/bin/bun" ]; then
   BUN_BIN="${APP_USER_HOME}/.bun/bin/bun"
 fi
-if [ -z "${BUN_BIN}" ]; then
-  BUN_BIN="$(command -v bun || true)"
-fi
-if [ ! -x "${BUN_BIN}" ]; then
-  echo "Error: bun not found. Install bun for ${APP_USER} or set BUN_BIN=/path/to/bun." >&2
+if [ -z "${BUN_BIN}" ]; then BUN_BIN="$(command -v bun || true)"; fi
+
+APP_USER="${APP_USER}" BUN_BIN="${BUN_BIN}" \
+  CONTROL_ROOM_WEB_USER="${WEB_USER}" \
+  CONTROL_ROOM_RUNTIME_ROOT="${RUNTIME_ROOT}" \
+  CONTROL_ROOM_STATE_ROOT="${STATE_ROOT}" \
+  bash "${REPO_DIR}/scripts/prepare-runtime.sh" >/dev/null
+
+if [ ! -f "${RUNTIME_ENV}" ]; then
+  echo "Error: canonical runtime env is missing: ${RUNTIME_ENV}" >&2
   exit 1
 fi
-BUN_DIR="$(dirname "${BUN_BIN}")"
+if [ ! -L "${RUNTIME_ROOT}/frontend/current" ] || [ ! -d "${RUNTIME_ROOT}/frontend/current/build" ]; then
+  echo "Error: frontend/current does not point at a staged release" >&2
+  exit 1
+fi
+if [ ! -L "${RUNTIME_ROOT}/agent/current" ] || [ ! -f "${RUNTIME_ROOT}/agent/current/agent/dist/index.js" ]; then
+  echo "Error: agent/current does not point at a staged release" >&2
+  exit 1
+fi
 
-echo "Installing VPS Control Room systemd services..."
-echo "  App user : ${APP_USER}"
-echo "  Repo dir : ${REPO_DIR}"
-echo "  Bun      : ${BUN_BIN}"
-
-# --- Frontend service ---
-
-cat > /etc/systemd/system/vps-control-room-frontend.service << EOF
+cat > /etc/systemd/system/vps-control-room-frontend.service <<EOF_UNIT
 [Unit]
-Description=VPS Control Room Frontend
+Description=VPS Control Room Svelte Frontend
 After=network.target
 
 [Service]
 Type=simple
-User=${APP_USER}
-WorkingDirectory=${REPO_DIR}/frontend
-EnvironmentFile=${REPO_DIR}/.env.local
+User=${WEB_USER}
+Group=${WEB_USER}
+WorkingDirectory=${RUNTIME_ROOT}/frontend/current
+EnvironmentFile=${RUNTIME_ENV}
 Environment=PORT=4000
 Environment=HOST=0.0.0.0
 Environment=NODE_ENV=production
 Environment=BODY_SIZE_LIMIT=30M
-# adapter-node gracefully drains open requests, then force-closes long-lived SSE
-# connections after this bound so deploy/restart cannot hang indefinitely.
 Environment=SHUTDOWN_TIMEOUT=5
-# This service is only exposed through the trusted reverse proxy. These headers
-# let SvelteKit reconstruct the public origin when ORIGIN is not explicitly set.
 Environment=PROTOCOL_HEADER=x-forwarded-proto
 Environment=HOST_HEADER=x-forwarded-host
-Environment=AUTH_DEVICE_STORE=${AUTH_DEVICE_STORE_PATH}
-Environment=PATH=${BUN_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-# SvelteKit adapter-node output is build/index.js; Bun is the frontend runtime.
-ExecStart=${BUN_BIN} build/index.js
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=${RUNTIME_BUN} build/index.js
 Restart=always
 RestartSec=1
 KillSignal=SIGTERM
 TimeoutStopSec=8
-# Resource guards — the frontend can spike RAM under many panes / login storms.
-# MemoryHigh throttles + reclaims before the hard MemoryMax backstop; CPUWeight
-# raises scheduling priority so the UI stays responsive under host contention.
-# Sized for the per-pane cost: each open pane holds an SSE stream plus a server-side WebSocket
-# client in THIS process, and ws queues unsent frames off-heap (see the
-# MAX_WS_BUFFER_BYTES note in agent/src/terminal/gateway/socket.ts). 1.5G/2G was
-# tight enough that a full grid of panes ran against the ceiling.
 MemoryHigh=3G
 MemoryMax=4G
 CPUWeight=800
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=127.0.0.0/8
+IPAddressAllow=::1
+IPAddressAllow=172.16.0.0/12
+ReadWritePaths=${STATE_ROOT}/frontend
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=vps-cr-frontend
 
 [Install]
 WantedBy=multi-user.target
-EOF
+EOF_UNIT
 
-echo "  Created /etc/systemd/system/vps-control-room-frontend.service"
-
-# --- Agent service ---
-
-if [ "${SKIP_AGENT_UNIT}" != "1" ]; then
-cat > /etc/systemd/system/vps-control-room-agent.service << EOF
+cat > /etc/systemd/system/vps-control-room-agent.service <<EOF_UNIT
 [Unit]
-Description=VPS Control Room Agent
+Description=VPS Control Room Privileged Host Agent
 After=network.target docker.service
 Requires=docker.service
-# Bound the restart loop: the agent now exits(1) on an uncaught exception /
-# unhandled rejection (see agent/src/app/bootstrap.ts). Allow a few quick
-# restarts for transient faults, but stop hammering if it can't stay up.
 StartLimitIntervalSec=60
 StartLimitBurst=5
 
 [Service]
 Type=simple
 User=${APP_USER}
-WorkingDirectory=${REPO_DIR}/agent
-EnvironmentFile=${REPO_DIR}/.env.local
-# bun on PATH for everything the agent SPAWNS (pty panes, patrol subprocesses,
-# cron jobs) — non-interactive children never source .bashrc, so without this a
-# Frontend builds from a pane need the Bun binary available on PATH.
-Environment=PATH=${BUN_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-# Stays on Node deliberately: under Bun, node-pty spawns but never emits data.
-ExecStart=/usr/bin/node ${REPO_DIR}/agent/dist/index.js
+WorkingDirectory=${RUNTIME_ROOT}/agent/current/agent
+EnvironmentFile=${RUNTIME_ENV}
+Environment=PATH=${APP_USER_HOME}/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=5
-# Resource guards. CRITICAL: node-pty spawns every terminal session as a CHILD
-# of this service, so the agent cgroup also accounts for ALL interactive
-# workloads users run in panes — including a frontend build kicked off inside a
-# pane (or by a git pre-push CI hook). A tight cap here does NOT protect the
-# box; it strangles the terminals: on 2026-05-28 a 2G MemoryHigh drove the
-# cgroup to 84% memory-stall (572k reclaim events) and made typing lag.
-# So these limits are GENEROUS — they only backstop a true runaway (won't let
-# the agent eat all 31G and OOM the host), not throttle normal interactive use.
-# High CPUWeight keeps patrol + health API scheduled when the box is contended.
-# Sizing (2026-08-09): a pane running Claude Code / Codex costs ~0.5-1 GB RSS,
-# so the OLD 8G effective ceiling throttled at roughly a dozen panes — while the
-# SAME command over ssh lands in user.slice, which is MemoryMax=infinity. That
-# asymmetry, not the app, was why "opening a few panes" hit a wall. On a 31 GB
-# box these numbers put the web terminal in the same league as ssh while still
-# refusing to let a runaway take the host down with it.
-# Budget arithmetic, not vibes: 31 GB box. Reserve ~9 GB for the host, docker,
-# dokploy, n8n, sshd and page cache, and 4 GB for the frontend unit -> the agent
-# may hold at most ~18 GB. MemoryHigh is the number that actually bites day to
-# day (throttle + reclaim); MemoryMax is the emergency stop. Keeping Max under
-# the host's headroom means a runaway is OOM-killed INSIDE this cgroup instead
-# of dragging the whole VPS into global reclaim.
 MemoryHigh=14G
 MemoryMax=18G
-# MemorySwapMax is the swap-bomb backstop (2026-06-21 incident): an orphaned pane
-# kicked off 6 parallel frontend builds, which exceeded RAM and spilled UNBOUNDED
-# into the host's 8G swap (swap=infinity here) — stalling the WHOLE VPS at 99%
-# memory-pressure, load 43. A small swap cap OOM-kills the runaway INSIDE this
-# cgroup instead of dragging the host into swap thrash. Unlike a tight RAM cap it
-# does NOT strangle interactive use (swap only bites past RAM): keep RAM generous,
-# swap tight. Pairs with the killSessionTree() process-group kill in manager.ts.
 MemorySwapMax=512M
 CPUWeight=800
+UMask=0077
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=vps-cr-agent
 
 [Install]
 WantedBy=multi-user.target
-EOF
+EOF_UNIT
 
-echo "  Created /etc/systemd/system/vps-control-room-agent.service"
-else
-  echo "  Preserving existing agent unit (frontend-only deployment)"
-fi
+install -d -o root -g root -m 0755 /usr/local/lib/control-room
+install -o root -g root -m 0755 "${REPO_DIR}/scripts/cleanup-terminal-runtime.sh" /usr/local/lib/control-room/cleanup-terminal-runtime.sh
+install -o root -g root -m 0755 "${REPO_DIR}/scripts/healthcheck-control-room.sh" /usr/local/lib/control-room/healthcheck-control-room.sh
+install -o root -g root -m 0755 "${REPO_DIR}/scripts/approve-device.js" /usr/local/lib/control-room/approve-device.js
+cat > /usr/local/bin/control-room-device <<EOF_HELPER
+#!/bin/bash
+set -euo pipefail
+exec sudo -u ${WEB_USER} env AUTH_DEVICE_STORE=${STATE_ROOT}/frontend/auth-devices.json /usr/bin/node /usr/local/lib/control-room/approve-device.js "\$@"
+EOF_HELPER
+chmod 0755 /usr/local/bin/control-room-device
 
-# --- Cleanup service/timer ---
-
-cat > /etc/systemd/system/vps-control-room-cleanup.service << EOF
+cat > /etc/systemd/system/vps-control-room-cleanup.service <<EOF_UNIT
 [Unit]
-Description=VPS Control Room Cleanup
+Description=VPS Control Room Runtime Cleanup
 After=network.target
 
 [Service]
 Type=oneshot
 User=${APP_USER}
-WorkingDirectory=${REPO_DIR}
-ExecStart=/bin/bash ${REPO_DIR}/scripts/cleanup-terminal-runtime.sh
+WorkingDirectory=${RUNTIME_ROOT}
+Environment=CONTROL_ROOM_RUNTIME_ROOT=${RUNTIME_ROOT}
+ExecStart=/bin/bash /usr/local/lib/control-room/cleanup-terminal-runtime.sh
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=vps-cr-cleanup
-EOF
+EOF_UNIT
 
-echo "  Created /etc/systemd/system/vps-control-room-cleanup.service"
-
-cat > /etc/systemd/system/vps-control-room-cleanup.timer << EOF
+cat > /etc/systemd/system/vps-control-room-cleanup.timer <<'EOF_UNIT'
 [Unit]
 Description=Run VPS Control Room cleanup daily
 
@@ -192,55 +170,49 @@ Unit=vps-control-room-cleanup.service
 
 [Install]
 WantedBy=timers.target
-EOF
+EOF_UNIT
 
-echo "  Created /etc/systemd/system/vps-control-room-cleanup.timer"
+cat > /etc/systemd/system/vps-control-room-healthcheck.service <<EOF_UNIT
+[Unit]
+Description=VPS Control Room Security/Health Check
+After=vps-control-room-agent.service vps-control-room-frontend.service
 
-# --- Reload and enable ---
+[Service]
+Type=oneshot
+User=${WEB_USER}
+Environment=CONTROL_ROOM_DOMAIN=${CONTROL_ROOM_DOMAIN:-}
+ExecStart=/bin/bash /usr/local/lib/control-room/healthcheck-control-room.sh
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vps-cr-healthcheck
+EOF_UNIT
 
-# Drop stale systemd set-property leftovers. Those land in /etc/systemd/system.control
-# and OVERRIDE the unit files written above, so a limit tuned live during an
-# incident silently outranks this script forever — the repo says one number and
-# the box runs another. This script is the source of truth; anything set-property
-# left behind is stale by definition.
-units=(frontend cleanup)
-if [ "${SKIP_AGENT_UNIT}" != "1" ]; then
-  units+=(agent)
-fi
-for unit in "${units[@]}"; do
-  ctl="/etc/systemd/system.control/vps-control-room-${unit}.service.d"
-  if [ -d "${ctl}" ]; then
-    rm -rf "${ctl}"
-    echo "  Removed stale set-property overrides: ${ctl}"
-  fi
-done
+cat > /etc/systemd/system/vps-control-room-healthcheck.timer <<'EOF_UNIT'
+[Unit]
+Description=Check VPS Control Room every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=vps-control-room-healthcheck.service
+
+[Install]
+WantedBy=timers.target
+EOF_UNIT
+
+rm -f /etc/systemd/system/vps-control-room-frontend.service.d/10-release.conf \
+  /etc/systemd/system/vps-control-room-frontend.service.d/10-svelte.conf \
+  /etc/systemd/system/vps-control-room-agent.service.d/10-release.conf
 
 systemctl daemon-reload
-echo "  Ran systemctl daemon-reload"
+systemctl enable vps-control-room-frontend vps-control-room-agent vps-control-room-cleanup.timer vps-control-room-healthcheck.timer >/dev/null
 
-systemctl enable vps-control-room-frontend
-echo "  Enabled vps-control-room-frontend (starts on boot)"
-
-if [ "${SKIP_AGENT_UNIT}" != "1" ]; then
-  systemctl enable vps-control-room-agent
-  echo "  Enabled vps-control-room-agent (starts on boot)"
-fi
-
-systemctl enable vps-control-room-cleanup.timer
-echo "  Enabled vps-control-room-cleanup.timer (runs daily)"
-
-echo ""
-echo "Installation complete."
-echo ""
-echo "Next steps:"
-echo "  1. Ensure ${REPO_DIR}/.env.local is populated."
-echo "  2. Build the frontend:  cd frontend && bun install && bun run build"
-echo "  3. Build the agent:     cd agent && bun install && bun run build"
-echo "  4. Start services:"
-echo "       sudo systemctl start vps-control-room-frontend"
-echo "       sudo systemctl start vps-control-room-agent"
-echo "       sudo systemctl start vps-control-room-cleanup.timer"
-echo "  5. Check status:"
-echo "       sudo systemctl status vps-control-room-frontend"
-echo "       sudo systemctl status vps-control-room-agent"
-echo "       sudo systemctl status vps-control-room-cleanup.timer"
+echo "Installed canonical Control Room services: web=${WEB_USER}, agent=${APP_USER}, runtime=${RUNTIME_ROOT}"

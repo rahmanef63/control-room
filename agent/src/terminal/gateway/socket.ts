@@ -40,7 +40,8 @@ export function handleTerminalSocketUpgrade(
   socket: Duplex,
   head: Buffer,
   wsServer: WebSocketServer,
-  sessionSecret: string | undefined
+  gatewaySecret: string | undefined,
+  legacySessionSecret?: string
 ): void {
   try {
     if (!req.url) {
@@ -54,7 +55,7 @@ export function handleTerminalSocketUpgrade(
       return;
     }
 
-    if (!isAuthorizedTerminalSocket(req, sessionSecret)) {
+    if (!isAuthorizedTerminalSocket(req, gatewaySecret, legacySessionSecret)) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       socket.destroy();
       return;

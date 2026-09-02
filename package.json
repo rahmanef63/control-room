@@ -9,6 +9,12 @@
     "frontend:test": "bun run --cwd frontend test",
     "frontend:build": "bun run --cwd frontend build",
     "test": "bun run agent:test && bun run frontend:check && bun run frontend:test",
-    "build": "bun run agent:build && bun run frontend:build"
+    "build": "bun run agent:build && bun run frontend:build",
+    "check": "bun run frontend:check",
+    "lint": "bun run --cwd frontend lint",
+    "test:e2e": "bun run --cwd frontend test:e2e",
+    "verify": "bun run check && bun run lint && bun run test:coverage && bun run audit && bun run build && bun run --cwd frontend check:bundle && bun run test:e2e",
+    "test:coverage": "bun run --cwd agent test:coverage && bun run --cwd frontend test:coverage",
+    "audit": "cd frontend && bun audit && cd ../agent && bun audit"
   }
 }

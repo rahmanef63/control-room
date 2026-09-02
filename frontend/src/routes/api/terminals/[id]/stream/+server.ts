@@ -11,16 +11,12 @@
 // all, so the custom server.js originally flagged as required in the plan
 // is NOT needed for this route.
 //
-// Auth note: unlike the other proxy routes (which attach
-// `x-control-room-secret` via terminalGatewayFetch), the agent's terminal
-// socket checks the session cookie directly (see
-// agent/src/terminal/auth.ts#isAuthorizedTerminalSocket) — so this handler
-// forwards the browser's `Cookie` header to the outbound WS handshake
-// instead of the gateway secret. That asymmetry is intentional and ported
-// as-is.
+// The browser session is verified here, then the server-to-agent WebSocket
+// authenticates with AGENT_GATEWAY_SECRET. The privileged agent never needs a
+// browser cookie and can stay loopback-only.
 import WebSocketClient from 'ws';
 
-import { buildGatewaySocketUrl } from '$lib/server/gateway';
+import { buildGatewaySocketHeaders, buildGatewaySocketUrl } from '$lib/server/gateway';
 import { requireSession } from '$lib/server/require-session';
 
 import type { RequestHandler } from './$types';
@@ -30,20 +26,26 @@ export const GET: RequestHandler = async (event) => {
 	if (denied) return denied;
 
 	const id = event.params.id!;
-	const cookieHeader = event.request.headers.get('cookie') ?? '';
 	const encoder = new TextEncoder();
 
 	const stream = new ReadableStream<Uint8Array>({
 		start(controller) {
 			const socket = new WebSocketClient(buildGatewaySocketUrl(id), {
-				headers: cookieHeader ? { Cookie: cookieHeader } : undefined
+				headers: buildGatewaySocketHeaders(event.locals.requestId)
 			});
 			let closed = false;
 
 			const heartbeat = setInterval(() => {
-				if (!closed) {
+				void (async () => {
+					if (closed) return;
+					// Device revocation must terminate an already-open read stream too,
+					// not only block the next mutating API call.
+					if (await requireSession(event)) {
+						close();
+						return;
+					}
 					controller.enqueue(encoder.encode(': keepalive\n\n'));
-				}
+				})();
 			}, 15000);
 
 			const close = () => {

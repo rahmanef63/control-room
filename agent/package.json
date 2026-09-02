@@ -7,7 +7,8 @@
     "start": "node dist/index.js",
     "dev": "bun run tsx src/index.ts",
     "test": "bun test src",
-    "test:all": "tsc --noEmit && bun run test"
+    "test:all": "tsc --noEmit && bun run test",
+    "test:coverage": "bash ../scripts/check-bun-coverage.sh . 45 40"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

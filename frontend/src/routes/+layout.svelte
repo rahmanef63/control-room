@@ -10,7 +10,7 @@
 	<title>VPS Terminals</title>
 	<meta
 		name="description"
-		content="Mobile-first PWA to drive your VPS from anywhere — multi-pane terminals + AI-agent launchers, behind one secret on a Tailscale-only domain."
+		content="Mobile-first PWA to drive your VPS from anywhere — multi-pane terminals + AI-agent launchers, behind device-aware sessions with a loopback-only host agent."
 	/>
 	<meta name="theme-color" content="#111821" />
 	<meta name="color-scheme" content="dark" />

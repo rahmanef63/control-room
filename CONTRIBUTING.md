@@ -71,32 +71,32 @@ Treat frontend and agent as separate trust/runtime units. Do not cross-import th
 
 ## Quality gates
 
-Frontend:
+The repository-level SSOT is:
 
 ```bash
-bun run --cwd frontend check
-bun run --cwd frontend test
-bun run --cwd frontend build
+bun run verify
 ```
 
-Agent:
+It runs Svelte check, ESLint, frontend + agent coverage gates, production builds,
+and the isolated Playwright suite. The browser suite covers 320×568, 360×800,
+390×844, 430×932, 768×1024, 1366×768, and 844×390 landscape, plus Axe
+WCAG A/AA critical/serious checks and the login visual baseline.
+
+Focused commands remain available:
 
 ```bash
-bun run --cwd agent test:all
-bun run --cwd agent build
-```
-
-Repository:
-
-```bash
-bun run test
+bun run check
+bun run lint
+bun run test:coverage
 bun run build
-git diff --check
+bun run test:e2e
 ```
 
-For UI changes, also test login, a real terminal session, xterm/SSE reconnect behavior, and the relevant responsive viewports. Any change to terminal layout/fullscreen/drawers/keyboard/safe areas should include narrow portrait and landscape verification.
-
-For deploy/install changes, verify that systemd starts adapter-node with Bun, rollback material exists, the active immutable release is not pruned, and frontend-only deploys do not restart the agent.
+For changes to real PTY semantics, perform the production/local-agent smoke after
+the isolated suite: create, input, resize, buffer, SSE reconnect, and close.
+Deploy/install changes must additionally verify both immutable release targets,
+agent loopback binding, the frontend-only Traefik route, runtime state/env
+permissions, and automatic pair rollback material.
 
 ## Security rules
 

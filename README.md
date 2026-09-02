@@ -8,8 +8,8 @@
 
 A mobile-first PWA dashboard for driving a single VPS through a web browser:
 multi-pane terminals (up to 16 concurrent ptys), AI agent launchers, host
-ops, and audit — all behind a single shared secret and a Tailscale-only
-domain.
+ops, and audit — behind signed device-aware sessions, an HTTPS perimeter,
+and a loopback-only privileged agent.
 
 ![VPS Control Room authenticated terminal dashboard — desktop, rendered locally from the dev server](./docs/media/dashboard-desktop.png)
 
@@ -55,11 +55,11 @@ agent owns host access behind an authenticated, loopback-bound gateway.
 | Path | Command | Time | Best for |
 |------|---------|------|----------|
 | 🤖 **AI-assisted** | `bunx rahman-cr ai claude` | ~20 min | Paste prompt into Claude / Codex / Gemini, get walked through every step |
-| ⚡ **One-line** | `bunx rahman-cr install --vps user@ip --domain X` | ~10 min | Already have SSH + Tailscale key + domain ready |
+| ⚡ **One-line** | `bunx rahman-cr install --vps user@ip --domain X` | ~10 min | Already have SSH + a domain ready |
 | 🛠️ **Manual** | follow [docs/ONBOARDING.md](docs/ONBOARDING.md) | ~30 min | Want to read each step before running it |
 | 💻 **Local (this PC)** | one line — see [docs/INSTALL-LOCAL.md](docs/INSTALL-LOCAL.md) | ~5 min | Run the whole thing on your laptop — no VPS, SSH, or domain |
 
-Step-by-step roadmap (VPS prep → SSH → Tailscale → DNS → install → verify):
+Step-by-step roadmap (VPS prep → SSH → optional Tailscale → DNS → install → verify):
 **[docs/INSTALL.md](docs/INSTALL.md)**
 
 Just want it on **your own computer**? One command on Windows / macOS / Linux —
@@ -83,15 +83,18 @@ from zero? **[docs/AI-ONBOARDING.md](docs/AI-ONBOARDING.md)**.
 Three tiers, one direction-of-trust:
 
 ```
-browser ──► frontend (SvelteKit adapter-node on Bun)            ─┐
-                ▼                          │ HMAC-signed cookie auth
-                HTTP / WS (control-room   ─┘ over Tailscale
-                secret)
-                ▼
-            agent (Node 22) ──► host kernel, Docker socket, systemd,
-                                fail2ban, journalctl, file system
-                ▼
-            agent/var/*.json  (workspace state, future log.json)
+browser ──HTTPS/SSE──► Traefik ──► frontend (Bun, unprivileged web user)
+                                      │
+                                      │ machine-authenticated HTTP/WS
+                                      ▼
+                                 127.0.0.1:4001
+                                 agent (Node 22, privileged host boundary)
+                                      │
+                                      ├─► pty / host / Docker / systemd
+                                      └─► /var/lib/control-room/agent/*.json
+
+runtime releases: /srv/control-room/{frontend,agent}/releases
+runtime env:      /etc/control-room/control-room.env
 ```
 
 **Rules of trust**
@@ -106,7 +109,7 @@ browser ──► frontend (SvelteKit adapter-node on Bun)            ─┐
   the privileged host API is never network-exposed.
 - Auth: HMAC-SHA256 cookie signed with `CONTROL_ROOM_SESSION_SECRET`, gated by
   `CONTROL_ROOM_SECRET` at login.
-- Origin is locked down by Traefik to the Tailscale domain.
+- The dashboard may be internet-reachable over HTTPS. Traefik is the only public application boundary; the agent is never routed publicly. Tailscale remains an optional additional network restriction.
 
 ---
 
@@ -118,7 +121,7 @@ browser ──► frontend (SvelteKit adapter-node on Bun)            ─┐
   `agent/src/terminal/manager.ts`). Opening a 17th evicts the
   least-recently-updated session (LRU) rather than erroring. Each session keeps a
   ring buffer of up to 250k chars and survives short reconnects.
-- **Per-pane WebSocket stream** with auto-reconnect and connection chip
+- **Per-pane SSE stream** with auto-reconnect and connection chip; SvelteKit owns the loopback WebSocket to the agent
   (`connecting / open / closed`).
 - **Profiles**: plain `shell`, plus AI agent launchers (`claude`, `codex`,
   `gemini`, `openclaw`). Built-in profiles live in
@@ -135,7 +138,7 @@ browser ──► frontend (SvelteKit adapter-node on Bun)            ─┐
 - Create / rename / delete workspaces from the top bar. Each pane is mapped
   to a workspace; switching tabs filters which panes are mounted in the grid.
 - **Cross-browser sync**: workspace list + session→workspace map + active id
-  are stored on the agent in `agent/var/workspaces.json` via
+  are stored on the agent in `/var/lib/control-room/agent/workspaces.json` via
   `GET/PUT /state/workspaces`. The frontend hydrates from `localStorage`
   first (instant render), then overwrites with the agent's authoritative
   copy. Edits are debounced 600 ms and pushed back. Last-write-wins; no
@@ -219,8 +222,7 @@ named template; relaunch with one click. Persisted to `localStorage`
   on success a cookie signed with `CONTROL_ROOM_SESSION_SECRET` (different
   value) is set for `SESSION_EXPIRY_HOURS` (default 72 — 3 days; middleware
   slides it forward on activity, so an active dashboard never logs out).
-- **Tailscale only**: production is bound to a Tailscale-only domain via
-  Traefik. Public Internet should never reach the panel.
+- **HTTPS perimeter**: Traefik exposes only the Svelte frontend. The privileged agent stays on `127.0.0.1:4001`; there is no public `/ws/terminals` route. Tailscale can still be used as defense in depth.
 - Same secret guards every agent HTTP endpoint (`/fs/list`, `/skills`,
   `/state/*`, terminal gateway), passed via `x-control-room-secret` header
   by the SvelteKit server proxy routes.
@@ -238,7 +240,7 @@ named template; relaunch with one click. Persisted to `localStorage`
 
 ### Terminals across browsers
 
-Workspace state is shared via `agent/var/workspaces.json`, so opening the
+Workspace state is shared via `/var/lib/control-room/agent/workspaces.json`, so opening the
 panel in a new browser tab/device shows the same workspaces, the same
 session→workspace map, and the same active workspace. Live pty output
 itself is on the agent, so multiple browsers connecting to the same
@@ -275,15 +277,17 @@ sudo bash scripts/install-systemd.sh
 sudo systemctl enable --now vps-control-room-agent vps-control-room-frontend
 ```
 
-This installs unit files with `WorkingDirectory` pointing at the repo path
-the script was invoked from, and `EnvironmentFile` pointing at
-`<repo>/.env.local`.
+Production is detached from the Git checkout. Immutable releases live under
+`/srv/control-room/`, mutable state under `/var/lib/control-room/`, and the
+root-owned runtime environment at `/etc/control-room/control-room.env`.
+The frontend runs as the dedicated `control-room-web` user; the host agent
+remains the only privileged boundary.
 
 ### Traefik
 
 A dynamic-config template lives at `ops/traefik/vps-control-room.yml`. The
 deploy script envsubst's it and syncs to `/etc/dokploy/traefik/dynamic/`
-on each run. Bind your Tailscale-only domain there.
+on each run. Only the Svelte frontend is routed; port 4001 is loopback-only and must never be added as a Traefik service.
 
 ---
 
@@ -295,15 +299,14 @@ bash scripts/deploy.sh main
 
 What it does (in order):
 
-1. Acquires `/tmp/vps-control-room-deploy.lock` so deploys cannot race.
-2. Validates `.env.local` and the Traefik template.
-3. In normal mode, fast-forwards from `origin/<branch>` without discarding local work. For an explicitly local deployment, `DEPLOY_FROM_WORKTREE=1` builds the current worktree without fetching, pulling, or changing GitHub state.
-4. Installs the canonical frontend with the frozen Bun lockfile, then runs `svelte-check`, unit tests, `vite build`, and `git diff --check`.
-5. Copies the adapter-node build into an immutable `frontend/releases/svelte-<timestamp>-<sha>/` release.
-6. Tests/builds/restarts the Node agent only when `agent/` changed; frontend-only deploys verify that the agent PID stays unchanged.
-7. Syncs Traefik and regenerates the Svelte-native systemd unit.
-8. Switches the frontend unit to the new immutable release. Adapter-node receives a bounded graceful drain window for long-lived SSE connections. If the new service fails health/login checks, the previous release is restored automatically.
-9. Stops stale migration preview units and prunes old inactive releases while retaining rollback material.
+1. Acquires a deploy lock and builds from either a fast-forwarded branch or an explicitly selected local worktree.
+2. Migrates runtime state into `/var/lib/control-room/` and writes a canonical, root-only environment file under `/etc/control-room/`; obsolete Convex/Next keys are not injected into the runtime.
+3. Runs Svelte check, ESLint, coverage gates, isolated Playwright/Axe responsive tests, the production build, and `git diff --check`.
+4. Stages immutable frontend **and agent** releases under `/srv/control-room/.../releases`.
+5. Compares the last deployed agent commit against the candidate commit; agent changes are never inferred from two reads of the same worktree HEAD.
+6. Switches the agent symlink first when required and verifies its authenticated HTTP gateway. On failure, the previous agent/frontend pair is restored.
+7. Switches the frontend symlink and verifies local health/login, then publishes the frontend-only Traefik route and verifies public HTTPS.
+8. Writes a deployment event to `~/.local/state/control-room-deploy/deploy-events.jsonl`, records the deployed agent commit, and retains five rollback releases by default.
 
 ### GitHub Actions
 
@@ -311,7 +314,7 @@ What it does (in order):
 auto-trigger. To trigger remotely: GitHub → Actions → "Deploy VPS Control
 Room" → Run workflow. The workflow stages env from
 `$HOME/.config/control-room/.env.local` on the self-hosted runner before
-delegating to `scripts/deploy.sh`.
+delegating to `scripts/deploy.sh`. A separate `verify.yml` runs check, lint, coverage, build, Playwright responsive tests, Axe accessibility checks, and the visual baseline on pushes/PRs once these commits are published.
 
 ---
 
@@ -333,7 +336,7 @@ Environment variables (all optional except auth secrets):
 | `AGENT_HEALTH_HOST` | `127.0.0.1` | Agent bind interface (loopback by default). |
 | `TERMINAL_GATEWAY_URL` | `http://127.0.0.1:4001` | Frontend → agent base URL. |
 | `DOCKER_SOCKET_PATH` | `/var/run/docker.sock` | Docker socket (optional). |
-| `STATE_DIR` | `<agent cwd>/var` | Where `/state/*` + `log.json` live. |
+| `STATE_DIR` | `/var/lib/control-room/agent` in production | Where `/state/*` + `log.json` live. |
 | `HOST_TELEMETRY_INTERVAL_MS` | `15000` | Agent telemetry sample period. |
 
 The frontend does not require a public client-side origin secret/config pair. Deploys set `PUBLIC_BUILD_ID` at build time, while `ORIGIN` identifies the canonical production origin.
@@ -383,7 +386,7 @@ bump the constant and redeploy for a higher cap.
   manually and redeploy.
 
 ### Cross-browser workspace state is stale
-- The agent JSON at `agent/var/workspaces.json` is last-write-wins. If two
+- The agent JSON at `/var/lib/control-room/agent/workspaces.json` is last-write-wins. If two
   browsers were both editing, the most recent PUT wins. The other browser
   catches up on next page load (no realtime push).
 

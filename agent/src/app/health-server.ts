@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import http from "http";
 
 import { WebSocketServer } from "ws";
@@ -79,6 +80,24 @@ export function startHealthServer(): void {
   registerTerminalSocketServer(wsServer);
 
   server = http.createServer(async (req, res) => {
+    const startedAt = performance.now();
+    const inboundRequestId = req.headers["x-request-id"];
+    const requestId =
+      typeof inboundRequestId === "string" && inboundRequestId.length > 0
+        ? inboundRequestId.slice(0, 128)
+        : crypto.randomUUID();
+    res.setHeader("X-Request-Id", requestId);
+    res.on("finish", () => {
+      const path = (req.url ?? "unknown").split("?", 1)[0];
+      if (path === "/health") return;
+      logger.info("agent http request", {
+        request_id: requestId,
+        method: req.method ?? "UNKNOWN",
+        path,
+        status: res.statusCode,
+        duration_ms: Math.round((performance.now() - startedAt) * 10) / 10,
+      });
+    });
     if (!req.url) {
       res.writeHead(400);
       res.end("Missing URL");
@@ -349,6 +368,7 @@ export function startHealthServer(): void {
       socket,
       head,
       wsServer,
+      config.GATEWAY_SECRET,
       config.CONTROL_ROOM_SESSION_SECRET
     );
   });

@@ -9,18 +9,34 @@ const BUILD_ID = resolveBuildId();
 const config = {
   preprocess: vitePreprocess(),
   kit: {
-    // Node adapter: production runs behind systemd and replaces the previous frontend runtime it
-    // replaces. Browser terminal streams remain SSE; the server is only a WS
-    // client to the agent, so no custom upgrade server is needed.
     adapter: adapter({
       out: 'build'
     }),
     alias: {
       $lib: 'src/lib'
     },
-    // SvelteKit's built-in version system is the SSOT for deployment identity.
-    // `$app/environment.version`, `$service-worker.version` and
-    // `/_app/version.json` all receive this exact deterministic value.
+    // SvelteKit generates nonces/hashes for its own inline bootstrap code. Keep
+    // this at the framework layer so route output and future prerendered pages
+    // cannot accidentally drift from the production CSP.
+    csp: {
+      mode: 'auto',
+      directives: {
+        'default-src': ['self'],
+        'script-src': ['self'],
+        // xterm/Svelte transitions can create inline style nodes at runtime.
+        'style-src': ['self', 'unsafe-inline'],
+        'img-src': ['self', 'data:', 'blob:'],
+        'font-src': ['self', 'data:'],
+        'connect-src': ['self'],
+        'worker-src': ['self', 'blob:'],
+        'manifest-src': ['self'],
+        'object-src': ['none'],
+        'base-uri': ['self'],
+        'form-action': ['self'],
+        'frame-ancestors': ['none'],
+        'upgrade-insecure-requests': true
+      }
+    },
     version: {
       name: BUILD_ID,
       pollInterval: 5 * 60 * 1000

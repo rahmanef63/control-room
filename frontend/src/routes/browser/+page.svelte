@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { ArrowLeft, Globe, Play } from 'lucide-svelte';
 
 	import { Button } from '$lib/components/ui/button';
@@ -70,7 +71,7 @@
 			<h1 class="truncate text-lg font-semibold text-white">Browser CRUD</h1>
 		</div>
 		<a
-			href="/"
+			href={resolve('/')}
 			class="ml-auto inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
 		>
 			<ArrowLeft class="h-4 w-4" aria-hidden="true" />

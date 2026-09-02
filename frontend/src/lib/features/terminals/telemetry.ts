@@ -24,6 +24,8 @@ const ASKING_PATTERN =
 	/(\?\s*$|\(y\/n\)|\[y\/n\]|\(yes\/no\)|\bpress enter\b|\bcontinue\?|\bare you sure\b|\bdo you want\b|\bshould i\b|\bconfirm\?|\bproceed\?)/i;
 const PLANNING_PATTERN =
 	/(\bplan:|## plan\b|here is (the|my) plan|let me plan|creating plan|i'?ll plan\b|planning step)/i;
+// ANSI escape stripping intentionally targets ESC (U+001B).
+// eslint-disable-next-line no-control-regex
 const STRIP_ANSI = /\x1b\[[0-9;?]*[a-zA-Z]/g;
 
 export function detectIdleActivity(buffer: string): ActivityState {

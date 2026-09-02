@@ -51,7 +51,7 @@
 	}
 </script>
 
-<div class="workspace-tabs" role="tablist" aria-label="Workspaces">
+<div class="workspace-tabs" role="toolbar" aria-label="Workspaces">
 	{#each workspaces as workspace (workspace.id)}
 		<div class="workspace-tab" data-active={workspace.id === activeId || undefined}>
 			{#if editingId === workspace.id}
@@ -69,8 +69,7 @@
 			{:else}
 				<button
 					type="button"
-					role="tab"
-					aria-selected={workspace.id === activeId}
+					aria-pressed={workspace.id === activeId}
 					class="workspace-tab__main"
 					onclick={() => {
 						if (workspace.id === activeId) startEdit(workspace);

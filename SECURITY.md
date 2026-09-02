@@ -2,118 +2,99 @@
 
 ## Threat model
 
-VPS Control Room is designed for **one operator on a private network**.
-Threats explicitly **in scope**:
+VPS Control Room is a **single-owner administrative shell**. The browser-facing
+Svelte application may be reachable over HTTPS, so it is treated as an
+internet-facing security boundary. The privileged Node agent is a separate
+trust tier and must stay on loopback.
 
-- Compromise of the shared secret leading to host RCE.
-- Bypass of the shell allowlist via crafted input.
-- Session-cookie forgery without the session secret.
-- Privilege escalation from the dashboard's Node process to root.
+```text
+Internet / optional Tailscale
+        │ HTTPS
+        ▼
+     Traefik
+        │ :4000
+        ▼
+control-room-web              no sudo, no Docker group, no login shell
+   SvelteKit/Bun
+        │ machine secret
+        ▼
+127.0.0.1:4001
+   privileged agent           host PTY / Docker / systemd / filesystem
+```
 
-Threats explicitly **out of scope** (these are operator responsibility):
+In scope:
 
-- Public-internet exposure of the dashboard (don't do that).
-- A malicious operator with the secret. The threat model assumes
-  the secret holder is trusted.
-- Supply-chain attacks on npm dependencies. We pin versions; you audit.
-- Physical access to the VPS.
+- Login/session/device-approval bypass.
+- Cross-site scripting, framing, browser-origin attacks, and secret leakage.
+- Reaching the privileged agent without the machine gateway secret.
+- Escalating a frontend compromise into host privileges.
+- Unsafe terminal/file/managed-app boundaries and resource exhaustion caused by
+  untrusted network input.
+- Deployment or rollback behavior that can leave frontend and agent versions
+  inconsistent.
 
----
+Operator-controlled risks:
 
-## Reporting a vulnerability
+- An authenticated owner intentionally executing destructive shell commands.
+- Physical/root access to the host.
+- Third-party CLI behavior launched intentionally from a terminal profile.
 
-**Do NOT open a public GitHub issue for security bugs.**
+The frontend is intentionally unprivileged; the agent is intentionally
+privileged because the product is a host control surface. Do not merge those
+trust tiers.
 
-Instead, open a [GitHub Security Advisory](https://github.com/) on the
-repository (Security tab → Report a vulnerability). Include:
+## Production invariants
 
-- Affected component (`frontend`, `agent`, `cli`)
-- Affected version / commit SHA
-- Reproduction steps or proof of concept
-- Impact (RCE? info disclosure? session hijack?)
-- Suggested fix (optional)
+- Public reverse proxy routes **only** to frontend port 4000.
+- Agent port 4001 binds `127.0.0.1`; there is no public `/ws/terminals` router.
+- Frontend runs as `control-room-web`, which must not have sudo or Docker access.
+- Runtime code lives under `/srv/control-room/`; mutable state lives under
+  `/var/lib/control-room/`; runtime env is `/etc/control-room/control-room.env`
+  mode `0600` owned by root.
+- Browser sessions are signed with `CONTROL_ROOM_SESSION_SECRET`, use
+  `HttpOnly`, `Secure` in production, and `SameSite=Strict`, and are tied to an
+  approved device. Revoking a device invalidates API access and closes an
+  active terminal SSE stream on its next authorization heartbeat.
+- Frontend-to-agent requests use `AGENT_GATEWAY_SECRET` (falling back to
+  `CONTROL_ROOM_SECRET` only for backwards compatibility).
+- CSP, HSTS, anti-framing, MIME sniffing, referrer, permissions, and opener
+  headers are set by the Svelte server.
+- CI Actions are pinned to immutable commit SHAs. Deployment is manual and
+  environment-gated; PR code never auto-deploys.
 
-You'll get a response within **7 days**. If the issue is confirmed,
-expect a fix within **30 days** for high-severity, longer for low.
+Tailscale is recommended as an additional restriction when practical, but it is
+not a substitute for the application security controls above.
 
-If you don't get a response in 7 days, open a public issue saying only
-"I reported a security issue 7+ days ago and am following up" — no
-details.
+## Operator checklist
 
----
-
-## Supported versions
-
-| Version | Supported |
-|---------|-----------|
-| 2.0.x   | ✅ Active |
-| 1.x     | ❌ End of life |
-| 0.x     | ❌ Never released publicly |
-
-Patches go to `main` only. Pin to a commit SHA if you need stability.
-
----
-
-## Hardening checklist (operators)
-
-If you're self-hosting, run through this list before exposing the
-service to anything beyond loopback:
-
-- [ ] `CONTROL_ROOM_SECRET` is ≥ 32 hex chars from `openssl rand -hex 32`
-- [ ] `CONTROL_ROOM_SESSION_SECRET` is **different** from the above
-- [ ] `.env.local` permissions are `600` (`chmod 600 .env.local`)
-- [ ] Traefik binds only to the Tailscale interface (not `0.0.0.0`)
-- [ ] No client-visible environment value, serialized page data, or error payload contains a secret
-- [ ] systemd services run as a **non-root user**
-- [ ] Docker socket access is intentional (`usermod -aG docker`)
-- [ ] You have an out-of-band way to rotate secrets (password manager)
-- [ ] No `.env*` file is tracked in git (`git ls-files | grep env`
-      should only show `.env.example`)
-- [ ] CI workflows are `workflow_dispatch:` only (no auto-deploy from PR)
-
----
+- [ ] `CONTROL_ROOM_SECRET` and `CONTROL_ROOM_SESSION_SECRET` are independent high-entropy values.
+- [ ] Prefer a separate `AGENT_GATEWAY_SECRET`.
+- [ ] `/etc/control-room/control-room.env` is root-owned `0600`.
+- [ ] `ss -ltnp` shows port 4001 only on `127.0.0.1`.
+- [ ] Traefik has no backend/router for port 4001.
+- [ ] `control-room-web` is not in `sudo` or `docker` groups.
+- [ ] `systemd-analyze security vps-control-room-frontend.service` is reviewed after unit changes.
+- [ ] `bun run verify` and `bun audit` pass before deployment.
+- [ ] A known-good frontend and agent release exist under `/srv/control-room/*/releases`.
+- [ ] Git commits and mutable state have an off-host recovery copy appropriate to your environment.
 
 ## Secret rotation
 
-If you suspect a leak:
+If a Control Room secret is suspected to be compromised:
 
-1. Generate two fresh 32-char secrets: `openssl rand -hex 32` (×2).
-2. Update `.env.local` on the VPS.
-3. Restart both services:
-   `sudo systemctl restart vps-control-room-{agent,frontend}`.
-4. All active sessions invalidate — log back in with the new secret.
-5. Audit `agent/var/log.json` for the leak window. Look for unexpected
-   source IPs or unfamiliar commands.
+1. Generate replacement secrets using a cryptographically secure password manager or `openssl rand -hex 32`.
+2. Update the canonical source environment used for deployment.
+3. Redeploy so `/etc/control-room/control-room.env` is regenerated and both trust tiers restart when required.
+4. Revoke unfamiliar approved devices.
+5. Review agent/deploy journals and `/var/lib/control-room/agent/log.json` for the exposure window.
 
----
+External credentials that are not used by Control Room should not be injected
+into its process environment. Removing a legacy key from this application is
+separate from revoking that credential at its provider; rotate/revoke externally
+only after confirming no other workload depends on it.
 
-## Terminal profile additions
+## Reporting a vulnerability
 
-Terminal launches go through `agent/src/terminal/profiles.ts`. Adding a
-new profile (a new AI agent CLI, a new shell flavor) is a security-relevant
-change because the profile decides what process pty-spawns under your VPS
-user. To add one:
-
-1. Open an issue first explaining what + why + worst-case-impact.
-2. Wait for maintainer ack.
-3. Send a PR that:
-   - Sets `command` + `args` literally (no shell expansion).
-   - Documents the new profile in `docs/runbook.md`.
-
----
-
-## What we won't fix
-
-- Vulnerabilities that require already-authenticated session cookie
-  access. The threat model already considers session-cookie holders
-  trusted.
-- Resource exhaustion attacks (one operator can't DoS themselves).
-- Timing attacks on the login endpoint — we already use constant-time
-  HMAC compare. If you find a side-channel, do report it.
-
----
-
-## Credits
-
-We acknowledge security researchers in release notes (with permission).
-Indicate in your report if you'd like attribution and what name to use.
+Do not publish exploit details in a normal issue. Use the repository's private
+security-reporting channel / GitHub Security Advisory and include the affected
+commit, reproduction, impact, and suggested remediation if known.

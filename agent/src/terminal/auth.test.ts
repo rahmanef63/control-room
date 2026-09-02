@@ -27,3 +27,13 @@ test("rejects when no server secret is configured", () => {
 test("rejects a length-mismatched secret without throwing", () => {
   assert.equal(isAuthorizedGatewayRequest(reqWith("short"), "a-much-longer-secret"), false);
 });
+
+import { isAuthorizedTerminalSocket } from "./auth.js";
+
+test("terminal socket accepts the machine gateway secret", () => {
+  assert.equal(isAuthorizedTerminalSocket(reqWith("s3cret"), "s3cret", undefined), true);
+});
+
+test("terminal socket rejects a request without machine or legacy credentials", () => {
+  assert.equal(isAuthorizedTerminalSocket(reqWith(undefined), "s3cret", undefined), false);
+});

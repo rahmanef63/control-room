@@ -71,3 +71,7 @@ Thumbs.db
 
 # Local-run process tracking (vps-cr start/stop)
 .local-run.json
+
+# Browser test artifacts
+frontend/test-results/
+frontend/playwright-report/

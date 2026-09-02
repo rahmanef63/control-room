@@ -1,153 +1,53 @@
 #!/bin/bash
 set -euo pipefail
 
-# VPS Control Room — SvelteKit adapter-node deploy with immutable frontend releases.
-# Default mode updates from origin/<branch>. Set DEPLOY_FROM_WORKTREE=1 to deploy
-# the current local worktree without fetching, checking out, pulling, or pushing.
-
 REPO_DIR="${GITHUB_WORKSPACE:-"$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"}"
 BRANCH="${1:-main}"
-LOCK_FILE="/tmp/vps-control-room-deploy.lock"
-STATE_DIR="${HOME:-/home/$(id -un)}/.local/state/control-room-deploy"
-AGENT_STAMP_FILE="${STATE_DIR}/agent.commit"
-FRONTEND_DIR="${REPO_DIR}/frontend"
-RELEASES_DIR="${FRONTEND_DIR}/releases"
-RELEASE_RETENTION="${FRONTEND_RELEASE_RETENTION:-5}"
+APP_USER="${CONTROL_ROOM_AGENT_USER:-$(id -un)}"
+WEB_USER="${CONTROL_ROOM_WEB_USER:-control-room-web}"
+RUNTIME_ROOT="${CONTROL_ROOM_RUNTIME_ROOT:-/srv/control-room}"
+STATE_ROOT="${CONTROL_ROOM_STATE_ROOT:-/var/lib/control-room}"
+RUNTIME_ENV="${CONTROL_ROOM_ENV_FILE:-/etc/control-room/control-room.env}"
+FRONTEND_RELEASES="${RUNTIME_ROOT}/frontend/releases"
+AGENT_RELEASES="${RUNTIME_ROOT}/agent/releases"
+FRONTEND_CURRENT="${RUNTIME_ROOT}/frontend/current"
+AGENT_CURRENT="${RUNTIME_ROOT}/agent/current"
 FRONTEND_SERVICE="vps-control-room-frontend.service"
 AGENT_SERVICE="vps-control-room-agent.service"
-FRONTEND_DROPIN_DIR="/etc/systemd/system/${FRONTEND_SERVICE}.d"
-FRONTEND_DROPIN="${FRONTEND_DROPIN_DIR}/10-release.conf"
-LEGACY_FRONTEND_DROPIN="${FRONTEND_DROPIN_DIR}/10-svelte.conf"
+STATE_DIR="${HOME}/.local/state/control-room-deploy"
+AGENT_STAMP_FILE="${STATE_DIR}/agent.commit"
+DEPLOY_LOG="${STATE_DIR}/deploy-events.jsonl"
+LOCK_FILE="/tmp/vps-control-room-deploy.lock"
+RELEASE_RETENTION="${CONTROL_ROOM_RELEASE_RETENTION:-5}"
+TRAEFIK_LIVE="/etc/dokploy/traefik/dynamic/vps-control-room.yml"
 
 exec 9>"${LOCK_FILE}"
 flock 9
 
-log() {
-  printf '[%s] %s\n' "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" "$*"
-}
+log() { printf '[%s] %s\n' "$(date -u '+%Y-%m-%d %H:%M:%S UTC')" "$*"; }
+service_pid() { sudo systemctl show "$1" -p MainPID --value 2>/dev/null || printf '0\n'; }
+process_cwd() { local p="$1"; [ "${p}" != "0" ] && [ -d "/proc/${p}" ] && readlink -f "/proc/${p}/cwd" 2>/dev/null || true; }
 
-BUN="${BUN:-$(command -v bun || echo "${HOME:-}/.bun/bin/bun")}"
-if [ ! -x "${BUN}" ]; then
-  log "bun not found at '${BUN}' — install bun or set BUN=/path/to/bun"
-  exit 1
-fi
-
-require_file() {
-  local path="$1"
-  if [ ! -f "$path" ]; then
-    log "Missing required file: $path"
-    exit 1
-  fi
-}
+if ! sudo -n true >/dev/null 2>&1; then log "Passwordless sudo is required"; exit 1; fi
+BUN="${BUN:-$(command -v bun || true)}"
+[ -x "${BUN}" ] || { log "bun not found"; exit 1; }
+[ -f "${REPO_DIR}/.env.local" ] || { log "Missing ${REPO_DIR}/.env.local"; exit 1; }
 
 load_env_file() {
   local path="$1"
   while IFS= read -r line || [ -n "$line" ]; do
-    case "$line" in
-      ""|\#*) continue ;;
-    esac
-    local key="${line%%=*}"
-    local value="${line#*=}"
+    case "$line" in ""|\#*) continue ;; esac
+    local key="${line%%=*}" value="${line#*=}"
     export "${key}=${value}"
   done < "$path"
 }
-
-service_pid() {
-  sudo systemctl show "$1" -p MainPID --value 2>/dev/null || printf '0\n'
-}
-
-process_cwd() {
-  local pid="$1"
-  if [ -n "$pid" ] && [ "$pid" != "0" ] && [ -d "/proc/${pid}" ]; then
-    readlink -f "/proc/${pid}/cwd" 2>/dev/null || true
-  fi
-}
-
-write_release_dropin() {
-  local release_dir="$1"
-  local build_id="${2:-}"
-  sudo mkdir -p "${FRONTEND_DROPIN_DIR}"
-  sudo rm -f "${LEGACY_FRONTEND_DROPIN}"
-  {
-    printf '[Service]\n'
-    printf 'WorkingDirectory=%s\n' "${release_dir}"
-    if [ -n "${build_id}" ]; then
-      printf 'Environment=PUBLIC_BUILD_ID=%s\n' "${build_id}"
-    fi
-  } | sudo tee "${FRONTEND_DROPIN}" >/dev/null
-  sudo systemctl daemon-reload
-}
-
-rollback_frontend() {
-  local previous_release="$1"
-  if [ -n "${previous_release}" ] && [ -d "${previous_release}/build" ]; then
-    log "Rolling frontend back to ${previous_release}"
-    write_release_dropin "${previous_release}"
-    sudo systemctl restart "${FRONTEND_SERVICE}" || true
-  else
-    log "No valid previous frontend release was available for automatic rollback"
-  fi
-}
-
-verify_local_frontend() {
-  local attempts=20
-  local i
-  for ((i=1; i<=attempts; i++)); do
-    if sudo systemctl is-active --quiet "${FRONTEND_SERVICE}" \
-      && curl -fsS --max-time 3 http://127.0.0.1:4000/api/health >/dev/null \
-      && curl -fsS --max-time 3 http://127.0.0.1:4000/login >/dev/null; then
-      return 0
-    fi
-    sleep 1
-  done
-  return 1
-}
-
-prune_releases() {
-  [ -d "${RELEASES_DIR}" ] || return 0
-  local releases=()
-  mapfile -t releases < <(find "${RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d -name 'svelte-*' | sort)
-  local count="${#releases[@]}"
-  [ "$count" -le "${RELEASE_RETENTION}" ] && return 0
-
-  local active_pid active_release remove_needed release
-  active_pid="$(service_pid "${FRONTEND_SERVICE}")"
-  active_release="$(process_cwd "${active_pid}")"
-  remove_needed=$((count - RELEASE_RETENTION))
-
-  for release in "${releases[@]}"; do
-    [ "$remove_needed" -le 0 ] && break
-    if [ "${release}" = "${active_release}" ]; then
-      continue
-    fi
-    log "Pruning old frontend release: ${release}"
-    rm -rf "${release}"
-    remove_needed=$((remove_needed - 1))
-  done
-}
-
-log "Starting deploy${DEPLOY_FROM_WORKTREE:+ (worktree mode)}"
-
-if ! sudo -n true >/dev/null 2>&1; then
-  log "Passwordless sudo is required for service deployment"
-  exit 1
-fi
-
-require_file "${REPO_DIR}/.env.local"
-require_file "${REPO_DIR}/ops/traefik/vps-control-room.yml"
-require_file "${FRONTEND_DIR}/package.json"
 load_env_file "${REPO_DIR}/.env.local"
 
 cd "${REPO_DIR}"
-mkdir -p "${STATE_DIR}" "${RELEASES_DIR}"
+mkdir -p "${STATE_DIR}"
 
-PREVIOUS_COMMIT="$(git rev-parse HEAD)"
 if [ "${DEPLOY_FROM_WORKTREE:-0}" != "1" ]; then
-  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-    log "Tracked worktree changes detected; refusing remote-mode deploy. Commit/stash them or use DEPLOY_FROM_WORKTREE=1."
-    exit 1
-  fi
-  log "Updating repository from origin/${BRANCH}"
+  [ -z "$(git status --porcelain --untracked-files=no)" ] || { log "Tracked changes present; refusing remote deploy"; exit 1; }
   git fetch origin
   git checkout "${BRANCH}"
   git pull --ff-only origin "${BRANCH}"
@@ -155,107 +55,202 @@ else
   log "Deploying current worktree without touching GitHub state"
 fi
 CURRENT_COMMIT="$(git rev-parse HEAD)"
-BUILD_ID_SHORT="${CURRENT_COMMIT:0:12}"
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  BUILD_ID_SHORT="${BUILD_ID_SHORT}-dirty"
-fi
-export COMMIT_SHA="${CURRENT_COMMIT}"
-export PUBLIC_BUILD_ID="${BUILD_ID_SHORT}"
+BUILD_ID="${CURRENT_COMMIT:0:12}"
+[ -z "$(git status --porcelain --untracked-files=no)" ] || BUILD_ID="${BUILD_ID}-dirty"
+export COMMIT_SHA="${CURRENT_COMMIT}" PUBLIC_BUILD_ID="${BUILD_ID}"
 
-PREVIOUS_FRONTEND_PID="$(service_pid "${FRONTEND_SERVICE}")"
-PREVIOUS_RELEASE="$(process_cwd "${PREVIOUS_FRONTEND_PID}")"
+FRONTEND_PID_BEFORE="$(service_pid "${FRONTEND_SERVICE}")"
 AGENT_PID_BEFORE="$(service_pid "${AGENT_SERVICE}")"
+LEGACY_FRONTEND_CWD="$(process_cwd "${FRONTEND_PID_BEFORE}")"
+LEGACY_AGENT_CWD="$(process_cwd "${AGENT_PID_BEFORE}")"
+APP_HOME="$(getent passwd "${APP_USER}" | cut -d: -f6)"
 
+log "Preparing canonical runtime/state layout"
+sudo APP_USER="${APP_USER}" CONTROL_ROOM_WEB_USER="${WEB_USER}" BUN_BIN="${BUN}" \
+  CONTROL_ROOM_RUNTIME_ROOT="${RUNTIME_ROOT}" CONTROL_ROOM_STATE_ROOT="${STATE_ROOT}" \
+  MIGRATE_AUTH_DEVICE_STORE="${AUTH_DEVICE_STORE:-${LEGACY_AGENT_CWD}/var/auth-devices.json}" \
+  MIGRATE_AGENT_STATE_DIR="${LEGACY_AGENT_CWD}/var" \
+  MIGRATE_CRON_STORE="${APP_HOME}/.config/vps-control-room/crons.json" \
+  bash "${REPO_DIR}/scripts/prepare-runtime.sh" >/dev/null
+
+ENV_TMP="$(mktemp "${STATE_DIR}/runtime-env.XXXXXX")"
+chmod 0600 "${ENV_TMP}"
+awk '
+  /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+  $0 ~ /^(CONVEX_|NEXT_PUBLIC_)/ { next }
+  $0 ~ /^(AGENT_HEALTH_HOST|STATE_DIR|AUTH_DEVICE_STORE|CONTROL_ROOM_CRONS_PATH|TERMINAL_GATEWAY_URL)=/ { next }
+  { print }
+' "${REPO_DIR}/.env.local" > "${ENV_TMP}"
+printf '%s\n' \
+  'AGENT_HEALTH_HOST=127.0.0.1' \
+  "STATE_DIR=${STATE_ROOT}/agent" \
+  "AUTH_DEVICE_STORE=${STATE_ROOT}/frontend/auth-devices.json" \
+  "CONTROL_ROOM_CRONS_PATH=${STATE_ROOT}/agent/crons.json" \
+  'TERMINAL_GATEWAY_URL=http://127.0.0.1:4001' >> "${ENV_TMP}"
+sudo install -o root -g root -m 0600 "${ENV_TMP}" "${RUNTIME_ENV}"
+rm -f "${ENV_TMP}"
+
+LAST_AGENT_COMMIT="$(cat "${AGENT_STAMP_FILE}" 2>/dev/null || true)"
 AGENT_RESTART_REQUIRED=0
-LOCAL_AGENT_CHANGES="$(git status --porcelain -- agent || true)"
-if [ -n "${LOCAL_AGENT_CHANGES}" ]; then
+if [ -z "${LAST_AGENT_COMMIT}" ] || ! git cat-file -e "${LAST_AGENT_COMMIT}^{commit}" 2>/dev/null; then
+  AGENT_RESTART_REQUIRED=1
+elif ! git diff --quiet "${LAST_AGENT_COMMIT}" "${CURRENT_COMMIT}" -- agent; then
   AGENT_RESTART_REQUIRED=1
 fi
-if [ "${PREVIOUS_COMMIT}" != "${CURRENT_COMMIT}" ] && ! git diff --quiet "${PREVIOUS_COMMIT}" "${CURRENT_COMMIT}" -- agent; then
-  AGENT_RESTART_REQUIRED=1
-fi
-LAST_AGENT_DEPLOYED_COMMIT="$(cat "${AGENT_STAMP_FILE}" 2>/dev/null || true)"
-if [ -n "${LAST_AGENT_DEPLOYED_COMMIT}" ] && git cat-file -e "${LAST_AGENT_DEPLOYED_COMMIT}^{commit}" 2>/dev/null; then
-  if ! git diff --quiet "${LAST_AGENT_DEPLOYED_COMMIT}" "${CURRENT_COMMIT}" -- agent; then
-    AGENT_RESTART_REQUIRED=1
-  fi
-elif [ "${DEPLOY_FROM_WORKTREE:-0}" != "1" ]; then
-  AGENT_RESTART_REQUIRED=1
-fi
+[ -z "$(git status --porcelain -- agent)" ] || AGENT_RESTART_REQUIRED=1
+if [ ! -L "${AGENT_CURRENT}" ] || [ ! -f "${AGENT_CURRENT}/agent/dist/index.js" ]; then AGENT_RESTART_REQUIRED=1; fi
 
-log "Installing canonical Svelte frontend dependencies"
-"${BUN}" install --cwd "${FRONTEND_DIR}" --frozen-lockfile
-
-log "Running frontend check, tests, and production build"
-"${BUN}" run --cwd "${FRONTEND_DIR}" check
-"${BUN}" run --cwd "${FRONTEND_DIR}" test
-nice -n 15 ionice -c2 -n7 "${BUN}" run --cwd "${FRONTEND_DIR}" build
+log "Installing and verifying frontend"
+"${BUN}" install --cwd frontend --frozen-lockfile
+"${BUN}" run --cwd frontend check
+"${BUN}" run --cwd frontend lint
+"${BUN}" run --cwd frontend test:coverage
+(cd frontend && "${BUN}" audit)
+"${BUN}" run --cwd frontend test:e2e
+nice -n 15 ionice -c2 -n7 "${BUN}" run --cwd frontend build
+"${BUN}" run --cwd frontend check:bundle
 git diff --check
 
 STAMP="$(date -u '+%Y%m%dT%H%M%SZ')"
-RELEASE_DIR="${RELEASES_DIR}/svelte-${STAMP}-${CURRENT_COMMIT:0:7}"
-mkdir -p "${RELEASE_DIR}"
-cp -a "${FRONTEND_DIR}/build" "${RELEASE_DIR}/build"
-log "Prepared immutable frontend release: ${RELEASE_DIR}"
+FRONTEND_RELEASE="${FRONTEND_RELEASES}/svelte-${STAMP}-${CURRENT_COMMIT:0:7}"
+mkdir -p "${FRONTEND_RELEASE}"
+cp -a frontend/build "${FRONTEND_RELEASE}/build"
 
 if [ "${AGENT_RESTART_REQUIRED}" -eq 1 ]; then
-  log "Agent changes detected; installing, testing, and building agent"
-  "${BUN}" install --cwd "${REPO_DIR}/agent" --frozen-lockfile
-  "${BUN}" run --cwd "${REPO_DIR}/agent" test:all
-  "${BUN}" run --cwd "${REPO_DIR}/agent" build
+  log "Agent tree changed or has no deployment stamp; verifying and staging immutable agent release"
+  "${BUN}" install --cwd agent --frozen-lockfile
+  "${BUN}" run --cwd agent test:all
+  "${BUN}" run --cwd agent test:coverage
+  (cd agent && "${BUN}" audit)
+  "${BUN}" run --cwd agent build
+  AGENT_RELEASE="${AGENT_RELEASES}/agent-${STAMP}-${CURRENT_COMMIT:0:7}"
+  mkdir -p "${AGENT_RELEASE}/agent" "${AGENT_RELEASE}/packages"
+  cp -a agent/dist agent/node_modules agent/package.json agent/bun.lock "${AGENT_RELEASE}/agent/"
+  cp -a packages/contracts packages/runtime-config "${AGENT_RELEASE}/packages/"
 else
-  log "Agent unchanged; preserving the running agent process"
+  AGENT_RELEASE="$(readlink -f "${AGENT_CURRENT}")"
+  log "Agent source unchanged; preserving ${AGENT_RELEASE}"
 fi
 
-log "Syncing Traefik dynamic config"
-CONTROL_ROOM_DOMAIN="${CONTROL_ROOM_DOMAIN:-}" \
-  envsubst '${CONTROL_ROOM_DOMAIN}' \
-  < "${REPO_DIR}/ops/traefik/vps-control-room.yml" \
-  | sudo tee /etc/dokploy/traefik/dynamic/vps-control-room.yml >/dev/null
+stage_legacy_frontend_rollback() {
+  if [ -L "${FRONTEND_CURRENT}" ]; then readlink -f "${FRONTEND_CURRENT}"; return; fi
+  local target="${FRONTEND_RELEASES}/svelte-pre-hardening-${STAMP}"
+  mkdir -p "${target}"
+  if [ -n "${LEGACY_FRONTEND_CWD}" ] && [ -d "${LEGACY_FRONTEND_CWD}/build" ]; then
+    cp -a "${LEGACY_FRONTEND_CWD}/build" "${target}/build"
+  else
+    cp -a frontend/build "${target}/build"
+  fi
+  printf '%s\n' "${target}"
+}
 
-log "Regenerating Svelte-native systemd units"
-SKIP_AGENT_UNIT=0
-if [ "${AGENT_RESTART_REQUIRED}" -eq 0 ]; then
-  SKIP_AGENT_UNIT=1
-fi
-sudo APP_USER="$(id -un)" \
-  BUN_BIN="${BUN}" \
-  SKIP_AGENT_UNIT="${SKIP_AGENT_UNIT}" \
-  AUTH_DEVICE_STORE="${AUTH_DEVICE_STORE:-${REPO_DIR}/agent/var/auth-devices.json}" \
-  bash "${REPO_DIR}/scripts/install-systemd.sh" >/dev/null
+stage_legacy_agent_rollback() {
+  if [ -L "${AGENT_CURRENT}" ]; then readlink -f "${AGENT_CURRENT}"; return; fi
+  local target="${AGENT_RELEASES}/agent-pre-hardening-${STAMP}"
+  mkdir -p "${target}/agent" "${target}/packages"
+  if [ -n "${LEGACY_AGENT_CWD}" ] && [ -f "${LEGACY_AGENT_CWD}/dist/index.js" ]; then
+    cp -a "${LEGACY_AGENT_CWD}/dist" "${LEGACY_AGENT_CWD}/node_modules" \
+      "${LEGACY_AGENT_CWD}/package.json" "${LEGACY_AGENT_CWD}/bun.lock" "${target}/agent/"
+    local legacy_repo
+    legacy_repo="$(cd "${LEGACY_AGENT_CWD}/.." && pwd)"
+    if [ -d "${legacy_repo}/packages/contracts" ] && [ -d "${legacy_repo}/packages/runtime-config" ]; then
+      cp -a "${legacy_repo}/packages/contracts" "${legacy_repo}/packages/runtime-config" "${target}/packages/"
+    else
+      cp -a packages/contracts packages/runtime-config "${target}/packages/"
+    fi
+  else
+    cp -a agent/dist agent/node_modules agent/package.json agent/bun.lock "${target}/agent/"
+    cp -a packages/contracts packages/runtime-config "${target}/packages/"
+  fi
+  printf '%s\n' "${target}"
+}
+
+PREVIOUS_FRONTEND="$(stage_legacy_frontend_rollback)"
+PREVIOUS_AGENT="$(stage_legacy_agent_rollback)"
+ln -sfn "${PREVIOUS_FRONTEND}" "${FRONTEND_CURRENT}"
+ln -sfn "${PREVIOUS_AGENT}" "${AGENT_CURRENT}"
 
 BACKUP_DIR="${STATE_DIR}/backups/${STAMP}-${CURRENT_COMMIT:0:7}"
 mkdir -p "${BACKUP_DIR}"
-printf '%s\n' "${PREVIOUS_RELEASE}" > "${BACKUP_DIR}/previous-release.txt"
-if sudo test -f "${FRONTEND_DROPIN}"; then
-  sudo cat "${FRONTEND_DROPIN}" > "${BACKUP_DIR}/10-release.conf"
-fi
-if sudo test -f "${LEGACY_FRONTEND_DROPIN}"; then
-  sudo cat "${LEGACY_FRONTEND_DROPIN}" > "${BACKUP_DIR}/10-svelte.conf"
-fi
+printf '%s\n' "${PREVIOUS_FRONTEND}" > "${BACKUP_DIR}/previous-frontend.txt"
+printf '%s\n' "${PREVIOUS_AGENT}" > "${BACKUP_DIR}/previous-agent.txt"
+if sudo test -f "${TRAEFIK_LIVE}"; then sudo cat "${TRAEFIK_LIVE}" > "${BACKUP_DIR}/traefik.yml"; fi
 
-log "Switching frontend service to new release"
-write_release_dropin "${RELEASE_DIR}" "${BUILD_ID_SHORT}"
-if ! sudo systemctl restart "${FRONTEND_SERVICE}" || ! verify_local_frontend; then
-  rollback_frontend "${PREVIOUS_RELEASE}"
-  exit 1
-fi
+log "Installing stable systemd units"
+sudo APP_USER="${APP_USER}" CONTROL_ROOM_WEB_USER="${WEB_USER}" BUN_BIN="${BUN}" \
+  CONTROL_ROOM_RUNTIME_ROOT="${RUNTIME_ROOT}" CONTROL_ROOM_STATE_ROOT="${STATE_ROOT}" \
+  CONTROL_ROOM_ENV_FILE="${RUNTIME_ENV}" CONTROL_ROOM_DOMAIN="${CONTROL_ROOM_DOMAIN:-}" \
+  bash scripts/install-systemd.sh >/dev/null
+
+verify_agent() {
+  local i status
+  for ((i=1;i<=20;i++)); do
+    if sudo systemctl is-active --quiet "${AGENT_SERVICE}" \
+      && curl -fsS --max-time 3 http://127.0.0.1:4001/health >/dev/null; then
+      status="$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' \
+        -H "x-control-room-secret: ${AGENT_GATEWAY_SECRET:-${CONTROL_ROOM_SECRET:-}}" \
+        http://127.0.0.1:4001/terminals || true)"
+      [ "${status}" = "200" ] && return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+verify_frontend() {
+  local i
+  for ((i=1;i<=20;i++)); do
+    if sudo systemctl is-active --quiet "${FRONTEND_SERVICE}" \
+      && curl -fsS --max-time 3 http://127.0.0.1:4000/api/health >/dev/null \
+      && curl -fsS --max-time 3 http://127.0.0.1:4000/login >/dev/null; then return 0; fi
+    sleep 1
+  done
+  return 1
+}
+
+rollback_pair() {
+  log "Rolling back runtime pair"
+  ln -sfn "${PREVIOUS_FRONTEND}" "${FRONTEND_CURRENT}"
+  ln -sfn "${PREVIOUS_AGENT}" "${AGENT_CURRENT}"
+  sudo systemctl restart "${AGENT_SERVICE}" || true
+  sudo systemctl restart "${FRONTEND_SERVICE}" || true
+}
 
 if [ "${AGENT_RESTART_REQUIRED}" -eq 1 ]; then
+  log "Switching privileged agent to ${AGENT_RELEASE}"
+  ln -sfn "${AGENT_RELEASE}" "${AGENT_CURRENT}"
   sudo systemctl restart "${AGENT_SERVICE}"
-  sudo systemctl is-active --quiet "${AGENT_SERVICE}"
-  printf '%s\n' "${CURRENT_COMMIT}" > "${AGENT_STAMP_FILE}"
-else
-  AGENT_PID_AFTER="$(service_pid "${AGENT_SERVICE}")"
-  if [ "${AGENT_PID_BEFORE}" != "${AGENT_PID_AFTER}" ]; then
-    log "Warning: agent PID changed externally (${AGENT_PID_BEFORE} -> ${AGENT_PID_AFTER}) even though deploy did not restart it"
-  else
-    log "Verified agent PID unchanged: ${AGENT_PID_AFTER}"
+  if ! verify_agent; then rollback_pair; exit 1; fi
+fi
+
+log "Switching frontend to ${FRONTEND_RELEASE}"
+ln -sfn "${FRONTEND_RELEASE}" "${FRONTEND_CURRENT}"
+sudo systemctl restart "${FRONTEND_SERVICE}"
+if ! verify_frontend; then rollback_pair; exit 1; fi
+
+log "Publishing frontend-only Traefik route"
+CONTROL_ROOM_DOMAIN="${CONTROL_ROOM_DOMAIN:-}" envsubst '${CONTROL_ROOM_DOMAIN}' \
+  < ops/traefik/vps-control-room.yml | sudo tee "${TRAEFIK_LIVE}" >/dev/null
+sleep 1
+if [ -n "${CONTROL_ROOM_DOMAIN:-}" ]; then
+  if ! curl -fsS --max-time 8 "https://${CONTROL_ROOM_DOMAIN}/login" >/dev/null; then
+    log "Public verification failed; restoring previous Traefik config and runtime pair"
+    [ ! -f "${BACKUP_DIR}/traefik.yml" ] || sudo cp "${BACKUP_DIR}/traefik.yml" "${TRAEFIK_LIVE}"
+    rollback_pair
+    exit 1
   fi
 fi
 
-# Old migration previews are transient and must never survive a verified deploy.
-sudo systemctl stop vps-control-room-svelte-preview.service >/dev/null 2>&1 || true
-prune_releases
+printf '%s\n' "${CURRENT_COMMIT}" > "${AGENT_STAMP_FILE}"
+python3 - "${DEPLOY_LOG}" "${CURRENT_COMMIT}" "${FRONTEND_RELEASE}" "$(readlink -f "${AGENT_CURRENT}")" <<'PY'
+import json,sys,datetime
+path,commit,frontend,agent=sys.argv[1:]
+with open(path,'a',encoding='utf-8') as f:
+    f.write(json.dumps({'ts':datetime.datetime.now(datetime.timezone.utc).isoformat(),'commit':commit,'frontend':frontend,'agent':agent,'status':'success'},separators=(',',':'))+'\n')
+PY
 
-log "Deployment complete: frontend=${RELEASE_DIR} build=${BUILD_ID_SHORT}"
+sudo systemctl stop vps-control-room-svelte-preview.service >/dev/null 2>&1 || true
+CONTROL_ROOM_RUNTIME_ROOT="${RUNTIME_ROOT}" KEEP_FRONTEND_RELEASES="${RELEASE_RETENTION}" KEEP_AGENT_RELEASES="${RELEASE_RETENTION}" \
+  bash scripts/cleanup-terminal-runtime.sh >/dev/null
+
+log "Deployment complete: frontend=${FRONTEND_RELEASE} agent=$(readlink -f "${AGENT_CURRENT}") build=${BUILD_ID}"

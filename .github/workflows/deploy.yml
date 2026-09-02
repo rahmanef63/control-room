@@ -1,11 +1,5 @@
 name: Deploy VPS Control Room
 
-# Disabled per repo policy — auto-deploy on push burns runner minutes and
-# can't target the right install dir (systemd points to a fixed path that
-# is not the runner workspace). Use scripts/deploy.sh directly on the
-# host instead, or trigger this workflow manually via the Actions tab.
-#
-# Kept around as workflow_dispatch only so a manual escape hatch exists.
 on:
   workflow_dispatch:
 
@@ -13,58 +7,40 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-vps-control-room-main
-  cancel-in-progress: true
+  group: deploy-vps-control-room-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy on VPS self-hosted runner (manual)
-    runs-on:
-      - self-hosted
-      - linux
-      - x64
+    name: Verified manual production deploy
+    runs-on: [self-hosted, linux, x64]
+    environment: production
     timeout-minutes: 30
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout selected ref
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          clean: false
+          clean: true
 
-      # scripts/deploy.sh installs and builds with bun. The self-hosted runner
-      # service has a trimmed PATH, so bun must be put there explicitly.
-      # Node.js 22 stays on the host and is NOT replaced: the agent daemon runs
-      # on node (node-pty emits no data under Bun).
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          # Pinned to the version installed on the host, so CI never builds the
-          # production artifact with a different bun than systemd runs it with.
-          # Bump this and the host together.
-          bun-version: 1.3.14
-
-      - name: Stage env files from persistent host path
+      - name: Verify host runtimes
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
+          test "$(bun --version)" = "1.3.14"
+          test "$(node -p 'process.versions.node.split(`.`)[0]')" = "22"
+
+      - name: Stage canonical environment
+        shell: bash
+        run: |
+          set -euo pipefail
           PERSIST="${CONTROL_ROOM_ENV_DIR:-${HOME}/.config/control-room}"
-          mkdir -p "${GITHUB_WORKSPACE}/convex"
+          test -f "${PERSIST}/.env.local"
+          install -m 0600 "${PERSIST}/.env.local" "${GITHUB_WORKSPACE}/.env.local"
 
-          if [ -f "${PERSIST}/.env.local" ]; then
-            cp "${PERSIST}/.env.local" "${GITHUB_WORKSPACE}/.env.local"
-          elif [ ! -f "${GITHUB_WORKSPACE}/.env.local" ]; then
-            echo "ERROR: Place env at ${PERSIST}/.env.local on the runner host."
-            exit 1
-          fi
-
-          if [ -f "${PERSIST}/convex.env.local" ]; then
-            cp "${PERSIST}/convex.env.local" "${GITHUB_WORKSPACE}/convex/.env.local"
-          elif [ ! -f "${GITHUB_WORKSPACE}/convex/.env.local" ]; then
-            echo "ERROR: Place convex env at ${PERSIST}/convex.env.local on the runner host."
-            exit 1
-          fi
-
-      - name: Deploy latest main to VPS
+      - name: Deploy checked-out snapshot
+        shell: bash
         env:
-          DEPLOY_BRANCH: ${{ github.ref_name }}
-        run: |
-          bash "${GITHUB_WORKSPACE}/scripts/deploy.sh" "${DEPLOY_BRANCH}"
+          DEPLOY_FROM_WORKTREE: "1"
+          OS_EXEC_ALLOW_DESTRUCTIVE: "1"
+        run: bash "${GITHUB_WORKSPACE}/scripts/deploy.sh" "${GITHUB_REF_NAME}"

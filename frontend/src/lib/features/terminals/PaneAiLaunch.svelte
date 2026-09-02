@@ -77,7 +77,7 @@
 />
 
 {#if agentProfiles.length > 0 || runtimeAgentProfileId}
-	<div class="pane-ai" bind:this={wrapper}>
+	<div class="pane-ai" data-session-id={sessionId} bind:this={wrapper}>
 		{#if !hideTrigger}
 			<button
 				type="button"

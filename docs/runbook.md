@@ -409,3 +409,17 @@ journalctl -u vps-control-room-agent -b -1 --no-pager
 ```bash
 journalctl --disk-usage
 ```
+
+## Disaster recovery snapshot
+
+Create a local recovery package without copying runtime secrets by default:
+
+```bash
+bash scripts/backup-control-room.sh
+```
+
+It creates a verified Git bundle (including unpublished local commits), a
+restricted archive of `/var/lib/control-room`, and checksums under
+`~/.local/state/control-room-backups/<timestamp>/`. Copy that directory to an
+approved encrypted **off-host** destination. `--include-env` also includes the
+root-owned runtime env and therefore requires stronger secret handling.
