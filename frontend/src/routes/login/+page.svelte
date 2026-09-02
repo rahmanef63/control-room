@@ -1,12 +1,6 @@
 <script lang="ts">
-	// Svelte 5 runes port of frontend/app/login/page.tsx. Kept as a plain
-	// client-side fetch() (not a SvelteKit form action) deliberately — the
-	// original's exact status-code branching (400/401/403/429) drives UI
-	// state (pending-device banner, rate-limit message) that a form action
-	// would need extra plumbing to preserve faithfully. Visual design is a
-	// simplified version of the original's glass-panel cockpit look; the
-	// full two-column marketing layout is left for a follow-up pass (see
-	// README-MIGRATION.md).
+	// Client-side auth flow preserves explicit 400/401/403/429 UI states and
+	// device-approval handling without hiding them behind form-action redirects.
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';

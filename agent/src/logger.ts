@@ -1,4 +1,4 @@
-export function log(
+function log(
   level: "info" | "warn" | "error",
   message: string,
   data?: Record<string, unknown>

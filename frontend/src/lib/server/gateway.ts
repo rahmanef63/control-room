@@ -6,7 +6,7 @@ function buildGatewayUrl(pathname: string): string {
   return `${TERMINAL_GATEWAY_URL}${pathname}`;
 }
 
-export function getGatewaySecret(): string | undefined {
+function getGatewaySecret(): string | undefined {
   return process.env.AGENT_GATEWAY_SECRET ?? process.env.CONTROL_ROOM_SECRET;
 }
 

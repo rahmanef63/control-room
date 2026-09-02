@@ -26,7 +26,7 @@ export interface AlfaWatcher {
 	silenceThresholdMs?: number;
 }
 
-export type PatrolPingEvent = 'waiting' | 'done';
+type PatrolPingEvent = 'waiting' | 'done';
 export interface PatrolPing {
 	id: string;
 	alfaId: string;

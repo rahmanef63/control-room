@@ -18,12 +18,6 @@ export function parseManagedAppAction(value: unknown): ManagedAppAction {
   throw new ManagedAppError("Unsupported managed application action");
 }
 
-export function parsePreserveData(value: unknown): boolean {
-  if (value === undefined) return true;
-  if (typeof value === "boolean") return value;
-  throw new ManagedAppError("preserveData must be a boolean");
-}
-
 export function redactManagedAppLog(line: string): string {
   return line
     .replace(/\b(bearer)\s+[a-z0-9._~+\/-]+=*/gi, "$1 [redacted]")

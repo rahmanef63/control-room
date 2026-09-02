@@ -1,15 +1,6 @@
 <script lang="ts">
-	// App-wide error boundary — SvelteKit renders this for any error thrown
-	// during load/render that isn't caught closer to the source, the
-	// closest equivalent to Next's app/error.tsx. `page` from `$app/state`
-	// is the Svelte 5 runes replacement for the old `$app/stores`'s `$page`.
-	//
-	// Next's app/global-error.tsx (full <html> replace + chunk-load-recovery
-	// for stale JS chunks after a redeploy) has no direct SvelteKit
-	// equivalent yet and stays tracked as backlog (shared/runtime/* in
-	// README-MIGRATION.md) — version-guard.svelte already covers the same
-	// underlying problem (a tab stuck on a stale build) with its own
-	// poll-and-prompt mechanism, so this is a smaller gap than it looks.
+	// App-wide SvelteKit error boundary. Version-guard handles stale-build
+	// recovery separately so this component can remain focused on render/load errors.
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 </script>

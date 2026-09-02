@@ -1,7 +1,7 @@
 import type { TerminalCreateRequest, TerminalProfile, TerminalSession } from '$lib/features/terminals/types';
 
 export const TEMPLATES_STORAGE_KEY = 'vps-control-room.templates';
-export const TEMPLATE_COLORS = ['#38bdf8', '#a855f7', '#f59e0b', '#34d399', '#fb7185', '#818cf8'] as const;
+const TEMPLATE_COLORS = ['#38bdf8', '#a855f7', '#f59e0b', '#34d399', '#fb7185', '#818cf8'] as const;
 
 export interface TerminalTemplate {
 	id: string;
@@ -44,7 +44,7 @@ export function normalizeTemplates(value: unknown): TerminalTemplate[] {
 	);
 }
 
-export function makeTemplateId(now = Date.now(), random = Math.random()): string {
+function makeTemplateId(now = Date.now(), random = Math.random()): string {
 	return `tmpl_${now.toString(36)}_${random.toString(36).slice(2, 8)}`;
 }
 

@@ -1,12 +1,7 @@
 @import 'tailwindcss';
 
-/*
- * Ported from frontend/app/globals.css + src/shared/platform/tokens.css.
- * Only the base dark cockpit theme + fonts are carried over here — the ~25
- * feature-specific stylesheets under frontend/app/styles/ (drawers, pane
- * menus, alfa patrol/registry, keyboard) are NOT ported yet. See
- * README-MIGRATION.md for the exact backlog list.
- */
+/* Canonical application tokens and global shell styles. Feature-specific
+ * styles stay colocated with their Svelte components or feature slices. */
 
 @font-face {
 	font-family: 'Space Grotesk';

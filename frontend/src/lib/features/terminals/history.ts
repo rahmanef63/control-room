@@ -29,7 +29,7 @@ export function trimHistory(entries: readonly TerminalHistoryEntry[]): TerminalH
 		.slice(0, HISTORY_MAX_ENTRIES);
 }
 
-export function sessionToHistoryEntry(
+function sessionToHistoryEntry(
 	session: TerminalSession,
 	workspaceId?: string
 ): TerminalHistoryEntry {

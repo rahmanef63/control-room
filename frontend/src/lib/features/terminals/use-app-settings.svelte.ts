@@ -20,7 +20,7 @@ export interface SoftKeyboardSettings {
 	hideKeyboard: boolean;
 }
 
-export interface AppSettings {
+interface AppSettings {
 	notifications: NotificationSettings;
 	softKeyboard: SoftKeyboardSettings;
 }

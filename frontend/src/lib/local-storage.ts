@@ -27,12 +27,3 @@ export function writeLocal(key: string, value: unknown): void {
 		// quota exceeded / disabled storage — ignore
 	}
 }
-
-export function removeLocal(key: string): void {
-	if (typeof window === 'undefined') return;
-	try {
-		window.localStorage.removeItem(key);
-	} catch {
-		// ignore
-	}
-}

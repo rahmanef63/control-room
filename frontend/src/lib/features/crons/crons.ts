@@ -1,6 +1,6 @@
 import type { TerminalProfile } from '$lib/features/terminals/types';
 
-export type CronActionSpawn = {
+type CronActionSpawn = {
 	type: 'spawn';
 	profile?: TerminalProfile;
 	agentProfileId?: string;
@@ -9,13 +9,13 @@ export type CronActionSpawn = {
 	initialCommand?: string;
 };
 
-export type CronActionSendInput = {
+type CronActionSendInput = {
 	type: 'send_input';
 	sessionId: string;
 	data: string;
 };
 
-export type CronAction = CronActionSpawn | CronActionSendInput;
+type CronAction = CronActionSpawn | CronActionSendInput;
 
 export interface CronEntry {
 	id: string;

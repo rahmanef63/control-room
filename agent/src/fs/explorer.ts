@@ -2,13 +2,13 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 
-export interface FsEntry {
+interface FsEntry {
   name: string;
   path: string;
   isDir: boolean;
 }
 
-export interface FsRoot {
+interface FsRoot {
   label: string;
   path: string;
 }

@@ -8,7 +8,7 @@ import { logger } from "../../logger.js";
 import { isAuthorizedTerminalSocket } from "../auth.js";
 import { terminalManager } from "../manager.js";
 
-export interface TerminalUpgradeRequest extends http.IncomingMessage {
+interface TerminalUpgradeRequest extends http.IncomingMessage {
   terminalSessionId?: string;
 }
 
@@ -40,8 +40,7 @@ export function handleTerminalSocketUpgrade(
   socket: Duplex,
   head: Buffer,
   wsServer: WebSocketServer,
-  gatewaySecret: string | undefined,
-  legacySessionSecret?: string
+  gatewaySecret: string | undefined
 ): void {
   try {
     if (!req.url) {
@@ -55,7 +54,7 @@ export function handleTerminalSocketUpgrade(
       return;
     }
 
-    if (!isAuthorizedTerminalSocket(req, gatewaySecret, legacySessionSecret)) {
+    if (!isAuthorizedTerminalSocket(req, gatewaySecret)) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       socket.destroy();
       return;

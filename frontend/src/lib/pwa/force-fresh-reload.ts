@@ -44,21 +44,3 @@ export async function forceFreshReload(): Promise<void> {
 		window.location.replace(url.toString());
 	}
 }
-
-const RELOAD_GUARD_KEY = 'vps-control-room:auto-reload-at';
-const GUARD_WINDOW_MS = 90_000;
-
-/** Returns true on first call within the 90s window; false thereafter.
- *  When sessionStorage is unavailable (iOS private mode, sandboxed iframes)
- *  we accept one possible extra reload over leaving the user stuck. */
-export function claimAutoReloadOnce(): boolean {
-	if (typeof window === 'undefined') return false;
-	try {
-		const last = parseInt(window.sessionStorage.getItem(RELOAD_GUARD_KEY) ?? '0', 10);
-		if (Number.isFinite(last) && Date.now() - last < GUARD_WINDOW_MS) return false;
-		window.sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now()));
-		return true;
-	} catch {
-		return true;
-	}
-}

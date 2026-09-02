@@ -14,7 +14,6 @@ function getEnvNum(name: string, defaultValue: number): number {
 
 export interface Config {
   GATEWAY_SECRET: string | undefined;
-  CONTROL_ROOM_SESSION_SECRET: string | undefined;
   AGENT_HEALTH_PORT: number;
   AGENT_HEALTH_HOST: string;
   HOST_TELEMETRY_INTERVAL_MS: number;
@@ -27,8 +26,8 @@ export interface Config {
   OS_AGENT_TOKEN: string | undefined;
 }
 
-/** Minimum length for any auth secret. Below this the agent refuses to boot. */
-export const MIN_SECRET_LEN = 32;
+/** Minimum length for the privileged gateway secret. */
+const MIN_SECRET_LEN = 32;
 
 export const config: Config = {
   // Machine-to-machine bearer the frontend sends to the agent. Defaults to the
@@ -36,7 +35,6 @@ export const config: Config = {
   // .env.local, so both processes see it) to stop the human login password from
   // doubling as the gateway credential.
   GATEWAY_SECRET: process.env["AGENT_GATEWAY_SECRET"] ?? process.env["CONTROL_ROOM_SECRET"],
-  CONTROL_ROOM_SESSION_SECRET: process.env["CONTROL_ROOM_SESSION_SECRET"],
   AGENT_HEALTH_PORT: getEnvNum("AGENT_HEALTH_PORT", 4001),
   // Loopback by default: the frontend reaches the agent over 127.0.0.1, so the
   // privileged host-control API must not be exposed on every interface. Set to
@@ -56,7 +54,6 @@ export const config: Config = {
 export function assertConfigSecrets(): void {
   const checks: Array<[string, string | undefined]> = [
     ["AGENT_GATEWAY_SECRET / CONTROL_ROOM_SECRET", config.GATEWAY_SECRET],
-    ["CONTROL_ROOM_SESSION_SECRET", config.CONTROL_ROOM_SESSION_SECRET],
   ];
   const bad = checks.filter(([, v]) => !v || v.length < MIN_SECRET_LEN);
   if (bad.length > 0) {

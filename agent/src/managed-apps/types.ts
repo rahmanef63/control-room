@@ -60,13 +60,6 @@ export interface ManagedAppLogResult {
   available: boolean;
 }
 
-export interface ManagedAppActionResult {
-  ok: boolean;
-  action: ManagedAppAction;
-  message: string;
-  rolledBack?: boolean;
-}
-
 export interface ManagedAppAdapter {
   readonly id: ManagedAppId;
   readonly name: string;

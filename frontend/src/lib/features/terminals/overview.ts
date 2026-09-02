@@ -1,4 +1,4 @@
-export interface HostTelemetry {
+interface HostTelemetry {
 	timestamp?: number;
 	cpu_total: number;
 	cpu_cores: number[];
@@ -11,7 +11,7 @@ export interface HostTelemetry {
 	load_average: number[];
 }
 
-export interface HostRuntimeSummary {
+interface HostRuntimeSummary {
 	terminal_sessions: number;
 	terminal_profiles: number;
 	environments: number;

@@ -1,4 +1,4 @@
-export type CronActionSpawn = {
+type CronActionSpawn = {
   type: "spawn";
   profile?: string;
   agentProfileId?: string;
@@ -7,7 +7,7 @@ export type CronActionSpawn = {
   initialCommand?: string;
 };
 
-export type CronActionSendInput = {
+type CronActionSendInput = {
   type: "send_input";
   sessionId: string;
   data: string;

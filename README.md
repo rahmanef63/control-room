@@ -425,8 +425,7 @@ bump the constant and redeploy for a higher cap.
 │   ├── deploy.sh                      # canonical deploy (run on host)
 │   ├── install-systemd.sh             # one-shot systemd setup
 │   └── cleanup-terminal-runtime.sh
-├── docs/                              # install, onboarding, runbook, AUDIT-2026-06,
-│                                      # PROGRESS-2026-06, NATIVE-WINDOWS
+├── docs/                              # install, onboarding, runbook, QA, NATIVE-WINDOWS
 ├── .env.example
 ├── PRD.md                             # full product spec
 └── README.md                          # this file

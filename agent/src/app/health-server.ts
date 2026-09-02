@@ -40,7 +40,6 @@ import {
 
 let server: http.Server | null = null;
 let wsServer: WebSocketServer | null = null;
-let lastSnapshot: number | null = null;
 
 // Cap the per-message WS frame and per-request body so a single oversized
 // payload can't OOM the daemon that owns all host control.
@@ -57,7 +56,7 @@ function sendHealthResponse(req: http.IncomingMessage, res: http.ServerResponse)
     const telemetry = getHostTelemetrySnapshot();
     payload = {
       ...base,
-      last_snapshot: telemetry?.timestamp ?? lastSnapshot,
+      last_snapshot: telemetry?.timestamp ?? null,
       runtime: {
         terminal_sessions: terminalManager.listSessions().length,
         terminal_profiles: TERMINAL_PROFILES.length,
@@ -69,10 +68,6 @@ function sendHealthResponse(req: http.IncomingMessage, res: http.ServerResponse)
   }
 
   sendJson(res, 200, payload);
-}
-
-export function updateLastSnapshot(ts: number): void {
-  lastSnapshot = ts;
 }
 
 export function startHealthServer(): void {
@@ -368,8 +363,7 @@ export function startHealthServer(): void {
       socket,
       head,
       wsServer,
-      config.GATEWAY_SECRET,
-      config.CONTROL_ROOM_SESSION_SECRET
+      config.GATEWAY_SECRET
     );
   });
 

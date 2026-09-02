@@ -1,6 +1,6 @@
 import { quoteShellPath } from './upload';
 
-export type SkillScope = 'global' | 'project';
+type SkillScope = 'global' | 'project';
 
 export interface SkillSummary {
 	id: string;

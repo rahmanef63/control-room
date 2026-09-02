@@ -31,9 +31,9 @@ test("rejects a length-mismatched secret without throwing", () => {
 import { isAuthorizedTerminalSocket } from "./auth.js";
 
 test("terminal socket accepts the machine gateway secret", () => {
-  assert.equal(isAuthorizedTerminalSocket(reqWith("s3cret"), "s3cret", undefined), true);
+  assert.equal(isAuthorizedTerminalSocket(reqWith("s3cret"), "s3cret"), true);
 });
 
-test("terminal socket rejects a request without machine or legacy credentials", () => {
-  assert.equal(isAuthorizedTerminalSocket(reqWith(undefined), "s3cret", undefined), false);
+test("terminal socket rejects a request without machine credentials", () => {
+  assert.equal(isAuthorizedTerminalSocket(reqWith(undefined), "s3cret"), false);
 });

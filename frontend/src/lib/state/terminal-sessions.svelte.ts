@@ -1,18 +1,5 @@
-// Svelte 5 runes replacement for
-// frontend/src/features/terminals/hooks/use-terminal-sessions.ts.
-//
-// Scope note (see README-MIGRATION.md): the original hook is 736 lines and
-// also owns multi-workspace grouping, cross-browser sync via the agent's
-// JSON state endpoint, drag-to-reorder, and session-color assignment. This
-// port covers the core session lifecycle only — list / create / delete /
-// rename against /api/terminals — as a real, working foundation. The rest
-// is tracked as backlog, not silently dropped.
-//
-// Pattern: a class whose fields are $state, exported as a module-level
-// singleton. This is the Svelte 5 runes way to share reactive state across
-// components (see svelte.dev/docs/ai/overview) — it replaces both the old
-// legacy shared-store layers and keep one rune-backed session source with custom
-// hook the original used for the same job.
+// Canonical Svelte 5 rune-backed terminal-session SSOT. Workspace grouping,
+// history, colors, and other concerns live in their dedicated feature slices.
 import type {
 	RuntimeEnvironmentSummary,
 	RuntimeResolvedAgentProfile,

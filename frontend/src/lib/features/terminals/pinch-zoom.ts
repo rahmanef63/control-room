@@ -1,6 +1,6 @@
 import { clampFontSize } from '$lib/features/terminals/types';
 
-export const PINCH_SCALE_PER_FONT_STEP = 1.12;
+const PINCH_SCALE_PER_FONT_STEP = 1.12;
 
 type TouchPoint = Pick<Touch, 'clientX' | 'clientY'>;
 

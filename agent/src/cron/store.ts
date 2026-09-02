@@ -11,7 +11,7 @@ function defaultStorePath(): string {
   return path.join(os.homedir(), ".config", "vps-control-room", "crons.json");
 }
 
-export function getStorePath(): string {
+function getStorePath(): string {
   return defaultStorePath();
 }
 

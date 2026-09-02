@@ -12,7 +12,7 @@ import {
 	WORKSPACE_SESSION_MAP_KEY
 } from './storage-keys';
 
-export const LEGACY_BACKUP_KEYS = [
+const LEGACY_BACKUP_KEYS = [
 	WORKSPACES_STORAGE_KEY,
 	WORKSPACE_ACTIVE_KEY,
 	WORKSPACE_SESSION_MAP_KEY,
@@ -194,7 +194,7 @@ function validateBackupValue(key: BackupKey, value: unknown): void {
 	}
 }
 
-export function validateBackupPayload(value: unknown): BackupPayload {
+function validateBackupPayload(value: unknown): BackupPayload {
 	if (!isRecord(value) || value.version !== 1 || !isRecord(value.data)) {
 		throw new Error('Unsupported backup format');
 	}
@@ -225,7 +225,7 @@ export function buildBackupFromStorage(storage: StorageLike, now = Date.now()): 
 	return { version: 1, exportedAt: now, appName: 'vps-control-room', data };
 }
 
-export function buildBackup(): BackupPayload {
+function buildBackup(): BackupPayload {
 	if (typeof window === 'undefined') {
 		return { version: 1, exportedAt: Date.now(), appName: 'vps-control-room', data: {} };
 	}
@@ -347,7 +347,7 @@ export async function importBackupPayload(
 	}
 }
 
-export async function importBackupFromFile(
+async function importBackupFromFile(
 	file: File,
 	options: ImportBackupOptions = {}
 ): Promise<{ payload: BackupPayload; importedKeys: BackupKey[] }> {
