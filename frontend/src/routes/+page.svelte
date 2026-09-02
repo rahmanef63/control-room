@@ -47,6 +47,7 @@
 	let settingsOpen = $state(false);
 	let historyOpen = $state(false);
 	let overviewOpen = $state(false);
+	let providerStoreOpen = $state(false);
 	let templatesOpen = $state(false);
 	let cronsOpen = $state(false);
 	let alfaPatrolOpen = $state(false);
@@ -351,6 +352,26 @@
 		}
 	}
 
+	async function openSecureProviderTerminal(command: string): Promise<void> {
+		if (!command.trim()) return;
+		const workspaceId = workspaces.activeId;
+		const session = await terminalSessions.create(profileLaunchRequest('shell'));
+		if (!session) return;
+		workspaces.assignSession(session.id, workspaceId);
+		try {
+			await terminalSessions.rename(session.id, 'Provider setup');
+		} catch {
+			// The secure handoff is more important than a cosmetic title update.
+		}
+		const current = terminalSessions.sessions.find((item) => item.id === session.id) ?? session;
+		terminalHistory.upsert(current, workspaceId);
+		terminalSessions.setActive(session.id);
+		providerStoreOpen = false;
+		await new Promise((resolveDelay) => setTimeout(resolveDelay, 350));
+		pageInputQueue.enqueue(session.id, `${command}\r`);
+		await pageInputQueue.flush(session.id);
+	}
+
 	async function logout(): Promise<void> {
 		await fetch('/api/auth/logout', { method: 'POST' });
 		window.location.assign(resolve('/login'));
@@ -451,6 +472,7 @@
 		onOpenPatrol={() => (alfaPatrolOpen = true)}
 		onOpenHistory={() => (historyOpen = true)}
 		onOpenOverview={() => (overviewOpen = true)}
+		onOpenProviders={() => (providerStoreOpen = true)}
 		onOpenSettings={() => (settingsOpen = true)}
 		onOpenDevices={() => (devicesOpen = true)}
 		onLogout={logout}
@@ -461,6 +483,8 @@
 		{launcherTab}
 		{launcherCreatingKey}
 		{overviewOpen}
+		{providerStoreOpen}
+		providerStoreCwd={terminalSessions.active?.cwd}
 		{cronsOpen}
 		{templatesOpen}
 		patrolOpen={alfaPatrolOpen}
@@ -482,6 +506,8 @@
 		onLaunchTemplate={launchTemplate}
 		onManageTemplates={() => (templatesOpen = true)}
 		onOverviewClose={() => (overviewOpen = false)}
+		onProviderStoreClose={() => (providerStoreOpen = false)}
+		onOpenSecureProviderTerminal={openSecureProviderTerminal}
 		onCronsClose={() => (cronsOpen = false)}
 		onTemplatesClose={() => (templatesOpen = false)}
 		onPatrolClose={() => (alfaPatrolOpen = false)}

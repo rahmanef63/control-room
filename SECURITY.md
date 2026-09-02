@@ -15,7 +15,7 @@ Internet / optional Tailscale
         │ :4000
         ▼
 control-room-web              no sudo, no Docker group, no login shell
-   SvelteKit/Bun
+   SvelteKit/Node 22
         │ machine secret
         ▼
 127.0.0.1:4001
@@ -42,6 +42,30 @@ Operator-controlled risks:
 The frontend is intentionally unprivileged; the agent is intentionally
 privileged because the product is a host control surface. Do not merge those
 trust tiers.
+
+## SI-Coder provider-store boundary
+
+Provider credentials are owned by SI-Coder, not Control Room. The browser and
+unprivileged frontend never read `~/.config/si-coder/**` directly. The
+privileged loopback agent discovers SI-Coder's `.mso/functions.json` and invokes
+only functions whose command resolves to the package's secret-safe
+`scripts/sc-agent.js` adapter.
+
+The integration must preserve these invariants:
+
+- Never add a Control Room provider-secret store or copy SI-Coder connection
+  `.env` values into `/var/lib/control-room`, localStorage, page data or API
+  responses.
+- The browser may receive identities, labels, scopes, auth methods, readiness,
+  credential key names/status and setup guidance only.
+- New/rotated direct credentials use `sc.user.credential.request` followed by a
+  terminal handoff; no API/tool JSON field accepts the credential value.
+- OAuth/external provider tokens remain with the external connected-account
+  system; SI-Coder/Control Room keep only alias/scope metadata.
+- All `/si-coder/*` agent routes require the same frontend→agent machine secret
+  as every other privileged route.
+- Do not trust arbitrary command metadata from disk: the bridge allowlists the
+  canonical `node scripts/sc-agent.js <action>` function shape before execution.
 
 ## Production invariants
 

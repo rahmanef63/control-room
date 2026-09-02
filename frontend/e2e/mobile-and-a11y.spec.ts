@@ -69,3 +69,39 @@ test('login visual baseline', async ({ page }) => {
   await page.goto('/login');
   await expect(page).toHaveScreenshot('login-390x844.png', { fullPage: true, animations: 'disabled' });
 });
+
+
+test('SI-Coder provider store renders from the shared tool surface without overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await login(page);
+  await page.getByRole('button', { name: 'Open SI-Coder provider store' }).click();
+  await expect(page.getByRole('dialog', { name: 'SI-Coder provider store' })).toBeVisible();
+  await expect(page.getByText('SI-Coder v0.8.14-e2e')).toBeVisible();
+  await expect(page.getByRole('button', { name: /GitHub/ })).toBeVisible();
+  await expect(page.getByText('Default GitHub')).toBeVisible();
+  await page.getByRole('button', { name: /Convex Cloud/ }).click();
+  await expect(page.getByText('Client Dev')).toBeVisible();
+  await page.getByRole('button', { name: 'Set securely' }).click();
+  await expect(page.getByRole('dialog', { name: 'SI-Coder provider store' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'running Provider setup' })).toBeVisible();
+  await page.waitForTimeout(500);
+  const handoff = await (await page.request.get('http://127.0.0.1:45999/e2e/last-input')).json();
+  expect(handoff.lastTerminalInput.data).toBe('sc user credential-set rahmanfakhr convex-cloud CONVEX_DEPLOY_KEY --connection client-dev\r');
+  expect(handoff.lastTerminalInput.data).not.toContain('secret-value');
+
+  await page.getByRole('button', { name: 'Open SI-Coder provider store' }).click();
+  let dimensions = await page.evaluate(() => ({ innerWidth: window.innerWidth, scrollWidth: document.documentElement.scrollWidth }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.innerWidth + 1);
+
+  await page.getByRole('dialog', { name: 'SI-Coder provider store' }).getByLabel('Close provider store').click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Open terminal controls' }).click();
+  await page.getByRole('button', { name: 'Open SI-Coder provider store' }).click();
+  await expect(page.getByRole('dialog', { name: 'SI-Coder provider store' })).toBeVisible();
+  await expect(page.getByText('Default GitHub')).toBeVisible();
+  dimensions = await page.evaluate(() => ({ innerWidth: window.innerWidth, scrollWidth: document.documentElement.scrollWidth }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.innerWidth + 1);
+
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(results.violations.filter((v) => ['critical', 'serious'].includes(v.impact ?? ''))).toEqual([]);
+});

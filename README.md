@@ -91,6 +91,7 @@ browser ──HTTPS/SSE──► Traefik ──► frontend (Node 22 adapter-nod
                                  agent (Node 22, privileged host boundary)
                                       │
                                       ├─► pty / host / Docker / systemd
+                                      ├─► SI-Coder safe tool adapter ─► ~/.config/si-coder/
                                       └─► /var/lib/control-room/agent/*.json
 
 runtime releases: /srv/control-room/{frontend,agent}/releases
@@ -215,6 +216,40 @@ executions. Each cron action is validated (type + length bounds) before it runs.
 Save current pane configuration (profile, cwd, model, agent flags) as a
 named template; relaunch with one click. Persisted to `localStorage`
 (can be promoted to agent-side JSON the same way workspaces were).
+
+### Provider Store (SI-Coder SSOT)
+
+Control Room does **not** maintain a second provider/credential database. The
+Providers drawer is a UI/control-plane over the installed SI-Coder provider
+store and its machine-safe tool surface:
+
+```text
+browser Providers UI
+  → authenticated SvelteKit API
+  → loopback Control Room agent
+  → SI-Coder `.mso/functions.json` / `scripts/sc-agent.js`
+  → ~/.config/si-coder/{connections.json,connections/.../*.env}
+```
+
+- The hierarchy is the same as SI-Coder: **User → Provider → named Connection → Credential field**.
+- Provider readiness, auth method, scope, defaults and credential **status** can
+  be viewed; plaintext credential values are never returned.
+- Named connections can be created, selected as default or deleted through the
+  same `sc.user.*` tool contracts used by SI-Coder MCP/MSO clients.
+- Live provider verification runs through `sc.user.provider.verify`.
+- **Set securely** asks SI-Coder for a credential handoff, opens a real Control
+  Room terminal and injects only the non-secret `sc user credential-set …`
+  command. The credential itself is entered at SI-Coder's hidden terminal
+  prompt, never in browser JSON.
+- OAuth/external connections remain externally managed. Control Room shows the
+  connection identity/alias but does not copy access or refresh tokens.
+- SI-Coder is auto-discovered from `~/.local/bin/sc`; use `SI_CODER_ROOT` only
+  for a non-standard installation path.
+
+The agent exposes a generic authenticated `/si-coder/tools` +
+`/si-coder/tools/call` bridge, sourced from SI-Coder's own function manifest,
+so future Control Room agent features can reuse the same tool-calling contract
+without inventing another schema.
 
 ### Auth & access
 

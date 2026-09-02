@@ -24,6 +24,8 @@ browser
 
 The agent is the only component with host access. The frontend never shells out directly and never exposes `AGENT_GATEWAY_SECRET` or `CONTROL_ROOM_SECRET` to browser JavaScript. Durable cross-browser state lives in agent-side JSON; UI-local state uses Svelte rune-backed modules and localStorage where appropriate. There is no Convex data layer on the hot path.
 
+SI-Coder is the SSOT for provider identities, named connections and provider credentials. Control Room may expose SI-Coder status/management through the agent's secret-safe tool bridge, but must never create a parallel provider-secret store or read/serialize raw SI-Coder connection values. Direct credential creation/rotation must remain a secure terminal handoff.
+
 ## Non-negotiable frontend rules
 
 - Use **SvelteKit 2 + Svelte 5 runes**.
@@ -43,6 +45,7 @@ The agent is the only component with host access. The frontend never shells out 
 - The agent daemon stays on **Node.js 22** because `node-pty` behavior is required for interactive terminal semantics.
 - Do not migrate the agent daemon to Bun without explicit measured proof that PTY data, controlling-TTY behavior, Ctrl-C, job control, resize, and process-group teardown all remain correct.
 - Every privileged agent endpoint must require the gateway secret before executing.
+- SI-Coder tool execution must be resolved from its installed `.mso/functions.json`, exclude `sc.verify`, and preserve the canonical `node scripts/sc-agent.js <action>` command shape. Never execute arbitrary manifest commands from the browser.
 - Collectors must fail independently; one collector failure must not terminate the agent.
 - Do not change `agent/` for frontend-only work unless the change is required and explicitly justified.
 

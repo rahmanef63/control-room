@@ -10,6 +10,7 @@ import { logger } from "../logger.js";
 import { TERMINAL_PROFILES } from "../terminal/profiles.js";
 import { handleTerminalHttpRequest } from "../terminal/gateway/http.js";
 import { handleBrowserHttpRequest } from "../browser/http.js";
+import { handleSiCoderHttpRequest } from "../si-coder/http.js";
 import {
   handleTerminalSocketUpgrade,
   registerTerminalSocketServer,
@@ -341,6 +342,10 @@ export function startHealthServer(): void {
     }
 
     if (await handleManagedAppsHttpRequest(req, res, pathname)) {
+      return;
+    }
+
+    if (await handleSiCoderHttpRequest(req, res, pathname)) {
       return;
     }
 

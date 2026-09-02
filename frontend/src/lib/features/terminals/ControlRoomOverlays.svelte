@@ -19,6 +19,8 @@
     launcherTab: LauncherTab;
     launcherCreatingKey: string | null;
     overviewOpen: boolean;
+    providerStoreOpen: boolean;
+    providerStoreCwd?: string;
     cronsOpen: boolean;
     templatesOpen: boolean;
     patrolOpen: boolean;
@@ -40,6 +42,8 @@
     onLaunchTemplate: (template: TerminalTemplate) => Promise<boolean>;
     onManageTemplates: () => void;
     onOverviewClose: () => void;
+    onProviderStoreClose: () => void;
+    onOpenSecureProviderTerminal: (command: string) => void | Promise<void>;
     onCronsClose: () => void;
     onTemplatesClose: () => void;
     onPatrolClose: () => void;
@@ -62,6 +66,8 @@
     launcherTab,
     launcherCreatingKey,
     overviewOpen,
+    providerStoreOpen,
+    providerStoreCwd,
     cronsOpen,
     templatesOpen,
     patrolOpen,
@@ -83,6 +89,8 @@
     onLaunchTemplate,
     onManageTemplates,
     onOverviewClose,
+    onProviderStoreClose,
+    onOpenSecureProviderTerminal,
     onCronsClose,
     onTemplatesClose,
     onPatrolClose,
@@ -127,6 +135,13 @@
   {#await import('./OverviewDrawer.svelte') then overviewModule}
     {@const OverviewDrawer = overviewModule.default}
     <OverviewDrawer onClose={onOverviewClose} />
+  {/await}
+{/if}
+
+{#if providerStoreOpen}
+  {#await import('$lib/features/providers/ProviderStoreDrawer.svelte') then providerStoreModule}
+    {@const ProviderStoreDrawer = providerStoreModule.default}
+    <ProviderStoreDrawer cwd={providerStoreCwd} onClose={onProviderStoreClose} onOpenSecureTerminal={onOpenSecureProviderTerminal} />
   {/await}
 {/if}
 
