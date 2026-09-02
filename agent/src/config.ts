@@ -18,12 +18,6 @@ export interface Config {
   AGENT_HEALTH_HOST: string;
   HOST_TELEMETRY_INTERVAL_MS: number;
   DOCKER_SOCKET_PATH: string;
-  // os-vps base URL + the agent token it expects in `x-os-agent-token`. Lets the
-  // agent drive the remote browser through os-vps's authed + audited routes
-  // WITHOUT ever holding OS_BROWSER_SECRET or the runtime port. os-vps stays the
-  // single auth boundary. Browser tools are inert unless both are set.
-  OS_VPS_URL: string;
-  OS_AGENT_TOKEN: string | undefined;
 }
 
 /** Minimum length for the privileged gateway secret. */
@@ -42,8 +36,6 @@ export const config: Config = {
   AGENT_HEALTH_HOST: getEnv("AGENT_HEALTH_HOST", "127.0.0.1"),
   HOST_TELEMETRY_INTERVAL_MS: getEnvNum("HOST_TELEMETRY_INTERVAL_MS", 15000),
   DOCKER_SOCKET_PATH: getEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock"),
-  OS_VPS_URL: getEnv("OS_VPS_URL", "https://os.rahmanef.com").replace(/\/$/, ""),
-  OS_AGENT_TOKEN: process.env["OS_AGENT_TOKEN"],
 };
 
 /**

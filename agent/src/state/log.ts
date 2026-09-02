@@ -1,6 +1,5 @@
 // log.json — append-only audit log with 30-day TTL.
-// Replaces the legacy Convex audit_log table. Single JSON file under
-// agent/var/log.json, holding an array of LogEntry objects.
+// Single bounded JSON audit log under the configured agent state directory.
 
 import { promises as fs } from "fs";
 import path from "path";

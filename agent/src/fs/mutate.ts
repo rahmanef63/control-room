@@ -4,7 +4,7 @@ import path from "path";
 
 import { isUnderRoot, resolveReadable } from "./explorer.js";
 
-// Filesystem MUTATIONS for the os-vps OS app. WRITES are bounded to home +
+// Filesystem MUTATIONS for the Control Room app. WRITES are bounded to home +
 // ~/projects (overridable via OS_AGENT_FS_WRITE_ROOTS) — narrower than READ so
 // the UI can't accidentally clobber system files; use exec for anything else.
 // READS (readFileText, diskUsage) follow the explorer's READ bounds instead.

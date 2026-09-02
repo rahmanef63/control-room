@@ -1,14 +1,12 @@
 <script lang="ts">
-	import { Bot, Eye, History, RotateCcw, Trash2, X } from 'lucide-svelte';
+	import { History, RotateCcw, Trash2, X } from 'lucide-svelte';
 	import TerminalProfileIcon from './TerminalProfileIcon.svelte';
 	import { relativeHistoryTime, shortenCwd, type TerminalHistoryEntry } from './history';
-	import type { AlfaWatcher } from '$lib/features/patrol/alfa';
 
 	interface Props {
 		open: boolean;
 		history: TerminalHistoryEntry[];
 		liveIds: ReadonlySet<string>;
-		watchers?: AlfaWatcher[];
 		restoring?: boolean;
 		onOpenChange: (open: boolean) => void;
 		onOpenEntry: (entry: TerminalHistoryEntry) => void;
@@ -20,7 +18,6 @@
 		open,
 		history,
 		liveIds,
-		watchers = [],
 		restoring = false,
 		onOpenChange,
 		onOpenEntry,
@@ -73,14 +70,11 @@
 					<ul class="history-list">
 						{#each sorted as entry (entry.id)}
 							{@const live = liveIds.has(entry.id)}
-							{@const selfWatcher = watchers.find((watcher) => watcher.id === entry.id)}
-							{@const parentAlfa = watchers.find((watcher) => watcher.watchedSessionIds.includes(entry.id))}
 							<li class="history-item" data-live={live || undefined}>
 								<span class="history-profile"><TerminalProfileIcon profile={entry.profile} size={15} /></span>
 								<div class="history-item__copy">
 									<div class="history-item__title">
 										<strong>{entry.title}</strong>
-										{#if selfWatcher}<span class="history-role" data-role="alfa"><Bot size={9} /> ALFA</span>{:else if parentAlfa}<span class="history-role" data-role="target"><Eye size={9} /> TARGET</span>{/if}
 										<span data-live={live || undefined}>{live ? 'open' : 'closed'}</span>
 									</div>
 									<p>{shortenCwd(entry.cwd, 40)} · {relativeHistoryTime(entry.updatedAt)}</p>
@@ -195,9 +189,6 @@
 		text-transform: uppercase;
 	}
 	.history-item__title span[data-live='true'] { background: rgb(52 211 153 / 0.14); color: rgb(110 231 183); }
-	.history-item__title .history-role { display: inline-flex; align-items: center; gap: 3px; letter-spacing: .04em; }
-	.history-item__title .history-role[data-role='alfa'] { background: rgb(139 92 246 / .14); color: rgb(196 181 253); }
-	.history-item__title .history-role[data-role='target'] { background: rgb(56 189 248 / .12); color: rgb(125 211 252); }
 	.history-item__copy p { overflow: hidden; margin: 2px 0 0; color: var(--ink-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 	.history-restore { min-height: 30px; border-color: rgb(56 189 248 / 0.3); border-radius: 8px; background: rgb(56 189 248 / 0.1); padding: 0 8px; color: rgb(186 230 253); font-size: 11px; }
 	.history-restore:disabled { opacity: 0.5; }

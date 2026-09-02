@@ -226,10 +226,9 @@ bunx rahman-cr ai claude    # or codex / gemini
 The CLI prints a structured prompt to stdout + clipboard. Paste it into
 your AI. The AI will:
 
-1. Trigger `/sc-all` skill if available.
-2. Ask for each value as it reaches the relevant phase.
-3. Run every command in front of you.
-4. Verify each phase before moving to the next.
+1. Ask for each value as it reaches the relevant phase.
+2. Run every command in front of you.
+3. Verify each phase before moving to the next.
 
 ### 6b. One-line
 
@@ -277,7 +276,7 @@ Reload the login page and sign in again — now it succeeds. Production stores a
 ## Phase L — Local / dev install (any OS, no VPS)
 
 Run the whole dashboard on your own laptop — Linux, macOS, or Windows. No SSH,
-Tailscale, DNS, systemd, or Convex. Good for development and for driving your
+Tailscale, DNS, or systemd. Good for development and for driving your
 **local** machine's shell from a browser/phone on the same LAN.
 
 ### L.1 Clone + install
@@ -419,19 +418,6 @@ The AI prompt embeds this catalog, but here it is for direct reference:
 
 ---
 
-## Skill anchor — `/sc-all`
-
-If you have the `sc-all` skill installed at `~/.claude/skills/sc-all/`
-(or equivalent for Codex / Gemini), the AI prompt auto-loads it.
-`/sc-all` orchestrates:
-
-- GitHub repo ensure (private fork) + push
-- Dokploy project + application creation
-- Self-hosted Convex deploy for projects that use it (Control Room does not)
-- DNS record creation
-- Deploy poll until done
-
-That `/sc-all` section documents the generic project bootstrap path. Control Room itself has no Convex runtime dependency and uses its own Svelte/agent deployment script.
 
 ---
 

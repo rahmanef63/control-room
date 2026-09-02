@@ -1,6 +1,6 @@
 ---
 name: vps-host-agent
-description: Node 22 host-agent specialist for VPS Control Room. Owns PTY lifecycle, authenticated host APIs, collectors, JSON state, telemetry, filesystem/browser integrations, and process safety under agent/.
+description: Node 22 host-agent specialist for Control Room. Owns PTY lifecycle, authenticated terminal APIs, bounded filesystem helpers, JSON state, telemetry, and process safety under agent/.
 model: sonnet
 tools: Read, Grep, Glob, Bash, Edit, Write, Skill
 ---
@@ -15,8 +15,8 @@ Only change `agent/` unless a shared contract or tightly-coupled operational doc
 - `node-pty` owns interactive shell sessions; do not migrate the daemon to Bun without explicit PTY/job-control proof.
 - Agent binds `127.0.0.1:4001` by default.
 - Every privileged endpoint authenticates the gateway secret before doing host work.
-- The agent is the only Control Room component allowed to touch PTYs, filesystem host operations, Docker/systemd/journal integrations, or paired browser-runtime control.
-- Durable shared state is JSON under the configured agent state/var directory. There is no Convex runtime dependency.
+- The agent is the only Control Room component allowed to touch PTYs and bounded host/file operations required by terminal UX.
+- Durable shared terminal/workspace state is JSON under the configured agent state/var directory.
 
 ## Terminal invariants
 
@@ -30,8 +30,7 @@ Only change `agent/` unless a shared contract or tightly-coupled operational doc
 - One collector failure must not terminate the process.
 - Validate and jail filesystem paths at the agent boundary.
 - Keep host-control APIs loopback-bound unless the cross-host design explicitly adds equivalent network isolation/authentication.
-- Never echo gateway secrets, environment dumps, browser credentials, or raw auth headers into logs/responses.
-- Browser CRUD is optional and only activates when its paired runtime credentials/config are present.
+- Never echo gateway secrets, environment dumps, or raw auth headers into logs/responses.
 
 ## Gates
 

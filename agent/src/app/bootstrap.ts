@@ -1,7 +1,5 @@
 import { config } from "../config.js";
-import { cronManager } from "../cron/manager.js";
 import { logger } from "../logger.js";
-import { startPatrolScheduler, stopPatrolScheduler } from "../patrol/scheduler.js";
 import { appendLog, cleanupLog } from "../state/log.js";
 import { startHostTelemetry, stopHostTelemetry } from "./host-telemetry.js";
 import { startHealthServer, stopHealthServer } from "./health-server.js";
@@ -60,8 +58,6 @@ class AgentBootstrap {
 
     await startHostTelemetry();
     startHealthServer();
-    cronManager.start();
-    startPatrolScheduler();
 
     // Daily log TTL cleanup
     cleanupTimer = setInterval(() => {
@@ -94,8 +90,6 @@ class AgentBootstrap {
     if (cleanupTimer) clearInterval(cleanupTimer);
     stopHostTelemetry();
     stopHealthServer();
-    cronManager.stop();
-    stopPatrolScheduler();
 
     logger.info("Agent shutdown complete");
     process.exit(0);

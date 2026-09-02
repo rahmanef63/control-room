@@ -1,7 +1,9 @@
-# VPS Control Room — Agent Instructions
+# Control Room — Agent Instructions
 
-The coding-agent source of truth is **[CLAUDE.md](./CLAUDE.md)**. Read it before changing this repository.
+Read [CLAUDE.md](./CLAUDE.md) before changing architecture or runtime behavior.
 
-Architecture summary: browser → SvelteKit frontend → authenticated agent boundary → host. Ordinary calls use server-side HTTP proxies; terminal output reaches the browser over SSE while the SvelteKit server is the WebSocket client to the Node 22 agent. There is no Convex layer on the runtime hot path.
+Product rule: Control Room is a browser/mobile alternative to tmux. Keep changes centered on terminal sessions, panes, workspaces, reconnect behavior, mobile terminal UX, and thin conveniences around those capabilities.
 
-Do not create parallel frontend implementations or compatibility placeholders. `frontend/` is the only frontend SSOT and uses SvelteKit 2 + Svelte 5 runes.
+Do not add provider/account management, credential stores for other tools, browser automation, schedulers, watcher/orchestration systems, managed-app platforms, or project-specific dependencies. A CLI running inside a terminal owns those concerns itself.
+
+`frontend/` is the SvelteKit/Svelte 5 frontend SSOT. `agent/` is the Node 22 PTY/host-agent SSOT. Developer memory/evidence lives under `.agent/` and must stay out of the product runtime.

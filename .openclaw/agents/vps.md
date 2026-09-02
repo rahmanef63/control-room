@@ -16,7 +16,6 @@ packages/   shared contracts/runtime config
 scripts/    deploy, systemd, local tooling
 ```
 
-There is no Convex data layer on the Control Room runtime hot path.
 
 ## Gates
 

@@ -88,7 +88,7 @@ class TerminalManager {
     });
   }
 
-  // Lightweight snapshots for hot-path callers (e.g. patrol scheduler) that
+  // Lightweight snapshots for callers that only need terminal metadata.
   // only need id/status/updated_at/title. No pstree spawn, no /proc readlink.
   peekSessions(): TerminalSessionRecord[] {
     return Array.from(this.sessions.values()).map((managed) => cloneSession(managed.session));
@@ -115,9 +115,8 @@ class TerminalManager {
       cwd: launch.cwd,
       env: {
         ...launch.env,
-        // Expose the session id to the spawned process so skills (vps-alfa)
-        // can self-identify without needing the user to copy/paste it.
-        VPS_SESSION_ID: id,
+        // Expose a generic session identity to terminal-local tools without coupling to any integration.
+        CONTROL_ROOM_SESSION_ID: id,
       },
     });
 

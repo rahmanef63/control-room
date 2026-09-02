@@ -1,12 +1,9 @@
 <script lang="ts">
   import {
     Bookmark,
-    Bot,
-    CalendarClock,
     Gauge,
     Grid2X2,
     History as HistoryIcon,
-    KeyRound,
     Menu,
     Rocket,
     Rows3,
@@ -33,9 +30,6 @@
     gridCols: GridCols;
     broadcastTargets: Set<string>;
     templateCount: number;
-    cronCount: number;
-    watchedCount: number;
-    pendingPingCount: number;
     historyCount: number;
     onSetActive: (id: string) => void;
     onCloseSession: (id: string) => void | Promise<void>;
@@ -44,11 +38,8 @@
     onSetGridCols: (cols: GridCols) => void;
     onBroadcastChange: (targets: Iterable<string>) => void;
     onOpenLauncher: (tab: LauncherTab) => void;
-    onOpenCrons: () => void;
-    onOpenPatrol: () => void;
     onOpenHistory: () => void;
     onOpenOverview: () => void;
-    onOpenProviders: () => void;
     onOpenSettings: () => void;
     onOpenDevices: () => void;
     onLogout: () => void | Promise<void>;
@@ -62,9 +53,6 @@
     gridCols,
     broadcastTargets,
     templateCount,
-    cronCount,
-    watchedCount,
-    pendingPingCount,
     historyCount,
     onSetActive,
     onCloseSession,
@@ -73,11 +61,8 @@
     onSetGridCols,
     onBroadcastChange,
     onOpenLauncher,
-    onOpenCrons,
-    onOpenPatrol,
     onOpenHistory,
     onOpenOverview,
-    onOpenProviders,
     onOpenSettings,
     onOpenDevices,
     onLogout
@@ -170,11 +155,8 @@
     <BroadcastMenu {sessions} targets={broadcastTargets} onChange={onBroadcastChange} />
     <Button variant="outline" size="sm" onclick={() => onOpenLauncher('base')} aria-label="Open terminal launcher"><Rocket size={14} /> Launch</Button>
     <Button variant="outline" size="sm" onclick={() => onOpenLauncher('saved')} aria-label="Open saved terminal templates"><Bookmark size={14} /> Saved {#if templateCount > 0}<span class="topbar-count">{templateCount}</span>{/if}</Button>
-    <Button variant="outline" size="sm" onclick={onOpenCrons} aria-label="Open cron jobs"><CalendarClock size={14} /> Crons {#if cronCount > 0}<span class="topbar-count">{cronCount}</span>{/if}</Button>
-    <Button variant="outline" size="sm" onclick={onOpenPatrol} aria-label="Open Alfa patrol"><Bot size={14} /> Patrol {#if watchedCount > 0}<span class="topbar-count">{watchedCount}</span>{/if}{#if pendingPingCount > 0}<span class="topbar-count topbar-count--alert">{pendingPingCount}</span>{/if}</Button>
     <Button variant="outline" size="sm" onclick={onOpenHistory} aria-label="Open terminal history"><HistoryIcon size={14} /> History {#if historyCount > 0}<span class="topbar-count">{historyCount}</span>{/if}</Button>
     <Button variant="outline" size="sm" onclick={onOpenOverview} aria-label="Open system overview"><Gauge size={14} /> Overview</Button>
-    <Button variant="outline" size="sm" onclick={onOpenProviders} aria-label="Open SI-Coder provider store"><KeyRound size={14} /> Providers</Button>
     <InstallAppControl />
     <Button variant="outline" size="sm" onclick={onOpenSettings} aria-label="Open settings"><Settings2 size={14} /> Settings</Button>
     <Button variant="outline" size="sm" onclick={onOpenDevices}><ShieldCheck size={14} /> Devices</Button>

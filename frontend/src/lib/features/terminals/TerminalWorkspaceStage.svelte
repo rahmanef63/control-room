@@ -2,7 +2,6 @@
   import { History as HistoryIcon } from 'lucide-svelte';
 
   import { Button } from '$lib/components/ui/button';
-  import { alfaWatchers } from '$lib/features/patrol/alfa-watchers.svelte';
   import { terminalSessions } from '$lib/state/terminal-sessions.svelte';
   import PaneChrome from './PaneChrome.svelte';
   import PaneErrorBoundary from './PaneErrorBoundary.svelte';
@@ -94,10 +93,7 @@
         {@const workspaceVisible = paneIsWorkspaceVisible(session.id)}
         {@const active = paneIsActive(session.id)}
         {@const paneTelemetry = telemetry[session.id]}
-        {@const selfWatcher = alfaWatchers.watcherOf(session.id)}
-        {@const parentAlfa = alfaWatchers.ownerOfTarget(session.id)}
-        {@const colorOwnerId = parentAlfa?.id ?? session.id}
-        {@const paneColor = sessionColors.colorOf(colorOwnerId)}
+        {@const paneColor = sessionColors.colorOf(session.id)}
         <div
           class="terminal-slot"
           data-session-id={session.id}
@@ -124,18 +120,15 @@
                 showActivity={paneTelemetry?.showActivity ?? false}
                 {fullscreen}
                 color={paneColor}
-                hasColorOverride={sessionColors.hasOverride(colorOwnerId)}
-                {colorOwnerId}
-                {selfWatcher}
-                {parentAlfa}
+                hasColorOverride={sessionColors.hasOverride(session.id)}
                 agentProfiles={terminalSessions.agentProfiles}
                 boundAgentProfileId={paneAgentOverrides.overrideOf(session.id)?.agentProfileId}
                 onBindAgent={(agentProfileId) => paneAgentOverrides.bind(session.id, agentProfileId)}
                 onInjectAgent={(agentProfileId, command) => onInjectAgent(session.id, agentProfileId, command)}
                 onCommand={(command) => onCommand(session.id, command)}
                 onUnbindAgent={() => paneAgentOverrides.clear(session.id)}
-                onColorPick={(color) => sessionColors.setColor(colorOwnerId, color)}
-                onColorClear={() => sessionColors.clearColor(colorOwnerId)}
+                onColorPick={(color) => sessionColors.setColor(session.id, color)}
+                onColorClear={() => sessionColors.clearColor(session.id)}
                 onRename={(id, title) => terminalSessions.rename(id, title)}
                 onDuplicate={onDuplicate}
                 onMoveToWorkspace={onMoveToWorkspace}

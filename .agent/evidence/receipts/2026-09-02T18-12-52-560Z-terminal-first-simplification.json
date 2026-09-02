@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-02T18:12:52.560Z",
+  "repo": "control-room-wt-engineering",
+  "commit": "5915cdb797b844aaa2975e1ed390af8592025bd1",
+  "dirty": true,
+  "environment": "development",
+  "target": "terminal-first simplification",
+  "assertions": [
+    {
+      "claim": "product core is terminal and workspace focused",
+      "status": "passed"
+    },
+    {
+      "claim": "removed non-terminal product modules are absent",
+      "status": "passed"
+    },
+    {
+      "claim": "terminal create and duplicate flow works on desktop and mobile",
+      "status": "passed"
+    },
+    {
+      "claim": "active repo scope scan has no stale integration terms",
+      "status": "passed"
+    }
+  ],
+  "checks": {
+    "root-verify": "passed",
+    "agent-coverage": "passed",
+    "frontend-coverage": "passed",
+    "dependency-audit": "passed",
+    "production-build": "passed",
+    "bundle-budget": "passed",
+    "playwright": "passed"
+  },
+  "browser": {
+    "result": "passed",
+    "console_errors": 0,
+    "network_errors": 0
+  },
+  "deployment_state": "not-deployed",
+  "artifacts": [
+    ".agent/evidence/artifacts/terminal-workspace-after-desktop.png",
+    ".agent/evidence/artifacts/terminal-workspace-after-mobile.png"
+  ],
+  "notes": "Full root verification passed on terminal-first commit 5915cdb. Playwright terminal lifecycle passed 5/5; active-surface scope and dead-path scans passed. Screenshots remain private/local and gitignored."
+}

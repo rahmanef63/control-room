@@ -17,7 +17,7 @@ Read root `CLAUDE.md` first; it is the SSOT. Use `/vps-control-room` for the sho
 | PTY manager, collectors, gateway, host APIs, telemetry | `vps-host-agent` |
 | Cross-domain/runtime/deploy issue | coordinate directly using `CLAUDE.md` + `/vps-control-room` |
 
-Control Room has no Convex data layer on its runtime hot path. Durable shared state is agent-side JSON.
+Durable shared terminal/workspace state is agent-side JSON.
 
 ## Runtime triage
 

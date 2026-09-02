@@ -1,7 +1,7 @@
 # vps-cr app — open the FULL dashboard in a NATIVE app window.
 #
-# Same web UI = every feature (terminals, workspaces, crons, patrol, file
-# explorer, host stats, settings, ...), but hosted in a lightweight chromeless
+# Same terminal-focused web UI (panes, workspaces, history, templates, file/cwd
+# helpers, host status, settings), hosted in a lightweight chromeless
 # WebView2/Edge "app" window with its own taskbar icon and a DEDICATED profile —
 # NOT inside your heavy everyday browser (Comet was ~40 procs / 6 GB). This window
 # is its own small process tree (a few hundred MB) and GPU-accelerated.

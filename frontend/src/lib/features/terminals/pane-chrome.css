@@ -41,10 +41,6 @@
 		color: var(--session-color, var(--accent));
 	}
 	.pane-chrome__title > :global(svg:last-child) { opacity: 0.5; }
-	.pane-chrome__role { display: inline-flex; align-items: center; gap: 4px; max-width: 150px; flex: 0 0 auto; border-radius: 5px; padding: 2px 5px; font-size: 8px; font-weight: 800; letter-spacing: .05em; white-space: nowrap; }
-	.pane-chrome__role[data-role='alfa'] { background: rgb(139 92 246 / .14); color: rgb(196 181 253); }
-	.pane-chrome__role[data-role='target'] { background: color-mix(in srgb, var(--session-color) 13%, transparent); color: var(--session-color); }
-	.pane-chrome__role b { max-width: 76px; overflow: hidden; font-size: 8px; font-weight: 650; text-overflow: ellipsis; }
 	.pane-chrome__cwd {
 		min-width: 0;
 		color: var(--ink-muted);
@@ -218,8 +214,7 @@
 		.pane-chrome__cwd,
 		.pane-chrome__activity span,
 		.pane-chrome__workspace,
-		.pane-chrome__zoom span,
-		.pane-chrome__role b {
+		.pane-chrome__zoom span {
 			display: none;
 		}
 		.pane-chrome__title {

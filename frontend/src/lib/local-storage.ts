@@ -1,9 +1,7 @@
 // Tiny safe-localStorage helpers. Verbatim port of
 // frontend/src/features/terminals/lib/local-storage.ts — consolidates the
 // readJson/writeJson + try/catch + window guard pattern repeated across
-// use-alfa-watchers, use-pane-agent-overrides, use-app-settings,
-// use-workspaces (none of those consumers are ported yet; use-app-settings
-// is the first).
+// pane overrides, app settings, workspaces, and other UI-local state.
 //
 // No reactivity here — callers layer their own $state/$effect on top.
 

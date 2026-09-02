@@ -75,3 +75,7 @@ Thumbs.db
 # Browser test artifacts
 frontend/test-results/
 frontend/playwright-report/
+
+# Local/private evidence artifacts (receipts stay tracked)
+.agent/evidence/artifacts/*
+!.agent/evidence/artifacts/.gitkeep

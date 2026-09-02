@@ -4,13 +4,9 @@ import http from "http";
 import { WebSocketServer } from "ws";
 
 import { config } from "../config.js";
-import { handleCronHttpRequest } from "../cron/http.js";
-import { handleManagedAppsHttpRequest } from "../managed-apps/http.js";
 import { logger } from "../logger.js";
 import { TERMINAL_PROFILES } from "../terminal/profiles.js";
 import { handleTerminalHttpRequest } from "../terminal/gateway/http.js";
-import { handleBrowserHttpRequest } from "../browser/http.js";
-import { handleSiCoderHttpRequest } from "../si-coder/http.js";
 import {
   handleTerminalSocketUpgrade,
   registerTerminalSocketServer,
@@ -28,9 +24,7 @@ import {
   copyPath,
   diskUsage,
 } from "../fs/mutate.js";
-import { runCommand } from "../exec/run.js";
 import { listSkills } from "../fs/skills.js";
-import { acknowledgePing, listPings } from "../patrol/queue.js";
 import { readJsonState, writeJsonState } from "../state/store.js";
 import { cleanupLog, readLog, type LogLevel } from "../state/log.js";
 import { getHostTelemetrySnapshot } from "./host-telemetry.js";
@@ -195,16 +189,6 @@ export function startHealthServer(): void {
       return;
     }
 
-    if (req.method === "POST" && pathname === "/exec") {
-      if (!requireGatewayAuth(req, res)) return;
-      try {
-        const b = await readJsonBody<{ cmd?: string; cwd?: string }>(req);
-        sendJson(res, 200, await runCommand(b.cmd ?? "", b.cwd));
-      } catch (error) {
-        sendError(res, 400, error, "Exec error");
-      }
-      return;
-    }
 
     if (req.method === "GET" && pathname === "/skills") {
       if (!requireGatewayAuth(req, res)) return;
@@ -269,43 +253,6 @@ export function startHealthServer(): void {
       }
     }
 
-    if (pathname === "/patrol/pending") {
-      if (!requireGatewayAuth(req, res)) return;
-      if (req.method !== "GET") {
-        sendJson(res, 405, { error: "Method not allowed" });
-        return;
-      }
-      const onlyPending = parsedUrl.searchParams.get("all") !== "1";
-      const alfaId = parsedUrl.searchParams.get("alfaId") ?? undefined;
-      const sessionId = parsedUrl.searchParams.get("sessionId") ?? undefined;
-      const sinceParam = parsedUrl.searchParams.get("since");
-      const since = sinceParam ? Number(sinceParam) : undefined;
-      const pings = listPings({
-        onlyPending,
-        alfaId,
-        sessionId,
-        since: Number.isFinite(since) ? since : undefined,
-      });
-      sendJson(res, 200, { pings });
-      return;
-    }
-
-    const ackMatch = pathname.match(/^\/patrol\/pending\/([^/]+)\/ack$/);
-    if (ackMatch) {
-      if (!requireGatewayAuth(req, res)) return;
-      if (req.method !== "POST") {
-        sendJson(res, 405, { error: "Method not allowed" });
-        return;
-      }
-      const ping = acknowledgePing(decodeURIComponent(ackMatch[1]));
-      if (!ping) {
-        sendJson(res, 404, { error: "Ping not found" });
-        return;
-      }
-      sendJson(res, 200, { ping });
-      return;
-    }
-
     if (pathname === "/log" || pathname === "/api/log") {
       if (!requireGatewayAuth(req, res)) return;
       try {
@@ -334,22 +281,6 @@ export function startHealthServer(): void {
     }
 
     if (await handleTerminalHttpRequest(req, res, pathname)) {
-      return;
-    }
-
-    if (await handleCronHttpRequest(req, res, pathname)) {
-      return;
-    }
-
-    if (await handleManagedAppsHttpRequest(req, res, pathname)) {
-      return;
-    }
-
-    if (await handleSiCoderHttpRequest(req, res, pathname)) {
-      return;
-    }
-
-    if (await handleBrowserHttpRequest(req, res, pathname)) {
       return;
     }
 

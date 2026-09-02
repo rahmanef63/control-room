@@ -1,8 +1,6 @@
 <script lang="ts">
   import DevicesDrawer from '$lib/components/devices-drawer.svelte';
   import SettingsDrawer from '$lib/components/settings-drawer.svelte';
-  import { alfaWatchers } from '$lib/features/patrol/alfa-watchers.svelte';
-  import { cronsState } from '$lib/features/crons/crons.svelte';
   import { templatesState } from '$lib/features/templates/templates.svelte';
   import type { TerminalTemplate } from '$lib/features/templates/templates';
   import { terminalSessions } from '$lib/state/terminal-sessions.svelte';
@@ -19,18 +17,13 @@
     launcherTab: LauncherTab;
     launcherCreatingKey: string | null;
     overviewOpen: boolean;
-    providerStoreOpen: boolean;
-    providerStoreCwd?: string;
-    cronsOpen: boolean;
     templatesOpen: boolean;
-    patrolOpen: boolean;
     historyOpen: boolean;
     devicesOpen: boolean;
     settingsOpen: boolean;
     historyRestoring: boolean;
     workspaces: Workspace[];
     activeWorkspaceId: string;
-    resolveWorkspace: (sessionId: string) => string;
     liveIds: Set<string>;
     notifications: NotificationSettings;
     softKeyboard: SoftKeyboardSettings;
@@ -42,12 +35,7 @@
     onLaunchTemplate: (template: TerminalTemplate) => Promise<boolean>;
     onManageTemplates: () => void;
     onOverviewClose: () => void;
-    onProviderStoreClose: () => void;
-    onOpenSecureProviderTerminal: (command: string) => void | Promise<void>;
-    onCronsClose: () => void;
     onTemplatesClose: () => void;
-    onPatrolClose: () => void;
-    onInjectCommand: (sessionId: string, command: string) => void;
     onHistoryOpenChange: (open: boolean) => void;
     onOpenHistoryEntry: (entry: TerminalHistoryEntry) => void | Promise<void>;
     onSettingsOpenChange: (open: boolean) => void;
@@ -66,18 +54,13 @@
     launcherTab,
     launcherCreatingKey,
     overviewOpen,
-    providerStoreOpen,
-    providerStoreCwd,
-    cronsOpen,
     templatesOpen,
-    patrolOpen,
     historyOpen,
     devicesOpen,
     settingsOpen,
     historyRestoring,
     workspaces,
     activeWorkspaceId,
-    resolveWorkspace,
     liveIds,
     notifications,
     softKeyboard,
@@ -89,12 +72,7 @@
     onLaunchTemplate,
     onManageTemplates,
     onOverviewClose,
-    onProviderStoreClose,
-    onOpenSecureProviderTerminal,
-    onCronsClose,
     onTemplatesClose,
-    onPatrolClose,
-    onInjectCommand,
     onHistoryOpenChange,
     onOpenHistoryEntry,
     onSettingsOpenChange,
@@ -138,33 +116,7 @@
   {/await}
 {/if}
 
-{#if providerStoreOpen}
-  {#await import('$lib/features/providers/ProviderStoreDrawer.svelte') then providerStoreModule}
-    {@const ProviderStoreDrawer = providerStoreModule.default}
-    <ProviderStoreDrawer cwd={providerStoreCwd} onClose={onProviderStoreClose} onOpenSecureTerminal={onOpenSecureProviderTerminal} />
-  {/await}
-{/if}
 
-{#if cronsOpen}
-  {#await import('$lib/features/crons/CronsDrawer.svelte') then cronsModule}
-    {@const CronsDrawer = cronsModule.default}
-    <CronsDrawer
-      crons={cronsState.crons}
-      loading={cronsState.loading}
-      error={cronsState.error}
-      profiles={terminalSessions.profiles}
-      agentProfiles={terminalSessions.agentProfiles}
-      environments={terminalSessions.environments}
-      sessions={terminalSessions.sessions}
-      onClose={onCronsClose}
-      onRefresh={cronsState.refresh.bind(cronsState)}
-      onCreate={cronsState.create.bind(cronsState)}
-      onUpdate={cronsState.update.bind(cronsState)}
-      onDelete={cronsState.delete.bind(cronsState)}
-      onRun={cronsState.run.bind(cronsState)}
-    />
-  {/await}
-{/if}
 
 {#if templatesOpen}
   {#await import('$lib/features/templates/TemplatesDrawer.svelte') then templatesModule}
@@ -187,24 +139,11 @@
   {/await}
 {/if}
 
-{#if patrolOpen}
-  {#await import('$lib/features/patrol/AlfaRegistryDrawer.svelte') then patrolModule}
-    {@const AlfaRegistryDrawer = patrolModule.default}
-    <AlfaRegistryDrawer
-      sessions={terminalSessions.sessions}
-      {workspaces}
-      {resolveWorkspace}
-      onClose={onPatrolClose}
-      onInjectCommand={onInjectCommand}
-    />
-  {/await}
-{/if}
 
 <HistoryDrawer
   open={historyOpen}
   history={terminalHistory.entries}
   liveIds={liveIds}
-  watchers={alfaWatchers.watchers}
   restoring={historyRestoring}
   onOpenChange={onHistoryOpenChange}
   onOpenEntry={(entry) => void onOpenHistoryEntry(entry)}

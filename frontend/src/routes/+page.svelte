@@ -25,10 +25,6 @@
 	import { terminalSessions } from '$lib/state/terminal-sessions.svelte';
 	import { templatesState } from '$lib/features/templates/templates.svelte';
 	import { templateLaunchRequest, type TerminalTemplate } from '$lib/features/templates/templates';
-	import { cronsState } from '$lib/features/crons/crons.svelte';
-	import { alfaWatchers } from '$lib/features/patrol/alfa-watchers.svelte';
-	import { patrolPings } from '$lib/features/patrol/patrol-pings.svelte';
-	import { activeWatchedCount } from '$lib/features/patrol/alfa';
 
 	const workspaces = useWorkspaces();
 	const preferences = useTerminalPreferences();
@@ -47,10 +43,7 @@
 	let settingsOpen = $state(false);
 	let historyOpen = $state(false);
 	let overviewOpen = $state(false);
-	let providerStoreOpen = $state(false);
 	let templatesOpen = $state(false);
-	let cronsOpen = $state(false);
-	let alfaPatrolOpen = $state(false);
 	let launcherOpen = $state(false);
 	let launcherTab = $state<LauncherTab>('base');
 	let launcherCreatingKey = $state<string | null>(null);
@@ -85,21 +78,15 @@
 	let restorableHistoryCount = $derived(
 		terminalHistory.entries.filter((entry) => !liveSessionIds.has(entry.id)).length
 	);
-	let patrolWatchedCount = $derived(activeWatchedCount(alfaWatchers.watchers, terminalSessions.sessions));
 
 	onMount(() => {
 		paneAgentOverrides.init();
 		sessionColors.init();
 		terminalHistory.init();
 		templatesState.init();
-		alfaWatchers.init();
 		void terminalSessions.refresh().finally(() => {
 			sessionsLoaded = true;
 		});
-		return () => {
-			alfaWatchers.destroy();
-			patrolPings.destroy();
-		};
 	});
 
 	// Keep history snapshots current without making history itself an effect
@@ -136,19 +123,6 @@
 		untrack(() => paneAgentOverrides.pruneTo(liveIds));
 	});
 
-	// Server watcher state is authoritative. Never prune a warm local cache until
-	// the first successful remote watcher refresh has completed.
-	$effect(() => {
-		const liveIds = terminalSessions.sessions.map((session) => session.id);
-		if (!sessionsLoaded || !alfaWatchers.remoteReady) return;
-		untrack(() => alfaWatchers.pruneTo(liveIds));
-	});
-
-	// Keep pending badges fresh whenever Patrol is in use, without polling on an
-	// installation that has no ALFA configured.
-	$effect(() => {
-		patrolPings.setEnabled(alfaPatrolOpen || alfaWatchers.watchers.length > 0);
-	});
 
 	// Keep single-pane focus inside the selected workspace. The terminals stay
 	// mounted after first activation so switching workspace preserves xterm scrollback.
@@ -352,26 +326,6 @@
 		}
 	}
 
-	async function openSecureProviderTerminal(command: string): Promise<void> {
-		if (!command.trim()) return;
-		const workspaceId = workspaces.activeId;
-		const session = await terminalSessions.create(profileLaunchRequest('shell'));
-		if (!session) return;
-		workspaces.assignSession(session.id, workspaceId);
-		try {
-			await terminalSessions.rename(session.id, 'Provider setup');
-		} catch {
-			// The secure handoff is more important than a cosmetic title update.
-		}
-		const current = terminalSessions.sessions.find((item) => item.id === session.id) ?? session;
-		terminalHistory.upsert(current, workspaceId);
-		terminalSessions.setActive(session.id);
-		providerStoreOpen = false;
-		await new Promise((resolveDelay) => setTimeout(resolveDelay, 350));
-		pageInputQueue.enqueue(session.id, `${command}\r`);
-		await pageInputQueue.flush(session.id);
-	}
-
 	async function logout(): Promise<void> {
 		await fetch('/api/auth/logout', { method: 'POST' });
 		window.location.assign(resolve('/login'));
@@ -457,9 +411,6 @@
 		gridCols={preferences.gridCols}
 		broadcastTargets={preferences.broadcastTargets}
 		templateCount={templatesState.templates.length}
-		cronCount={cronsState.crons.length}
-		watchedCount={patrolWatchedCount}
-		pendingPingCount={patrolPings.pendingCount}
 		historyCount={restorableHistoryCount}
 		onSetActive={terminalSessions.setActive.bind(terminalSessions)}
 		onCloseSession={closeSession}
@@ -468,11 +419,8 @@
 		onSetGridCols={preferences.setGridCols}
 		onBroadcastChange={preferences.setBroadcastTargets}
 		onOpenLauncher={openLauncher}
-		onOpenCrons={() => (cronsOpen = true)}
-		onOpenPatrol={() => (alfaPatrolOpen = true)}
 		onOpenHistory={() => (historyOpen = true)}
 		onOpenOverview={() => (overviewOpen = true)}
-		onOpenProviders={() => (providerStoreOpen = true)}
 		onOpenSettings={() => (settingsOpen = true)}
 		onOpenDevices={() => (devicesOpen = true)}
 		onLogout={logout}
@@ -483,18 +431,13 @@
 		{launcherTab}
 		{launcherCreatingKey}
 		{overviewOpen}
-		{providerStoreOpen}
-		providerStoreCwd={terminalSessions.active?.cwd}
-		{cronsOpen}
 		{templatesOpen}
-		patrolOpen={alfaPatrolOpen}
 		{historyOpen}
 		{devicesOpen}
 		{settingsOpen}
 		{historyRestoring}
 		workspaces={workspaces.workspaces}
 		activeWorkspaceId={workspaces.activeId}
-		resolveWorkspace={workspaces.resolveSessionWorkspace}
 		liveIds={liveSessionIds}
 		notifications={appSettings.settings.notifications}
 		softKeyboard={appSettings.settings.softKeyboard}
@@ -506,12 +449,7 @@
 		onLaunchTemplate={launchTemplate}
 		onManageTemplates={() => (templatesOpen = true)}
 		onOverviewClose={() => (overviewOpen = false)}
-		onProviderStoreClose={() => (providerStoreOpen = false)}
-		onOpenSecureProviderTerminal={openSecureProviderTerminal}
-		onCronsClose={() => (cronsOpen = false)}
 		onTemplatesClose={() => (templatesOpen = false)}
-		onPatrolClose={() => (alfaPatrolOpen = false)}
-		onInjectCommand={sendPaneCommand}
 		onHistoryOpenChange={(value) => (historyOpen = value)}
 		onOpenHistoryEntry={openHistoryEntry}
 		onSettingsOpenChange={(value) => (settingsOpen = value)}

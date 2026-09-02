@@ -35,9 +35,9 @@ Closes #
 
 ## Checklist
 
-- [ ] Branched from latest `main`
+- [ ] Risk classified; branch/worktree used when the change is high risk
 - [ ] Conventional commit message (`type(scope): subject`)
-- [ ] `bun run --cwd frontend typecheck` passes
+- [ ] Relevant local verification passes (`bun run verify` for full gate, or documented targeted checks)
 - [ ] `bun run --cwd agent test:all` passes (typecheck + tests)
 - [ ] No new `console.log` left behind
 - [ ] No secrets, IPs, or PII in the diff or commit message

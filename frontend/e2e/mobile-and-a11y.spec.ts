@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 const secret = 'e2e-control-room-secret-0123456789abcdef0123456789abcdef';
 const viewports = [
@@ -71,34 +72,25 @@ test('login visual baseline', async ({ page }) => {
 });
 
 
-test('SI-Coder provider store renders from the shared tool surface without overflow', async ({ page }) => {
+test('terminal workspace creates and duplicates shells without overflow', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await login(page);
-  await page.getByRole('button', { name: 'Open SI-Coder provider store' }).click();
-  await expect(page.getByRole('dialog', { name: 'SI-Coder provider store' })).toBeVisible();
-  await expect(page.getByText('SI-Coder v0.8.14-e2e')).toBeVisible();
-  await expect(page.getByRole('button', { name: /GitHub/ })).toBeVisible();
-  await expect(page.getByText('Default GitHub')).toBeVisible();
-  await page.getByRole('button', { name: /Convex Cloud/ }).click();
-  await expect(page.getByText('Client Dev')).toBeVisible();
-  await page.getByRole('button', { name: 'Set securely' }).click();
-  await expect(page.getByRole('dialog', { name: 'SI-Coder provider store' })).toBeHidden();
-  await expect(page.getByRole('button', { name: 'running Provider setup' })).toBeVisible();
-  await page.waitForTimeout(500);
-  const handoff = await (await page.request.get('http://127.0.0.1:45999/e2e/last-input')).json();
-  expect(handoff.lastTerminalInput.data).toBe('sc user credential-set rahmanfakhr convex-cloud CONVEX_DEPLOY_KEY --connection client-dev\r');
-  expect(handoff.lastTerminalInput.data).not.toContain('secret-value');
 
-  await page.getByRole('button', { name: 'Open SI-Coder provider store' }).click();
+  await page.getByRole('button', { name: '+ New shell' }).click();
+  await expect(page.getByRole('button', { name: 'Close terminal' })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Duplicate terminal' })).toBeVisible();
+  await page.screenshot({ path: '../.agent/evidence/artifacts/terminal-workspace-after-desktop.png', fullPage: true, animations: 'disabled' });
+
+  await page.getByRole('button', { name: 'Duplicate terminal' }).click();
+  await expect(page.locator('.session-tab')).toHaveCount(2);
+
   let dimensions = await page.evaluate(() => ({ innerWidth: window.innerWidth, scrollWidth: document.documentElement.scrollWidth }));
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.innerWidth + 1);
 
-  await page.getByRole('dialog', { name: 'SI-Coder provider store' }).getByLabel('Close provider store').click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'Open terminal controls' }).click();
-  await page.getByRole('button', { name: 'Open SI-Coder provider store' }).click();
-  await expect(page.getByRole('dialog', { name: 'SI-Coder provider store' })).toBeVisible();
-  await expect(page.getByText('Default GitHub')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open terminal launcher' })).toBeVisible();
+  await page.screenshot({ path: '../.agent/evidence/artifacts/terminal-workspace-after-mobile.png', fullPage: true, animations: 'disabled' });
   dimensions = await page.evaluate(() => ({ innerWidth: window.innerWidth, scrollWidth: document.documentElement.scrollWidth }));
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.innerWidth + 1);
 

@@ -34,8 +34,6 @@
 		fullscreen: boolean;
 		color: string;
 		hasColorOverride: boolean;
-		colorOwnerId: string;
-		colorTitle?: string;
 		agentProfiles: RuntimeResolvedAgentProfile[];
 		boundAgentProfileId?: string;
 		onBindAgent: (agentProfileId: string) => void;
@@ -65,8 +63,6 @@
 		fullscreen,
 		color,
 		hasColorOverride,
-		colorOwnerId,
-		colorTitle,
 		agentProfiles,
 		boundAgentProfileId,
 		onBindAgent,
@@ -230,12 +226,11 @@
 	{/if}
 
 	<SessionColorPicker
-	sessionId={colorOwnerId}
+	sessionId={sessionId}
 	{color}
 	hasOverride={hasColorOverride}
 	onPick={onColorPick}
 	onClear={onColorClear}
-	title={colorTitle}
 	hideTrigger
 	open={submenu === 'color'}
 	onOpenChange={(next) => (submenu = next ? 'color' : null)}

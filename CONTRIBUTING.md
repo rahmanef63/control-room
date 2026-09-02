@@ -63,11 +63,21 @@ Treat frontend and agent as separate trust/runtime units. Do not cross-import th
 
 ## Branches and commits
 
+Use risk-based isolation rather than a blanket “never work on main” rule:
+
+- **Low risk** — copy, spacing, typo, tiny isolated style/docs: direct `main` is acceptable after targeted checks.
+- **Medium risk** — one feature/slice, new behavior, multi-file component change: prefer a short-lived branch/worktree when it materially improves safety.
+- **High risk** — auth, state/schema migration, shared architecture, deployment/runtime configuration, destructive work, or overlapping agents: branch/worktree is required.
+
+Never make an unverified high-risk change directly on `main`. Production/release state should point to a known-good commit/release rather than assuming current `main` is always production-ready.
+
 - Common branch patterns: `feat/<slug>`, `fix/<slug>`, `docs/<slug>`, `chore/<slug>`.
 - Keep changes coherent; avoid unrelated cleanup in feature diffs unless it is required to preserve SSOT.
 - Conventional commits are preferred, e.g. `fix(terminal): preserve first row after mobile refit`.
 - Use imperative mood and explain why the change exists.
 - Do not push, merge, or rewrite remote history unless the task explicitly calls for it.
+
+See `docs/engineering-workflow.md` for evidence receipts, repository-local memory, and recipe/script promotion.
 
 ## Quality gates
 

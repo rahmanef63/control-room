@@ -16,7 +16,6 @@ packages/   shared contracts/runtime configuration
 scripts/    Svelte-native deploy, systemd, local tooling
 ```
 
-There is no Convex layer on the Control Room runtime hot path.
 
 ## Gates
 

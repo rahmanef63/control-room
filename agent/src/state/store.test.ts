@@ -5,7 +5,7 @@ import path from "node:path";
 import { pathFor, writeJsonState } from "./store.js";
 
 test("builds a json path for a valid key", () => {
-  assert.equal(path.basename(pathFor("alfa-watchers")), "alfa-watchers.json");
+  assert.equal(path.basename(pathFor("workspace-state")), "workspace-state.json");
 });
 
 test("accepts underscores and digits", () => {

@@ -2,9 +2,7 @@
 	import './pane-chrome.css';
 	import {
 		Check,
-		Bot,
 		CheckCircle2,
-		Eye,
 		CopyPlus,
 		Focus,
 		Loader2,
@@ -30,7 +28,6 @@
 		type TerminalSession
 	} from '$lib/features/terminals/types';
 	import type { ActivityState } from '$lib/features/terminals/telemetry';
-	import type { AlfaWatcher } from '$lib/features/patrol/alfa';
 	import type { Workspace } from '$lib/features/terminals/use-workspaces.svelte';
 
 	interface Props {
@@ -47,9 +44,6 @@
 		fullscreen: boolean;
 		color: string;
 		hasColorOverride: boolean;
-		colorOwnerId: string;
-		selfWatcher?: AlfaWatcher;
-		parentAlfa?: AlfaWatcher;
 		agentProfiles: RuntimeResolvedAgentProfile[];
 		boundAgentProfileId?: string;
 		onBindAgent: (agentProfileId: string) => void;
@@ -81,9 +75,6 @@
 		fullscreen,
 		color,
 		hasColorOverride,
-		colorOwnerId,
-		selfWatcher,
-		parentAlfa,
 		agentProfiles,
 		boundAgentProfileId,
 		onBindAgent,
@@ -193,11 +184,6 @@
 			</button>
 		{/if}
 		<span class="pane-chrome__cwd" title={session.cwd}>{session.cwd}</span>
-		{#if selfWatcher}
-			<span class="pane-chrome__role" data-role="alfa" title={`ALFA patrol · ${selfWatcher.watchedSessionIds.length} target(s)`}><Bot size={11} /> ALFA <b>{selfWatcher.watchedSessionIds.length}</b></span>
-		{:else if parentAlfa}
-			<span class="pane-chrome__role" data-role="target" title={`Patrol target of ${parentAlfa.label ?? parentAlfa.id.slice(0, 8)}`}><Eye size={11} /> TARGET <b>◄ {parentAlfa.label ?? parentAlfa.id.slice(0, 8)}</b></span>
-		{/if}
 		{#if showActivity}
 			<span class="pane-chrome__activity" data-state={activityState} title={activityLabel}>
 				{#if activityState === 'working' || activityState === 'planning'}
@@ -214,12 +200,11 @@
 
 	<div class="pane-chrome__actions pane-chrome__actions--desktop">
 		<SessionColorPicker
-			sessionId={colorOwnerId}
+			sessionId={session.id}
 			{color}
 			hasOverride={hasColorOverride}
 			onPick={onColorPick}
 			onClear={onColorClear}
-			title={parentAlfa ? `Inherits color from ALFA ${parentAlfa.label ?? parentAlfa.id.slice(0, 8)} — click to change ALFA color` : undefined}
 		/>
 		<PaneAiLaunch
 			sessionId={session.id}
@@ -312,8 +297,6 @@
 			{fullscreen}
 			{color}
 			{hasColorOverride}
-			{colorOwnerId}
-			colorTitle={parentAlfa ? `Inherits color from ALFA ${parentAlfa.label ?? parentAlfa.id.slice(0, 8)} — click to change ALFA color` : undefined}
 			{agentProfiles}
 			{boundAgentProfileId}
 			{onBindAgent}

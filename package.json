@@ -8,13 +8,24 @@
     "frontend:check": "bun run --cwd frontend check",
     "frontend:test": "bun run --cwd frontend test",
     "frontend:build": "bun run --cwd frontend build",
-    "test": "bun run agent:test && bun run frontend:check && bun run frontend:test",
+    "test": "bun run engineering:test && bun run agent:test && bun run frontend:check && bun run frontend:test",
     "build": "bun run agent:build && bun run frontend:build",
     "check": "bun run frontend:check",
     "lint": "bun run --cwd frontend lint",
     "test:e2e": "bun run --cwd frontend test:e2e",
-    "verify": "bun run check && bun run lint && bun run test:coverage && bun run audit && bun run build && bun run --cwd frontend check:bundle && bun run test:e2e",
+    "verify": "bun run check && bun run lint && bun run engineering:test && bun run evidence:check && bun run test:coverage && bun run audit && bun run build && bun run --cwd frontend check:bundle && bun run test:e2e",
     "test:coverage": "bun run --cwd agent test:coverage && bun run --cwd frontend test:coverage",
-    "audit": "cd frontend && bun audit && cd ../agent && bun audit"
+    "audit": "cd frontend && bun audit && cd ../agent && bun audit",
+    "engineering:test": "bun test scripts/engineering",
+    "memory:new": "bun scripts/engineering/memory.mjs new",
+    "memory:query": "bun scripts/engineering/memory.mjs query",
+    "memory:supersede": "bun scripts/engineering/memory.mjs supersede",
+    "memory:verify": "bun scripts/engineering/memory.mjs verify",
+    "recipe:observe": "bun scripts/engineering/recipe.mjs observe",
+    "recipe:promote": "bun scripts/engineering/recipe.mjs promote",
+    "recipe:list": "bun scripts/engineering/recipe.mjs list",
+    "evidence:create": "bun scripts/engineering/evidence.mjs create",
+    "evidence:check": "bun scripts/engineering/evidence.mjs check",
+    "verify:ui": "bun scripts/engineering/verify-ui.mjs"
   }
 }

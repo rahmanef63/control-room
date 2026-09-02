@@ -30,10 +30,9 @@ far lighter than the Vite development server. `vps-cr` /
 
 ## Why "native" = wrap the existing UI (not a rewrite)
 
-The dashboard's feature set is large — multi-pane terminals, workspaces, session
-history, templates, crons, patrol/alfa AI orchestration, file explorer, host
-stats, device management, settings, backup/restore, broadcast input, soft
-keyboard, and more (see the feature inventory the team keeps for parity). Rebuilding
+The dashboard is centered on multi-pane terminals, workspaces, session history,
+templates, file/directory helpers, lightweight host stats, device management,
+settings, backup/restore, broadcast input, and mobile soft-key controls. Rebuilding
 all of that as a from-scratch native WinUI/WPF app would duplicate the existing Svelte frontend and create a second UI source of truth.
 
 The right move is to **keep the existing frontend and host it in a native window**:
