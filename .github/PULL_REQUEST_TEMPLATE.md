@@ -47,8 +47,8 @@ Closes #
 ## Security / threat-model impact
 
 <!--
-"None" is a valid answer. If you touched auth, the executor allowlist,
-the WebSocket handler, or env loading, explain the impact.
+"None" is a valid answer. If you touched auth/device approval, the terminal gateway/stream boundary,
+file/state host access, or env loading, explain the impact.
 -->
 
 None.

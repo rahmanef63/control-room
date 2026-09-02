@@ -1,6 +1,6 @@
 # Contributing to VPS Control Room
 
-Control Room is a single-owner, self-hosted terminal/operations PWA. Frontend and agent have deliberately different trust boundaries: the SvelteKit frontend owns browser UX and authenticated proxying; the Node 22 agent owns PTYs and host access.
+Control Room is a single-owner, self-hosted terminal-multiplexer PWA. Frontend and agent have deliberately different trust boundaries: the SvelteKit frontend owns browser UX and authenticated proxying; the Node 22 agent owns PTYs and host access.
 
 Read `CLAUDE.md` before changing architecture or runtime behavior.
 
@@ -30,11 +30,11 @@ Host-only collectors that are unavailable on your machine should fail independen
 
 ```text
 frontend/    SvelteKit 2 + Svelte 5 PWA; adapter-node production output
-agent/       Node 22 host agent; PTY gateway, telemetry, host APIs
+agent/       Node 22 PTY agent; gateway + bounded terminal-support helpers
 scripts/     deploy, systemd installer, local/Windows tooling
 ops/         Traefik dynamic configuration
 packages/    shared contracts + runtime configuration
-docs/        install, onboarding, runbook, historical audits
+docs/        install, onboarding, runbook, QA, engineering workflow
 ```
 
 Treat frontend and agent as separate trust/runtime units. Do not cross-import their implementation code. Shared contracts belong in `packages/contracts`.
@@ -87,7 +87,7 @@ The repository-level SSOT is:
 bun run verify
 ```
 
-It runs Svelte check, ESLint, frontend + agent coverage gates, dependency audits,
+It runs Svelte check, ESLint, documentation/evidence/engineering checks, frontend + agent coverage gates, dependency audits,
 production builds, and the isolated Playwright suite. The browser suite covers 320×568, 360×800,
 390×844, 430×932, 768×1024, 1366×768, and 844×390 landscape, plus Axe
 WCAG A/AA critical/serious checks and the login visual baseline.
@@ -95,6 +95,7 @@ WCAG A/AA critical/serious checks and the login visual baseline.
 Focused commands remain available:
 
 ```bash
+bun run docs:check
 bun run check
 bun run lint
 bun run test:coverage

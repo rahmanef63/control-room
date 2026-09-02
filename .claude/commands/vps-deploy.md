@@ -2,6 +2,8 @@
 
 `scripts/deploy.sh` is the deployment SSOT. Do not invent a parallel deployment path in an agent command.
 
+The bundled production route currently targets the repository's Dokploy/Traefik dynamic-config layout; another reverse proxy needs an intentional adaptation rather than copied paths.
+
 ## Preconditions
 
 - Confirm the intended worktree/branch and current HEAD.
@@ -33,14 +35,16 @@ The deploy script:
 
 1. serializes deployments with a lock;
 2. optionally fast-forwards a requested remote branch, or uses `DEPLOY_FROM_WORKTREE=1` for the current local tree;
-3. builds the canonical SvelteKit frontend;
-4. creates an immutable `frontend/releases/svelte-<timestamp>-<sha>/` release;
-5. regenerates the Svelte-native systemd unit;
-6. switches the frontend service to the new release;
-7. verifies local health/login and restores the previous release automatically on failure;
-8. restarts the agent only if agent source changed;
-9. verifies/preserves agent PID on frontend-only deploys;
-10. cleans stale inactive migration previews/releases only after a successful switch.
+3. prepares canonical runtime/state/env locations;
+4. verifies frontend check/lint/coverage/audit/Playwright/build/bundle budget;
+5. verifies/builds an immutable agent release only when agent source changed or no valid deployed agent exists;
+6. stages immutable frontend + agent releases and records the previous pair;
+7. refreshes the canonical systemd units;
+8. switches and verifies the agent when required;
+9. switches and verifies the frontend;
+10. publishes/verifies the frontend-only Traefik route;
+11. restores the previous frontend + agent pair (and previous proxy config when needed) if candidate verification fails;
+12. records success and prunes stale inactive releases/uploads.
 
 ## Post-deploy verification
 

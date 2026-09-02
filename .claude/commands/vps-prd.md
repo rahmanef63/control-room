@@ -12,7 +12,7 @@ A CLI launched in a pane owns its own authentication, deployment, browser work, 
 
 ```text
 browser / PWA
-  -> SvelteKit 2 / Svelte 5 frontend (:4000)
+  -> SvelteKit 2 / Svelte 5 frontend (:4000, Node 22 production runtime)
        -> authenticated HTTP proxies
        -> SSE terminal output
        -> server-side WebSocket bridge to agent
@@ -25,7 +25,7 @@ browser / PWA
 
 - Svelte 5 runes only.
 - One `frontend/` SSOT.
-- adapter-node production output.
+- adapter-node production output on Node 22; Bun is package/test/build tooling.
 - Mobile safe-area and usable narrow-screen terminal behavior are product invariants.
 - Gateway secrets remain server-side.
 

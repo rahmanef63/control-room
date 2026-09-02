@@ -14,7 +14,7 @@ Only change `frontend/` unless a tightly-coupled root script/doc must be updated
 - SvelteKit 2
 - Svelte 5 runes
 - adapter-node production output
-- Bun frontend runtime/package manager
+- Node 22 production adapter-node runtime; Bun package/test/build tooling
 - TypeScript
 - Tailwind CSS 4
 - local/shadcn-svelte-style primitives under `src/lib/components/ui/`
@@ -50,6 +50,7 @@ Cross-browser durable workspace/session state is owned by the agent. Browser-loc
 ## Gates
 
 ```bash
+bun run docs:check
 bun run --cwd frontend check
 bun run --cwd frontend test
 bun run --cwd frontend build

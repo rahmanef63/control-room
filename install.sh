@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/rahmanef63/control-room/main/install.sh | bash
 #
 # What it does (re-runnable; skips anything already done):
-#   1. Verifies Node 18+ (the agent daemon runs on node) and git; installs bun
+#   1. Verifies Node 22+ (production frontend + agent run on Node) and git; installs Bun
 #   2. Clones (or pulls) the repo
 #   3. Generates .env.local with fresh secrets (node crypto, no openssl)
 #   4. Installs frontend + agent deps
@@ -34,13 +34,13 @@ cat <<'EOF'
 EOF
 
 cyan "→ Checking prerequisites…"
-need node "install Node 18+: https://nodejs.org/"
+need node "install Node 22+: https://nodejs.org/"
 node_major=$(node -v | sed -E 's/v([0-9]+).*/\1/')
-if [ "$node_major" -lt 18 ]; then red "Node $node_major detected; need 18+."; exit 1; fi
+if [ "$node_major" -lt 22 ]; then red "Node $node_major detected; need 22+."; exit 1; fi
 green "  Node $(node -v) ✓"
 need git "install git: https://git-scm.com/"
 green "  git $(git --version | awk '{print $3}') ✓"
-# bun is the package manager + frontend runtime; node stays for the agent daemon.
+# Bun is the package/test/build toolchain; production adapter-node and the PTY agent run on Node 22.
 if ! command -v bun >/dev/null 2>&1; then
   yellow "  bun not found — installing from https://bun.sh …"
   curl -fsSL https://bun.sh/install | bash

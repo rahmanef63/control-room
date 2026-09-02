@@ -100,8 +100,7 @@ EOF_UNIT
 cat > /etc/systemd/system/vps-control-room-agent.service <<EOF_UNIT
 [Unit]
 Description=VPS Control Room Privileged Host Agent
-After=network.target docker.service
-Requires=docker.service
+After=network.target
 StartLimitIntervalSec=60
 StartLimitBurst=5
 

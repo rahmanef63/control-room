@@ -7,7 +7,7 @@ Use this pattern for host telemetry/collector work under `agent/`.
 - Collectors run in the Node 22 agent, never in the frontend.
 - One collector failure must not terminate the agent or block unrelated collectors.
 - Keep collection bounded in time/output and avoid unbounded process spawning.
-- Prefer existing host abstractions/utilities over duplicate shell wrappers.
+- Prefer bounded Node/os/fs helpers; use a child process only for a specific telemetry source when necessary. Do not create a browser-callable generic exec wrapper.
 - Persist shared durable state through the existing agent JSON/state layer when persistence is required.
 - Never add a database dependency just to expose collector output to the UI.
 
@@ -16,7 +16,7 @@ Use this pattern for host telemetry/collector work under `agent/`.
 ```ts
 export async function collectExample(): Promise<ExampleSnapshot | null> {
   try {
-    // Gather bounded host data using the existing collector/exec helpers.
+    // Gather bounded host data from a specific OS/API source.
     return snapshot;
   } catch (error) {
     // Log a bounded diagnostic; never include secrets/environment dumps.

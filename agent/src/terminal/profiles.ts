@@ -195,7 +195,7 @@ export function resolveTerminalLaunch(request: TerminalCreateRequest): TerminalL
   // Resolution order: explicit request.cwd (duplicate/restore) > useActiveDir > environment.cwd > DEFAULT_CWD
   const requestedCwd = resolveRequestedCwd(request.cwd);
   const cwd =
-    requestedCwd ?? (request.useActiveDir ? DEFAULT_CWD : (environment?.cwd ?? DEFAULT_CWD));
+    requestedCwd ?? (request.useActiveDir ? DEFAULT_CWD : (environment?.cwd || DEFAULT_CWD));
   const envBlock = environment ? parseEnvironmentText(environment.envText) : {};
   const yolo = request.dangerouslyAllow === true;
   const resolvedEnv: NodeJS.ProcessEnv = {

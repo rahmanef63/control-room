@@ -1,203 +1,13 @@
-export type AppSource = "dokploy" | "docker" | "systemd";
-export type AppRuntimeStatus =
-  | "running"
-  | "stopped"
-  | "restarting"
-  | "error"
-  | "unknown";
-export type AppHealthStatus = "healthy" | "unhealthy" | "none" | "unknown";
-
-export type AgentRuntimeStatus = "running" | "stopped" | "unknown";
-export type AgentDetectionSource = "process" | "container" | "systemd" | "pidfile";
-
-export type AlertSeverity = "warning" | "error" | "critical";
-export type AlertStatus = "active" | "resolved" | "acknowledged";
-
-export type EventSeverity = "info" | "warning" | "error" | "critical";
-
-export type AuditResult = "success" | "failed" | "cancelled";
-export type AuditSeverity = "info" | "warning" | "critical";
-export type AuditTriggeredBy =
-  | "manual-dashboard"
-  | "manual-cli"
-  | "manual-tui"
-  | "system-agent"
-  | "scheduled-check";
-
-export type CommandTargetType =
-  | "container"
-  | "service"
-  | "agent"
-  | "dokploy-app"
-  | "fail2ban";
-export type CommandStatus =
-  | "queued"
-  | "running"
-  | "success"
-  | "failed"
-  | "cancelled"
-  | "timeout";
-
 export type TerminalProfile = "shell" | "codex" | "claude" | "gemini" | "openclaw";
 
-/**
- * AI CLI detected running inside a pane via process-tree probe.
- * `null` when no known AI process is present (raw shell or unknown CLI).
- */
+/** Known CLI detected inside a terminal process tree. */
 export type TerminalInnerAgent = "claude" | "codex" | "gemini" | "openclaw";
-
-export interface AppCommandTargets {
-  container?: string;
-  dokploy_project?: string;
-}
-
-export interface AppMetadata {
-  container_id?: string;
-  container_name?: string;
-  dokploy_name?: string;
-  dokploy_project_id?: string;
-  dokploy_application_id?: string;
-  created_at?: string;
-  labels?: Record<string, string>;
-  command_targets?: AppCommandTargets;
-}
-
-export interface AgentCommandTargets {
-  service?: string;
-}
-
-export interface AgentMetadata {
-  service_name?: string;
-  process_count?: number;
-  command_targets?: AgentCommandTargets;
-}
-
-export interface SystemSnapshot {
-  _id: string;
-  _creationTime: number;
-  timestamp: number;
-  cpu_total: number;
-  cpu_cores: number[];
-  ram_total: number;
-  ram_used: number;
-  ram_available: number;
-  disk: Array<{
-    mount: string;
-    total: number;
-    used: number;
-    available: number;
-  }>;
-  network: {
-    rx_bytes: number;
-    tx_bytes: number;
-    rx_rate: number;
-    tx_rate: number;
-  };
-  uptime_seconds: number;
-  load_average: number[];
-}
-
-export interface AppStatus {
-  _id: string;
-  _creationTime: number;
-  name: string;
-  source: AppSource;
-  runtime_status: AppRuntimeStatus;
-  health_status: AppHealthStatus;
-  ports: Array<{
-    internal: number;
-    published: number;
-    protocol: string;
-  }>;
-  domain?: string;
-  last_seen: number;
-  restart_count?: number;
-  last_deploy_time?: number;
-  last_known_error?: string;
-  metadata?: AppMetadata;
-}
-
-export interface AgentStatus {
-  _id: string;
-  _creationTime: number;
-  name: string;
-  pid?: number;
-  status: AgentRuntimeStatus;
-  cpu: number;
-  memory: number;
-  uptime_seconds: number;
-  last_seen: number;
-  detection_source: AgentDetectionSource;
-  available_actions: string[];
-  metadata?: AgentMetadata;
-}
-
-export interface AlertRecord {
-  _id: string;
-  _creationTime: number;
-  type: string;
-  message: string;
-  target?: string;
-  severity: AlertSeverity;
-  status: AlertStatus;
-  created_at: number;
-  resolved_at?: number;
-  metadata?: Record<string, unknown>;
-}
-
-export interface EventRecord {
-  _id: string;
-  _creationTime: number;
-  timestamp: number;
-  type: string;
-  message: string;
-  severity: EventSeverity;
-  source: string;
-  target?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface AuditRecord {
-  _id: string;
-  _creationTime: number;
-  timestamp: number;
-  action: string;
-  target: string;
-  result: AuditResult;
-  severity: AuditSeverity;
-  triggered_by: AuditTriggeredBy;
-  request_id: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface CommandRecord {
-  _id: string;
-  _creationTime: number;
-  request_id: string;
-  action: string;
-  target_type: CommandTargetType;
-  target_id: string;
-  payload?: Record<string, unknown>;
-  status: CommandStatus;
-  requested_by: string;
-  requested_at: number;
-  started_at?: number;
-  finished_at?: number;
-  result?: string;
-  error?: string;
-}
-
-export interface OverviewData {
-  snapshot: SystemSnapshot | null;
-  active_alert_count: number;
-  app_count: number;
-  agent_count: number;
-}
 
 export interface RuntimeEnvironment {
   id: string;
   label: string;
   description: string;
+  /** Empty means use the host terminal default cwd. */
   cwd: string;
   envText: string;
   tags: string[];
@@ -228,22 +38,15 @@ export interface RuntimeConfig {
   agentProfiles: RuntimeAgentProfile[];
 }
 
-export interface RuntimeConfigResponse {
-  config: RuntimeConfig;
-  environments: RuntimeEnvironmentSummary[];
-  agentProfiles: RuntimeResolvedAgentProfile[];
-  configPath: string;
-}
-
 export interface TerminalCreateRequest {
   profile?: TerminalProfile;
   environmentId?: string;
   agentProfileId?: string;
-  /** Skip all permission prompts / dangerously allow all tools (YOLO mode). */
+  /** Launch the CLI with its supported permission-bypass flag when available. */
   dangerouslyAllow?: boolean;
-  /** When true, use the agent default cwd instead of the environment's configured directory. */
+  /** Use the host default cwd instead of a configured environment cwd. */
   useActiveDir?: boolean;
-  /** Override starting working directory. Used by duplicate/restore flows. Must be absolute. */
+  /** Absolute cwd override used by duplicate/restore flows. */
   cwd?: string;
 }
 
@@ -264,11 +67,6 @@ export interface TerminalSession {
   agent_profile_id?: string;
   model?: string;
   skills?: string[];
-  /**
-   * AI CLI detected via process-tree probe (pstree).
-   * Refreshed on each listSessions() call, cached briefly per session.
-   * `null` when the pane is a raw shell or runs an unknown command.
-   */
   inner_agent?: TerminalInnerAgent | null;
   exit_code?: number;
   exit_signal?: number;
@@ -287,81 +85,4 @@ export type TerminalGatewayEvent =
   | { type: "error"; message: string }
   | { type: "pong"; ts: number };
 
-// ─── Alfa patrol ──────────────────────────────────────────────────────
-// Canonical shapes shared by the agent scheduler and SvelteKit API
-// proxies, and the React UI. Adding a field here is the only authorised
-// way to extend the watcher / ping contract.
-
-/**
- * Patrol behaviour preset.
- * - `static` (default): alfa sends `defaultInstruction` (or per-target
- *   override) verbatim when a ping fires.
- * - `patrol-senior-fullstack`: alfa reads each target's recent buffer,
- *   infers project context (SvelteKit / Node agent / design / deploy /
- *   etc.), picks a relevant skill if any (`/audit-bp`, `/rr-prep`,
- *   `/sc-git`, ...), and crafts a tailored continuation prompt per target
- *   as a senior fullstack engineer would. The `defaultInstruction` is then
- *   treated as a *meta-template* rather than the literal payload.
- */
-export type AlfaPatrolMode = "static" | "patrol-senior-fullstack";
-
-export interface AlfaWatcher {
-  /** Terminal session id of the alfa pane itself. */
-  id: string;
-  /** Optional human-readable label. */
-  label?: string;
-  /** Session ids the alfa actively watches. */
-  watchedSessionIds: string[];
-  /** Per-target instruction overrides (sessionId -> prompt). */
-  instructions: Record<string, string>;
-  /** Fallback prompt when no per-target override exists. */
-  defaultInstruction: string;
-  /** Patrol behaviour preset. Defaults to `static`. */
-  mode?: AlfaPatrolMode;
-  /** Optional workspace scope (for project-grouped alfas). */
-  scopeWorkspaceId?: string;
-  /** Unix ms creation timestamp. */
-  createdAt: number;
-  /** Silence threshold for triggering 'waiting' ping (ms). Default 30000. */
-  silenceThresholdMs?: number;
-}
-
-export type PatrolPingEvent = "waiting" | "done";
-
-export interface PatrolPing {
-  id: string;
-  alfaId: string;
-  sessionId: string;
-  title: string;
-  prompt: string;
-  activityState: PatrolPingEvent;
-  firedAt: number;
-  enqueuedAt: number;
-  acknowledged: boolean;
-  acknowledgedAt?: number;
-}
-
-/** Default suggestion sent when patrol fires and no custom prompt is set. */
-export const ALFA_DEFAULT_PROMPT: string;
-/**
- * Meta-template that asks the alfa session to act as a senior fullstack
- * engineer. Used when `mode === 'patrol-senior-fullstack'`.
- */
-export const ALFA_PATROL_SENIOR_FULLSTACK_PROMPT: string;
-/** Allowed `AlfaWatcher.mode` values. */
-export const ALFA_PATROL_MODES: readonly AlfaPatrolMode[];
-
-export const APP_SOURCE_VALUES: readonly AppSource[];
-export const APP_RUNTIME_STATUS_VALUES: readonly AppRuntimeStatus[];
-export const APP_HEALTH_STATUS_VALUES: readonly AppHealthStatus[];
-export const AGENT_STATUS_VALUES: readonly AgentRuntimeStatus[];
-export const AGENT_DETECTION_SOURCE_VALUES: readonly AgentDetectionSource[];
-export const ALERT_SEVERITY_VALUES: readonly AlertSeverity[];
-export const ALERT_STATUS_VALUES: readonly AlertStatus[];
-export const EVENT_SEVERITY_VALUES: readonly EventSeverity[];
-export const AUDIT_RESULT_VALUES: readonly AuditResult[];
-export const AUDIT_SEVERITY_VALUES: readonly AuditSeverity[];
-export const AUDIT_TRIGGER_VALUES: readonly AuditTriggeredBy[];
-export const COMMAND_TARGET_TYPE_VALUES: readonly CommandTargetType[];
-export const COMMAND_STATUS_VALUES: readonly CommandStatus[];
 export const TERMINAL_PROFILE_VALUES: readonly TerminalProfile[];

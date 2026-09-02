@@ -1,352 +1,377 @@
-# Self-Host Onboarding — VPS Control Room
+# Self-Host Onboarding — Control Room v2.0.0
 
-This guide walks a fresh sysadmin through deploying VPS Control Room
-on their own VPS, end-to-end. Five phases, ~30 minutes total.
+This is the guided production path for a fresh operator. Control Room v2 is a
+**single-owner terminal multiplexer with a browser/PWA UI**—think persistent tmux-like
+PTYs with panes, workspaces, reconnect, mobile controls, history/templates, and
+small terminal-adjacent helpers.
 
-| Phase | Time | Outcome |
-|-------|------|---------|
-| 1. Decide | 1 min | Confirm this tool fits your use case |
-| 2. Prep | 10 min | VPS, Bun + Node 22, Tailscale, domain ready |
-| 3. Install | 10 min | Clone, env, bun install, systemd up |
-| 4. Verify | 5 min | Health checks pass, login works, terminal spawns |
-| 5. Operate | ongoing | Deploy updates, rotate secrets, backup |
+For a laptop-only install, use [INSTALL-LOCAL.md](./INSTALL-LOCAL.md).
+
+| Phase | Outcome |
+|---|---|
+| 1. Decide | Confirm the single-host terminal model fits |
+| 2. Prepare | Node 22, Bun, Git, HTTPS/proxy/private-network choice |
+| 3. Configure | Clone + independent auth secrets |
+| 4. Verify + deploy | Full repository gate + immutable release deploy |
+| 5. Approve + smoke | Device approval, terminal lifecycle, PWA/mobile |
+| 6. Operate | updates, rollback, backup, secret rotation |
 
 ---
 
 ## Phase 1 — Decide
 
-### What this is
+### What Control Room is
 
-A **single-user**, **mobile-first**, **PWA** web dashboard that turns
-your phone into a VPS control panel. Multi-pane terminals (up to 16
-concurrent ptys, LRU-evicted), AI-agent launchers, host telemetry, and
-raw shell actions — all behind one shared secret on a HTTPS
-domain. The single owner runs arbitrary commands by design; there is no
-command allowlist (the security model is perimeter, not per-command).
+- single-owner, self-hosted terminal surface;
+- persistent PTYs that survive ordinary browser disconnects;
+- multiple panes grouped into workspaces;
+- browser/PWA access from desktop or mobile;
+- terminal history/templates, cwd/file helpers, broadcast input, and soft-key controls;
+- optional thin launch/decorations for installed CLI programs;
+- lightweight host context while you operate terminals.
 
-### What this is NOT
+The owner can run arbitrary commands **inside authenticated terminals by design**.
+There is no command allowlist around the shell itself; the login/device/network
+perimeter is the important security boundary.
 
-- ❌ Not multi-user. One secret = one operator. Sharing the secret =
-  sharing the host. There's no per-user permissions.
-- ❌ Not public-internet-safe. The default Traefik config binds to a
-  HTTPS domain. Exposing it to the public web defeats the
-  threat model.
-- ❌ Not a SaaS. You host it. You own the data. You patch it.
-- ❌ Not a Kubernetes / multi-host orchestrator. One VPS, one agent.
+### What it is not
 
-### Who this is for
+- not multi-user or multi-tenant;
+- not a provider/account credential store;
+- not a deployment/orchestration platform for other projects;
+- not a browser-automation engine;
+- not a scheduler or supervisory AI system;
+- not Kubernetes or a multi-host fleet manager.
 
-- Solo dev / sysadmin running 1–3 VPS for personal projects
-- People who SSH from their phone and hate raw mobile terminals
-- Folks already on Tailscale and comfortable with systemd
+A CLI running inside a pane owns its own accounts, OAuth, browser work, tools,
+deployment logic, and agents.
 
-### Hardware checklist
+### Network expectation
 
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| OS | Ubuntu 22.04 | Ubuntu 24.04 LTS |
-| RAM | 1 GB | 2 GB+ |
-| Disk | 5 GB free | 10 GB+ |
-| CPU | 1 vCPU | 2 vCPU+ |
-| Node | v22.0 | v22 LTS latest |
-| Bun | 1.3.0 | latest 1.3.x |
-
-Good? Move to Phase 2. Not sure? Open an issue and describe your
-setup.
+Port 4001 (the privileged PTY agent) stays loopback-only. The frontend can be
+served over a private network such as Tailscale or a public HTTPS domain. A private
+network is recommended defense in depth; public exposure requires the application
+security controls in [../SECURITY.md](../SECURITY.md).
 
 ---
 
-## Phase 2 — Prep
+## Phase 2 — Prepare the host
 
-### 2.1 Install Node 22 + Bun
-
-Both are required: bun is the package manager and the frontend runtime, Node 22
-runs the agent daemon (node-pty streams no data under Bun).
+### 2.1 Install Node 22
 
 ```bash
-# Via nvm (recommended — easier upgrades)
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
-. "$HOME/.nvm/nvm.sh"
-nvm install 22
-nvm use 22
-node -v   # → v22.x.x
+node -v
+# expect v22.x.x
+```
 
+If needed, install Node 22 using your normal host method (nvm, NodeSource, distro
+package policy, etc.). Production frontend **and** agent processes run on Node 22.
+
+### 2.2 Install Bun 1.3+
+
+```bash
 curl -fsSL https://bun.sh/install | bash
-bun -v    # → 1.3.x or newer
+bun -v
 ```
 
-### 2.2 (Optional) Install Docker
+Bun is used for dependency install, tests, builds, and repository tooling.
 
-Only needed if you want the Docker collector — shows container list
-in the dashboard. Skip if you don't run Docker on this VPS.
+### 2.3 Install Git
 
 ```bash
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-# logout + login again so group takes effect
+git --version
 ```
 
-### 2.3 Install Tailscale
+### 2.4 Choose HTTPS/reverse proxy
 
-The dashboard is designed for **HTTPS access**. The frontend
-listens on `4000`; the agent health/control API binds `127.0.0.1:4001`
-(loopback only) by default, so the privileged host API is never
-network-exposed. Traefik in front locks the frontend to a Tailnet domain.
+The tracked deploy path currently publishes a Traefik dynamic config into the
+existing Dokploy layout:
+
+```text
+/etc/dokploy/traefik/dynamic/vps-control-room.yml
+```
+
+That path routes only the frontend. The agent remains at `127.0.0.1:4001`.
+If your VPS does not use this Dokploy/Traefik layout, adapt the reverse-proxy step
+before using the bundled production deploy script.
+
+### 2.5 Optional: Tailscale
+
+Tailscale is not required by the runtime, but is a useful additional access layer:
 
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
-# Note your tailnet domain, e.g. yourname.ts.net
+tailscale ip -4
 ```
 
-### 2.4 Pick a domain
-
-Two options:
-
-**a) Tailscale Funnel + MagicDNS** (simplest, no external DNS)
-
-```bash
-sudo tailscale serve --bg --https=443 127.0.0.1:4000
-# domain is now <hostname>.<tailnet>.ts.net
-```
-
-**b) Public DNS + Tailnet-only Traefik rule** (custom subdomain)
-
-Set an A record for `control.yourdomain.com` → your Tailscale 100.x IP.
-Configure your Traefik to route only to the unprivileged frontend; keep agent port 4001 on loopback.
-
-### 2.5 Generate strong secrets
-
-You need **two** independent 32+ char random strings:
-
-```bash
-openssl rand -hex 32   # → CONTROL_ROOM_SECRET
-openssl rand -hex 32   # → CONTROL_ROOM_SESSION_SECRET (different!)
-```
-
-**Save them in a password manager now.** Losing them locks you out.
+You may use a tailnet hostname or your own HTTPS domain. Do not expose port 4001.
 
 ---
 
-## Phase 3 — Install
+## Phase 3 — Clone and configure
 
-### 3.1 Clone the repo
+### 3.1 Clone
 
 ```bash
 mkdir -p ~/projects && cd ~/projects
-git clone git@github.com:<your-fork>/control-room.git
+git clone https://github.com/rahmanef63/control-room.git
 cd control-room
 ```
 
-If you don't have GitHub SSH set up, use HTTPS:
-`git clone https://github.com/<fork>/control-room.git`.
-
-### 3.2 Configure environment
-
-```bash
-cp .env.example .env.local
-$EDITOR .env.local
-```
-
-**Required to edit:**
-- `CONTROL_ROOM_SECRET` — paste from 2.5
-- `CONTROL_ROOM_SESSION_SECRET` — paste from 2.5 (different value!)
-- `CONTROL_ROOM_DOMAIN` — your domain from 2.4
-- `ORIGIN` — full URL including `https://`
-
-**Leave as default** unless you know what you're doing:
-- All `*_PORT`, `*_INTERVAL_MS`, `*_PERCENT` — sensible defaults
-
-Everything else has a sensible default.
-
-> ⚠️ **DO NOT** commit `.env.local`. It's gitignored. Verify with
-> `git status` after editing.
-
-### 3.3 Install dependencies
+### 3.2 Install dependencies
 
 ```bash
 bun install --cwd frontend
 bun install --cwd agent
 ```
 
-Per-component install is intentional — each has its own `bun.lock`.
-There's no monorepo tool.
+Frontend and agent intentionally keep separate Bun lockfiles.
 
-### 3.4 Install systemd services
+### 3.3 Generate independent secrets
 
 ```bash
-sudo bash scripts/install-systemd.sh
+openssl rand -hex 32   # CONTROL_ROOM_SECRET
+openssl rand -hex 32   # CONTROL_ROOM_SESSION_SECRET
+openssl rand -hex 32   # AGENT_GATEWAY_SECRET
 ```
 
-This installs:
-- `vps-control-room-agent` — Node 22 host agent
-- `vps-control-room-frontend` — SvelteKit adapter-node production server on Node 22
-- `vps-control-room-cleanup` service + timer — daily terminal-runtime sweep
+Store them in a password manager. Use different values for each role.
 
-The installer stages stable production paths: `/srv/control-room/.../current` for runtime code, `/var/lib/control-room/` for mutable state, and `/etc/control-room/control-room.env` for the root-owned runtime environment. The frontend runs as `control-room-web`; the agent remains the privileged host boundary.
+### 3.4 Configure `.env.local`
 
-### 3.5 Build + start
+```bash
+cp .env.example .env.local
+$EDITOR .env.local
+```
+
+At minimum set:
+
+```dotenv
+CONTROL_ROOM_SECRET=<login-secret>
+CONTROL_ROOM_SESSION_SECRET=<session-signing-secret>
+AGENT_GATEWAY_SECRET=<machine-to-machine-secret>
+CONTROL_ROOM_DOMAIN=<your-hostname>
+ORIGIN=https://<your-hostname>
+AGENT_HEALTH_HOST=127.0.0.1
+```
+
+Do not commit `.env.local`.
+
+`config/control-room.runtime.json` contains optional terminal environment/profile
+metadata. The tracked default is generic. Leave it alone unless you specifically
+want named cwd/environment/CLI launch presets.
+
+---
+
+## Phase 4 — Verify and deploy
+
+### 4.1 Repository gate
+
+```bash
+bun run verify
+```
+
+This is the quality SSOT. It checks Svelte/lint, engineering/docs/evidence tooling,
+coverage, dependency audits, builds, bundle budget, and isolated Playwright
+responsive/accessibility/security/terminal lifecycle scenarios.
+
+### 4.2 Deploy
 
 ```bash
 bash scripts/deploy.sh main
 ```
 
-This will:
-1. Prepare canonical runtime/state/env directories outside Git
-2. Run check + lint + coverage + Playwright/Axe responsive tests
-3. Build immutable Svelte frontend and, when required, Node agent releases
-4. Verify the machine-authenticated agent gateway on loopback
-5. Switch frontend/agent `current` symlinks with pair rollback on failure
-6. Publish the frontend-only Traefik route and verify public HTTPS
+The script expects non-interactive sudo:
 
-First build takes 3–5 minutes. Subsequent deploys are faster.
+```bash
+sudo -n true
+```
+
+If you explicitly want to deploy the **current local worktree** without fetching,
+pulling, pushing, or otherwise changing GitHub state:
+
+```bash
+DEPLOY_FROM_WORKTREE=1 bash scripts/deploy.sh main
+```
+
+The deploy script stages immutable releases, installs the canonical systemd units,
+conditionally switches the agent, switches the frontend, verifies both tiers,
+publishes the frontend-only proxy route, and rolls back the previous pair if a
+production verification fails.
+
+Do not run `scripts/install-systemd.sh` first on a blank host: it intentionally
+requires staged `current` release symlinks. `scripts/deploy.sh` creates the correct
+state and invokes it in order.
+
+### 4.3 Canonical services
+
+```text
+vps-control-room-agent.service
+vps-control-room-frontend.service
+vps-control-room-cleanup.timer
+vps-control-room-healthcheck.timer
+```
+
+The frontend runs as unprivileged `control-room-web`. The PTY agent runs as the
+configured host operator.
 
 ---
 
-## Phase 4 — Verify
+## Phase 5 — Approve and smoke-test
 
-### 4.1 Service status
+### 5.1 Check local service health
 
 ```bash
 systemctl is-active vps-control-room-agent
 systemctl is-active vps-control-room-frontend
-# both should print: active
+curl -fsS http://127.0.0.1:4001/health
+curl -fsS http://127.0.0.1:4000/api/health
 ```
 
-If either says `failed`, check logs:
+Check the privileged port:
 
 ```bash
-journalctl -u vps-control-room-agent     --since "5 minutes ago"
-journalctl -u vps-control-room-frontend  --since "5 minutes ago"
+ss -ltnp | grep ':4001'
 ```
 
-### 4.2 Health endpoints (from the VPS itself)
+It must not listen on `0.0.0.0:4001` or `[::]:4001`.
+
+### 5.2 First browser login
+
+A correct password on a **new production browser** does not immediately grant
+access. The browser becomes pending first.
+
+1. Open your HTTPS Control Room URL.
+2. Enter `CONTROL_ROOM_SECRET`.
+3. If the UI reports the device is pending, return to the host.
+4. List pending devices:
 
 ```bash
-curl http://127.0.0.1:4001/health
-# → {"ok":true,...}
-
-curl http://127.0.0.1:4000/api/version
-# → {"buildId":"abc123def456",...}
+control-room-device --list
 ```
 
-### 4.3 Login (from your phone / laptop on Tailscale)
+5. Approve the intended id:
 
-1. Open your domain in a browser.
-2. Paste `CONTROL_ROOM_SECRET` into the login screen.
-3. You should land on the dashboard.
+```bash
+control-room-device <device-id> "my laptop"
+```
 
-If login fails: secret mismatch. Re-check `.env.local` vs what you
-pasted. Note: the secret is checked server-side; no other clue is given.
+6. Sign in again.
 
-### 4.4 Smoke test the terminal
+Revoke later with:
 
-1. Click **+ Terminal** (top right).
-2. Pick the `bash` profile.
-3. Type `whoami` → expect your VPS user.
-4. Type `ls` → expect home dir contents.
-5. Open settings drawer (kebab → Settings).
-6. Toggle heartbeat-glow off, click **Test heartbeat** → no animation.
-7. Toggle it back on, click **Test heartbeat** → see outer glow on all
-   panes for 4 seconds.
+```bash
+control-room-device --revoke <device-id>
+```
 
-If all four pass, you're done.
+### 5.3 Terminal smoke
 
-### 4.5 Install as a PWA (mobile)
+In the UI:
 
-1. Open the dashboard in iOS Safari or Android Chrome.
-2. **Share → Add to Home Screen** (iOS) or **⋮ → Install app** (Android).
-3. Launch from your home screen — full-screen, no browser chrome.
+1. click **+ New shell**;
+2. run `whoami` and `pwd`;
+3. create a second terminal or use **Duplicate terminal**;
+4. switch workspace/view mode and confirm both sessions remain live;
+5. resize a pane and confirm xterm refits;
+6. close the browser, reopen it, and confirm live sessions can reattach;
+7. close a terminal intentionally and confirm its PTY/process tree terminates.
+
+### 5.4 Settings/activity smoke
+
+The heartbeat glow is only visual feedback for a recognized CLI that is detected
+as working. It is **not** an orchestration/watch system.
+
+- Settings → **Heartbeat glow** controls this decoration.
+- **Test heartbeat** triggers the visual test for a few seconds.
+
+### 5.5 Mobile/PWA smoke
+
+Before a significant mobile release, test at least one real iOS Safari/PWA and one
+real Android Chrome/PWA:
+
+- portrait and landscape;
+- notch/safe-area spacing;
+- fullscreen;
+- on-screen keyboard open/close;
+- soft terminal keys;
+- reconnect after backgrounding.
+
+Desktop viewport emulation is useful but does not fully reproduce mobile browser
+keyboard/safe-area behavior.
 
 ---
 
-## Phase 5 — Operate
+## Phase 6 — Operate
 
-### 5.1 Deploy updates
+### 6.1 Update
 
 ```bash
 cd ~/projects/control-room
-git pull origin main
+git pull --ff-only origin main
 bash scripts/deploy.sh main
 ```
 
-`scripts/deploy.sh` is **idempotent** and release-oriented:
-- Acquires a lockfile so two deploys do not race.
-- Runs frontend check/tests/build before switching production.
-- Stages frontend and agent artifacts under `/srv/control-room/*/releases`.
-- Switches stable `current` symlinks only after gates pass.
-- Restores the previous frontend+agent release pair automatically if gateway/health/public verification fails.
-- Restarts the Node agent only when its deployed source commit changes.
+The deploy script keeps a bounded set of inactive immutable releases and retains
+rollback metadata under:
 
-### 5.2 Rollback
-
-Automatic pair rollback is built into `scripts/deploy.sh`. Previous frontend and agent targets are recorded under `~/.local/state/control-room-deploy/backups/`. For manual recovery, repoint `/srv/control-room/frontend/current` and `/srv/control-room/agent/current` to the recorded releases and restart only the tier that changed.
-
-### 5.3 Rotate secrets
-
-Annually, or immediately if you suspect compromise:
-
-```bash
-# 1. Generate new values
-openssl rand -hex 32 > /tmp/new-secret
-openssl rand -hex 32 > /tmp/new-session
-
-# 2. Update .env.local
-# 3. Restart services
-sudo systemctl restart vps-control-room-agent vps-control-room-frontend
-
-# 4. Log in again with the new CONTROL_ROOM_SECRET
-# 5. Shred the temp files
-shred -u /tmp/new-secret /tmp/new-session
+```text
+~/.local/state/control-room-deploy/backups/
 ```
 
-All active sessions are invalidated on session-secret rotation.
+### 6.2 Rollback
 
-### 5.4 Backup
+Automatic pair rollback runs when deployment verification fails. For manual
+recovery, use the recorded previous frontend/agent targets to repoint:
 
-What to back up:
-- the canonical source secrets in your password manager (NOT git)
-- `/var/lib/control-room/frontend/auth-devices.json`
-- `/var/lib/control-room/agent/*.json`
-- Git commits that have not yet been replicated to an off-host remote
-
-What NOT to back up:
-- checkout `node_modules/`, `frontend/build/`, and `agent/dist/` are rebuildable. `/srv/control-room/*/releases` are operational rollback assets managed by retention.
-- `*.log` — they rotate
-
-### 5.5 Update Node
-
-```bash
-nvm install 22 --reinstall-packages-from=current
-nvm use 22
-nvm alias default 22
-# rebuild native deps
-bun install --cwd agent --force
-sudo systemctl restart vps-control-room-agent vps-control-room-frontend
+```text
+/srv/control-room/frontend/current
+/srv/control-room/agent/current
 ```
 
-The `node-pty` native module recompiles against the new Node ABI.
+Restart only the affected tier unless you intentionally restore both.
+
+See [runbook.md](./runbook.md) for incident commands.
+
+### 6.3 Rotate secrets
+
+Rotate immediately after suspected exposure and periodically according to your
+own policy. Generate fresh independent values, update the canonical deployment
+environment, redeploy/restart, revoke unfamiliar devices, and review logs.
+
+Changing `CONTROL_ROOM_SESSION_SECRET` invalidates existing browser sessions.
+
+### 6.4 Backup
+
+```bash
+bash scripts/backup-control-room.sh
+```
+
+This captures a verified Git bundle plus mutable state under
+`~/.local/state/control-room-backups/<timestamp>/` without including the runtime
+environment by default.
+
+Only use this when you intentionally want the secret-bearing env in the recovery
+package:
+
+```bash
+bash scripts/backup-control-room.sh --include-env
+```
+
+Move recovery packages to an approved encrypted off-host location.
 
 ---
 
-## Troubleshooting
+## Troubleshooting quick table
 
-| Symptom | Likely cause | Fix |
-|---------|--------------|-----|
-| Login screen says "invalid" | Secret mismatch | Re-check `.env.local`, restart frontend |
-| White screen after deploy | Build failed silently | `journalctl -u vps-control-room-frontend`, check for tsc errors |
-| Terminal won't open | Agent down or WS blocked | `curl :4001/health`, check Traefik allows WS upgrade |
-| Heartbeat glow doesn't fire | Activity state never `working` | Only AI-agent sessions trigger it; shell sessions don't |
-| Service won't start | systemd unit path wrong | Re-run `scripts/install-systemd.sh` from repo root |
+| Symptom | First check |
+|---|---|
+| Password is correct but app still does not open | `control-room-device --list` for pending device |
+| Frontend down | `journalctl -u vps-control-room-frontend -n 100 --no-pager` |
+| Agent/terminal bridge down | `journalctl -u vps-control-room-agent -n 100 --no-pager` and `curl :4001/health` |
+| Terminal pane reconnect loop | trace browser SSE → SvelteKit WS client → agent WS → node-pty |
+| Mobile content clipped | real-device safe-area/keyboard/fullscreen test |
+| Deploy exits before build | clean tracked tree / `DEPLOY_FROM_WORKTREE=1` intent / `sudo -n true` |
+| Public URL fails but local frontend is healthy | Traefik/DNS/TLS route, then restore previous proxy config if needed |
 
-For more, see [docs/runbook.md](./runbook.md).
-
----
-
-## Next steps
-
-- Read [../CONTRIBUTING.md](../CONTRIBUTING.md) if you want to send PRs.
-- Read [../SECURITY.md](../SECURITY.md) for the threat model and
-  how to report vulnerabilities.
-- Add agents to `~/.agents/skills/` so per-terminal skill discovery
-  works. See `agent/src/fs/skills.ts` for the lookup order.
+For detailed operations, read [runbook.md](./runbook.md).

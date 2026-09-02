@@ -14,7 +14,7 @@ Read root `CLAUDE.md` first; it is the SSOT. Use `/vps-control-room` for the sho
 | Domain | Specialist |
 |---|---|
 | SvelteKit pages, components, auth routes, xterm/SSE, responsive UI | `vps-frontend` |
-| PTY manager, collectors, gateway, host APIs, telemetry | `vps-host-agent` |
+| PTY manager, gateway, terminal-support host APIs, telemetry | `vps-host-agent` |
 | Cross-domain/runtime/deploy issue | coordinate directly using `CLAUDE.md` + `/vps-control-room` |
 
 Durable shared terminal/workspace state is agent-side JSON.

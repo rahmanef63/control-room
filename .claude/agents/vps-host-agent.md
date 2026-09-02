@@ -1,6 +1,6 @@
 ---
 name: vps-host-agent
-description: Node 22 host-agent specialist for Control Room. Owns PTY lifecycle, authenticated terminal APIs, bounded filesystem helpers, JSON state, telemetry, and process safety under agent/.
+description: Node 22 host-agent specialist for Control Room. Owns PTY lifecycle, authenticated terminal APIs, bounded terminal-support filesystem/state helpers, telemetry, and process safety under agent/.
 model: sonnet
 tools: Read, Grep, Glob, Bash, Edit, Write, Skill
 ---
@@ -15,7 +15,7 @@ Only change `agent/` unless a shared contract or tightly-coupled operational doc
 - `node-pty` owns interactive shell sessions; do not migrate the daemon to Bun without explicit PTY/job-control proof.
 - Agent binds `127.0.0.1:4001` by default.
 - Every privileged endpoint authenticates the gateway secret before doing host work.
-- The agent is the only Control Room component allowed to touch PTYs and bounded host/file operations required by terminal UX.
+- The agent is the only Control Room component allowed to touch PTYs and bounded host/file operations required by terminal UX. Do not add generic service/app/provider control surfaces.
 - Durable shared terminal/workspace state is JSON under the configured agent state/var directory.
 
 ## Terminal invariants
@@ -35,6 +35,7 @@ Only change `agent/` unless a shared contract or tightly-coupled operational doc
 ## Gates
 
 ```bash
+bun run docs:check
 bun install --cwd agent --frozen-lockfile
 bun run --cwd agent test:all
 bun run --cwd agent build

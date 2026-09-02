@@ -222,10 +222,9 @@ export function startHealthServer(): void {
             }
             raw += chunk;
           }
-          // A blank/whitespace-only body is a dropped push (the Next 15.5
-          // body-clone race — see frontend/middleware.ts), not a bad request.
-          // Skip the write entirely: persisting `null` would DESTROY the stored
-          // state, which is the opposite of the no-op this is meant to be.
+          // Treat a blank/whitespace-only body as a dropped/no-op state push.
+          // Skip the write entirely: persisting `null` would destroy the stored
+          // state instead of preserving the last known-good value.
           // Only a non-empty body that still fails JSON.parse is a genuine 400.
           const trimmed = raw.trim();
           if (trimmed.length === 0) {

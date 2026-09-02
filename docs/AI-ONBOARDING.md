@@ -1,170 +1,182 @@
-# AI Onboarding Playbook — LOCAL install
+# AI Onboarding Playbook — local Control Room v2
 
-> **You are an AI assistant** (Claude / Codex / Gemini / Claude Code) helping a
-> non-expert run **VPS Control Room locally on their own computer** — no VPS,
-> SSH, or domain. Read this file, then walk them from zero to a working
-> dashboard. Use plain language; assume they don't know the jargon.
->
-> For the **production VPS deploy** instead, use [INSTALL.md](./INSTALL.md).
-> Human version of this local guide: [INSTALL-LOCAL.md](./INSTALL-LOCAL.md).
+> Use this when helping a non-expert run Control Room on their own
+> Windows/macOS/Linux computer. For a production VPS, use
+> [INSTALL.md](./INSTALL.md) and [ONBOARDING.md](./ONBOARDING.md).
 
-## 0. One-paragraph explanation to give the user
+## 1. Explain the product accurately
 
-"VPS Control Room is a dashboard you open in your browser to manage a computer
-through a web page — terminals, file browsing, system stats, and AI-agent
-panes. Normally it runs on a server (VPS); here we'll run the **whole thing on
-your own laptop** so you can try it. It starts two small local programs (a web
-app on port 4000 and a helper 'agent' on 4001) and opens in your browser."
+Use a simple description:
 
-## 1. Decide — is LOCAL the right path?
+> “Control Room is a tmux-like terminal workspace in a browser/PWA. It keeps
+> terminal processes on your computer, lets you use multiple panes/workspaces,
+> and adds mobile/reconnect/history helpers. Locally it starts a web frontend on
+> port 4000 and a PTY helper agent on loopback port 4001.”
 
-- **Local (this doc):** trying it out, developing, or single-machine use. No
-  server needed. Works on Windows, macOS, Linux.
-- **VPS (INSTALL.md):** you want it reachable from your phone anywhere, behind
-  Tailscale. Needs SSH + a domain + systemd.
+Do not describe it as a provider manager, deployment OS, browser automation
+engine, scheduler, or AI orchestrator.
 
-If they just want to "see it work on this computer", continue here.
+## 2. Confirm local mode is the right path
 
-## 2. Check prerequisites first
+Use local mode when the user wants to:
 
-Tell them you'll check three things, then run:
+- try the terminal UI;
+- develop Control Room;
+- operate shells/installed CLIs on this machine;
+- avoid VPS/systemd/proxy setup.
 
-```
-bun -v       # need 1.3 or newer
-node -v      # need v22 or newer
+Use the VPS guide when they need a persistent remote host reachable from other
+devices.
+
+## 3. Check prerequisites
+
+```text
+node -v        # v22+
+bun -v         # 1.3+
 git --version
 ```
 
-- If `bun` is missing or < 1.3 → the installer in step 3 installs it, or point
-  them to https://bun.sh/.
-- If `node` is missing or < 22 → point them to https://nodejs.org/ (LTS).
-- If `git` is missing → https://git-scm.com/.
+Explain the roles simply:
 
-Explain: "Bun runs the dashboard, Node runs the helper agent, git downloads it.
-That's all we need."
+- Node 22 runs the production adapter-node frontend and PTY agent.
+- Bun installs dependencies and runs tests/build tooling.
+- Git downloads/updates the repository.
 
-## 3. Install (one command)
+## 4. Run the tracked one-line installer
 
-Pick the user's OS and give them exactly one line. Explain it's re-runnable
-(safe to run twice).
+### Windows PowerShell
 
-- **Windows (PowerShell):**
-  ```powershell
-  irm https://raw.githubusercontent.com/rahmanef63/control-room/main/install.ps1 | iex
-  ```
-- **macOS / Linux:**
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/rahmanef63/control-room/main/install.sh | bash
-  ```
-
-What it does (tell them, briefly): "checks Bun + Node + git, downloads the project,
-creates a private config file with fresh random secrets, installs the parts,
-and sets up a `vps-cr` command." Nothing leaves their computer.
-
-Then have them **open a new terminal window** so the `vps-cr` command loads.
-
-## 4. Tell them their password
-
-The installer printed a **login password** (auto-generated). Make sure they
-have it. They can change it any time:
-
+```powershell
+irm https://raw.githubusercontent.com/rahmanef63/control-room/main/install.ps1 | iex
 ```
+
+### macOS / Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rahmanef63/control-room/main/install.sh | bash
+```
+
+The installer is re-runnable. It checks prerequisites, prepares local secrets,
+installs dependencies, and wires the `vps-cr` command.
+
+Ask the user to open a new terminal after installation so their shell sees the
+new command wrapper.
+
+## 5. Configure login
+
+```bash
 vps-cr config
 ```
 
-Local installs set `CONTROL_ROOM_LOCAL_TRUST=1`, so a correct password
-auto-approves this machine — **no device-approval dance**. (That second factor
-only kicks in on a VPS, where the flag is off.)
+Local installs use `CONTROL_ROOM_LOCAL_TRUST=1`, so a correct login password can
+auto-approve the localhost browser. Do not recommend local trust for a production
+or network-reachable deployment.
 
-## 5. Start it
+If a device is unexpectedly pending:
 
-For the lightest, native experience (recommended on Windows), build once then
-open the dashboard in a native app window:
-
-```
-vps-cr build      # one-time, 1–3 min — light production servers
-vps-cr app        # full dashboard in a native window (not a heavy browser tab)
+```bash
+vps-cr list
+vps-cr acc <device-id>
 ```
 
-Or the classic browser path:
+## 6. Start the product
 
-```
-vps-cr            # start both parts + open your default browser
-```
+Normal browser:
 
-Tell them: "This starts both parts and shows the login page when ready (~20s)."
-
-> **Keep it light** (say this): the dashboard is a web app, so it needs a browser
-> engine to render. `vps-cr app` uses a small native window instead of their heavy
-> everyday browser. For *just shells*, `vps-cr term 10` opens native terminals
-> with no browser at all. Tell them NOT to open many AI panes (claude/codex/
-> gemini) — each boots a full CLI agent and is heavy.
-
-## 6. Log in
-
-They enter the password from step 4 → they're in. First login on a fresh browser
-is auto-trusted (local mode), so there's nothing else to approve.
-
-> If they somehow see a `device_pending` message, local-trust is off — approve
-> once with `vps-cr acc <device-id>` (the id is shown), or check
-> `CONTROL_ROOM_LOCAL_TRUST=1` is in `.env.local`.
-
-## 7. When something looks broken — the doctor
-
-Always reach for this first; read its output back to them in plain words:
-
-```
-vps-cr doctor          # tells you exactly what's wrong
-vps-cr doctor --fix     # auto-repairs config (regenerates a missing secret,
-                        # recreates/syncs the config file) without touching a
-                        # password or secret that's already valid
+```bash
+vps-cr
 ```
 
-Other helpers: `vps-cr status` (are both parts up?), `vps-cr stop`, `vps-cr help`.
+Dedicated app-mode window:
 
-## 8. Definition of done (confirm with the user)
+```bash
+vps-cr build
+vps-cr app
+```
 
-You're finished when ALL of these are true — verify, don't assume:
-- `vps-cr doctor` shows frontend(4000) and agent(4001) **up**.
-- They logged in (device approved) and see the dashboard.
-- A terminal pane opens and accepts a command.
+No browser launch:
 
-Say: "That's a fully working local Control Room. Use `vps-cr` to start it next
-time and `vps-cr stop` when done."
+```bash
+vps-cr start
+```
 
-## 9. Set expectations — cross-platform caveats
+On Windows only, native helper commands also exist:
 
-Be honest so they don't think it's broken:
-- **Default terminal** pane works on all OSes (PowerShell on Windows; your shell
-  on macOS/Linux).
-- **AI CLI panes** (Codex/Claude/Gemini/OpenClaw) run if that CLI is installed;
-  full support is best on macOS/Linux.
-- **Host stats** (CPU/RAM/disk) show real numbers on every OS now; load average
-  and network rates read zero on Windows (the OS doesn't expose them).
+```powershell
+vps-cr term 10
+vps-cr ssh <target>
+```
 
-## 10. What to NEVER do locally (tell them if relevant)
+Do not promise those two native helper commands on macOS/Linux; use the user's
+normal terminal/ssh tooling there.
 
-- Don't run `scripts/deploy.sh`, `install-systemd.sh`, or `bump-version.sh` —
-  those are for the Linux VPS and assume systemd/root.
-- Don't expose ports 4000/4001 to the public internet. This is single-user and
-  meant for localhost / your private network only.
-- The config file (`.env.local`) holds secrets and the password — it stays on
-  their machine and is git-ignored. Never paste its contents anywhere.
+## 7. Verify instead of assuming
 
-## 11. `vps-cr` quick reference
+Definition of done:
 
-| Command | Does |
-| --- | --- |
-| `vps-cr` | start + open browser |
-| `vps-cr app` | start + open the full dashboard in a **native app window** (light) |
-| `vps-cr term [n]` | open **n native terminal panes** (Windows, no browser) |
-| `vps-cr ssh [target]` | open a **native SSH pane** to the VPS (default `vpsku`) |
-| `vps-cr build` | build the **light production servers** (do this once) |
-| `vps-cr start` | start services only — no browser |
-| `vps-cr stop` | stop both parts |
-| `vps-cr status` | health of 4000 / 4001 |
-| `vps-cr config` / `--reset` | set password / regenerate config |
-| `vps-cr doctor` / `--fix` | diagnose / repair |
-| `vps-cr acc <id>` · `list` · `revoke <id>` | manage trusted devices |
-| `vps-cr secret` | print a fresh random secret |
-| `vps-cr help` | menu |
+```bash
+vps-cr doctor
+vps-cr status
+```
+
+Then verify in the UI:
+
+1. login succeeds;
+2. **+ New shell** creates a pane;
+3. `whoami` or another harmless command returns output;
+4. duplicate/create a second terminal;
+5. resize/reload and confirm the PTY remains usable.
+
+## 8. Troubleshoot with doctor first
+
+```bash
+vps-cr doctor
+vps-cr doctor --fix
+```
+
+Read the output and explain the failing layer in plain language. Do not jump to
+production scripts or remote server changes for a local problem.
+
+Useful helpers:
+
+```bash
+vps-cr status
+vps-cr stop
+vps-cr help
+```
+
+## 9. Cross-platform expectations
+
+- The normal interactive shell pane works on Windows/macOS/Linux.
+- Codex/Claude/Gemini/OpenClaw panes are only thin wrappers around those installed
+  CLIs; Control Room does not install/authenticate/manage the CLI for the user.
+- CPU/RAM/disk overview is cross-platform; Windows network-rate counters are
+  intentionally neutral where the OS/Node API does not expose Linux-style byte
+  counters.
+- Many AI CLI panes can be CPU/RAM heavy because each is a separate CLI process;
+  use plain shells when that is all the user needs.
+
+## 10. Local safety boundaries
+
+Never:
+
+- print or paste `.env.local` contents;
+- expose agent port 4001 directly;
+- run `scripts/deploy.sh` or `scripts/install-systemd.sh` for local onboarding;
+- alter production/VPS state unless the user explicitly switched the task to a
+  production deployment.
+
+## 11. Quick command map
+
+| Command | Purpose |
+|---|---|
+| `vps-cr` | start + browser |
+| `vps-cr app` | full UI in dedicated Edge/Chrome app-mode window |
+| `vps-cr build` | build production outputs for lighter local startup |
+| `vps-cr start` / `stop` | local process lifecycle |
+| `vps-cr status` | frontend/agent health |
+| `vps-cr config` | local config/login password |
+| `vps-cr doctor [--fix]` | diagnose/repair local setup |
+| `vps-cr list` / `acc` / `revoke` | device approval management |
+| `vps-cr secret` | generate one new random secret |
+| `vps-cr term` / `ssh` | Windows wrapper only: native terminal helpers |

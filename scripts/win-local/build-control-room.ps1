@@ -1,5 +1,5 @@
 # Build VPS Control Room for a light local production run.
-# Frontend: SvelteKit adapter-node on Bun. Agent: Node 22 build output.
+# Frontend: SvelteKit adapter-node build for Node 22. Agent: Node 22 build output.
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 

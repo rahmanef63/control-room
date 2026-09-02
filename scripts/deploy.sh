@@ -63,14 +63,12 @@ FRONTEND_PID_BEFORE="$(service_pid "${FRONTEND_SERVICE}")"
 AGENT_PID_BEFORE="$(service_pid "${AGENT_SERVICE}")"
 LEGACY_FRONTEND_CWD="$(process_cwd "${FRONTEND_PID_BEFORE}")"
 LEGACY_AGENT_CWD="$(process_cwd "${AGENT_PID_BEFORE}")"
-APP_HOME="$(getent passwd "${APP_USER}" | cut -d: -f6)"
 
 log "Preparing canonical runtime/state layout"
 sudo APP_USER="${APP_USER}" CONTROL_ROOM_WEB_USER="${WEB_USER}" BUN_BIN="${BUN}" \
   CONTROL_ROOM_RUNTIME_ROOT="${RUNTIME_ROOT}" CONTROL_ROOM_STATE_ROOT="${STATE_ROOT}" \
   MIGRATE_AUTH_DEVICE_STORE="${AUTH_DEVICE_STORE:-${LEGACY_AGENT_CWD}/var/auth-devices.json}" \
   MIGRATE_AGENT_STATE_DIR="${LEGACY_AGENT_CWD}/var" \
-  MIGRATE_CRON_STORE="${APP_HOME}/.config/vps-control-room/crons.json" \
   bash "${REPO_DIR}/scripts/prepare-runtime.sh" >/dev/null
 
 ENV_TMP="$(mktemp "${STATE_DIR}/runtime-env.XXXXXX")"
@@ -78,14 +76,13 @@ chmod 0600 "${ENV_TMP}"
 awk '
   /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
   $0 ~ /^(CONVEX_|NEXT_PUBLIC_)/ { next }
-  $0 ~ /^(AGENT_HEALTH_HOST|STATE_DIR|AUTH_DEVICE_STORE|CONTROL_ROOM_CRONS_PATH|TERMINAL_GATEWAY_URL)=/ { next }
+  $0 ~ /^(AGENT_HEALTH_HOST|STATE_DIR|AUTH_DEVICE_STORE|TERMINAL_GATEWAY_URL)=/ { next }
   { print }
 ' "${REPO_DIR}/.env.local" > "${ENV_TMP}"
 printf '%s\n' \
   'AGENT_HEALTH_HOST=127.0.0.1' \
   "STATE_DIR=${STATE_ROOT}/agent" \
   "AUTH_DEVICE_STORE=${STATE_ROOT}/frontend/auth-devices.json" \
-  "CONTROL_ROOM_CRONS_PATH=${STATE_ROOT}/agent/crons.json" \
   'TERMINAL_GATEWAY_URL=http://127.0.0.1:4001' >> "${ENV_TMP}"
 sudo install -o root -g root -m 0600 "${ENV_TMP}" "${RUNTIME_ENV}"
 rm -f "${ENV_TMP}"

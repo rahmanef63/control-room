@@ -1,6 +1,6 @@
 # VPS Control Room — Action Pattern
 
-Use this pattern when a frontend interaction must cause host-side behavior.
+Use this pattern only when a frontend interaction needs **terminal-adjacent** host behavior (for example bounded file/cwd/state support). If the action is provider management, generic service orchestration, deployment of another project, scheduling, or browser automation, it is out of Control Room core.
 
 ## Boundary
 
@@ -12,7 +12,7 @@ Svelte component
   -> host operation
 ```
 
-Never execute Docker/systemd/filesystem/shell host commands from browser code or a frontend component.
+Never execute filesystem/shell/host operations directly from browser code or a frontend component. Keep the agent surface minimal and do not create a generic host-exec endpoint.
 
 ## Frontend component
 
@@ -60,7 +60,7 @@ Validate user-controlled input before forwarding it. Do not put gateway credenti
 
 - Re-authenticate the gateway secret at the agent boundary.
 - Validate input and path/target constraints.
-- Execute using the existing host abstraction rather than inventing a second shell pathway.
+- Implement a dedicated bounded operation for the terminal helper; do not invent a second or generic shell-execution pathway.
 - Log useful audit metadata without secrets.
 - Return bounded, structured errors.
 

@@ -4,12 +4,12 @@ Use this command for project-level runtime/deploy troubleshooting. Root `CLAUDE.
 
 ## Invariants
 
-- Frontend: `<repo>/frontend` — SvelteKit 2 + Svelte 5, adapter-node on Bun.
+- Frontend: `<repo>/frontend` — SvelteKit 2 + Svelte 5, adapter-node on Node 22 in production; Bun is tooling.
 - Agent: `<repo>/agent` — Node 22 + node-pty; host access stays here.
 - Browser terminal output: SSE from SvelteKit; frontend server bridges to the agent WebSocket.
 - Production frontend service: `vps-control-room-frontend.service`, port 4000.
 - Production agent service: `vps-control-room-agent.service`, loopback port 4001.
-- Frontend production entrypoint: `bun build/index.js` inside the selected immutable release.
+- Frontend production entrypoint: `node build/index.js` inside the selected immutable release.
 - Public domain is supplied by `CONTROL_ROOM_DOMAIN`/Traefik; `ORIGIN` should match the public HTTPS origin.
 
 ## Fast checks

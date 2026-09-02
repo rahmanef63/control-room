@@ -1,5 +1,7 @@
 # Control Room — Product Requirements
 
+**Current product baseline: v2.0.0 — terminal-first.**
+
 ## 1. Product definition
 
 Control Room is a **web/mobile terminal multiplexer for a single host**. The closest mental model is tmux with a browser/PWA interface.
@@ -70,7 +72,7 @@ terminal process
 
 ### 5.1 Frontend
 
-- SvelteKit 2 + Svelte 5 runes.
+- SvelteKit 2 + Svelte 5 runes; adapter-node production runtime on Node 22, with Bun as the package/test/build toolchain.
 - Browser authentication and server-side proxying.
 - Terminal workspace UI.
 - SSE stream from frontend server to browser.
@@ -103,7 +105,7 @@ A terminal session contains at least:
 - created/updated timestamps;
 - reconnect buffer.
 
-The terminal process must survive ordinary browser disconnects. Closing a browser is equivalent to tmux detach, not process termination.
+The terminal process must survive ordinary browser disconnects. Closing a browser is equivalent to tmux detach, not process termination. The agent currently caps terminal records at 16 and evicts an exited record first, otherwise the most idle session, to bound resource use.
 
 ## 7. Workspace model
 

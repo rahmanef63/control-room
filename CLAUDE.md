@@ -1,5 +1,7 @@
 # Control Room — Canonical Agent Instructions
 
+Current baseline: **v2.0.0, terminal-first**.
+
 ## Product boundary
 
 Control Room is a **tmux-like terminal multiplexer with a browser/PWA UI**.
@@ -35,7 +37,7 @@ A CLI inside a pane manages its own auth, tools, browser work, deployments, and 
 
 ```text
 browser / PWA
-  -> SvelteKit 2 + Svelte 5 frontend
+  -> SvelteKit 2 + Svelte 5 frontend (Node 22 production runtime)
        -> authenticated HTTP proxies
        -> terminal output to browser over SSE
        -> frontend server is the WebSocket client to the agent
@@ -95,6 +97,7 @@ bun run verify
 Focused gates:
 
 ```bash
+bun run docs:check
 bun run check
 bun run lint
 bun run test:coverage

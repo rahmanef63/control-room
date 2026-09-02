@@ -2,6 +2,8 @@
 
 A browser/mobile terminal multiplexer for one machine.
 
+**Current baseline: v2.0.0 — terminal-first.**
+
 Control Room is intentionally small in concept: **tmux-like terminal sessions with a web/PWA interface**. It keeps terminal processes on the host, lets you reconnect from another browser, groups panes into workspaces, and adds a few UI conveniences around the terminal. It is not a provider manager, deployment platform, credential store, browser automation engine, or general-purpose operations OS.
 
 ![Control Room desktop terminal workspace](./docs/media/dashboard-desktop.png)
@@ -29,7 +31,7 @@ The runtime flow stays simple:
 Browser / PWA
      │ HTTPS + SSE
      ▼
-SvelteKit frontend
+SvelteKit frontend (Node 22 in production)
      │ authenticated local API
      ▼
 Node host agent
@@ -93,7 +95,7 @@ Trust boundary:
 
 ```text
 frontend/                 SvelteKit UI and authenticated server proxies
-agent/                    Node 22 PTY/host agent
+agent/                    Node 22 PTY/terminal-support agent
 packages/contracts/       shared terminal contracts
 packages/runtime-config/  terminal environment/profile configuration
 scripts/                   deploy, install, local control, engineering helpers
@@ -111,7 +113,7 @@ bun install --cwd agent --frozen-lockfile
 bun run verify
 ```
 
-`bun run verify` runs Svelte diagnostics, lint, engineering-helper tests, evidence checks, coverage gates, dependency audits, production builds, bundle-budget checks, and Playwright browser regression tests.
+`bun run verify` runs Svelte diagnostics, lint, engineering/docs/evidence checks, coverage gates, dependency audits, production builds, bundle-budget checks, and Playwright browser regression tests.
 
 Focused commands:
 
@@ -144,7 +146,7 @@ Primary runtime values are documented in `.env.example`. The important security 
 - `AGENT_GATEWAY_SECRET` — recommended dedicated frontend→agent machine secret.
 - `AGENT_HEALTH_HOST=127.0.0.1` — keep the privileged agent loopback-bound.
 
-Terminal-specific defaults such as shell and working directory remain optional.
+Terminal-specific defaults such as shell and working directory remain optional. `config/control-room.runtime.json` may define named terminal environments/profiles; the tracked default is deliberately generic and an empty environment `cwd` means “use the host terminal default.”
 
 ## Product rule
 

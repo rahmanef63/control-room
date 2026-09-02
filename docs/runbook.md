@@ -1,425 +1,546 @@
-# VPS Control Room — Runbook
+# Control Room v2.0.0 — Production Runbook
 
-## Table of Contents
+This runbook describes the **current terminal-first runtime**. It intentionally
+does not include the removed Docker collector, fail2ban dashboard actions,
+managed-app controls, scheduler UI, or other old control-plane features.
 
-1. [Prerequisites](#1-prerequisites)
-2. [Installation](#2-installation)
-3. [systemd Service Installation](#3-systemd-service-installation)
-4. [Docker Socket Permissions](#4-docker-socket-permissions)
-5. [sudoers Setup](#5-sudoers-setup)
-6. [Starting and Verifying Services](#6-starting-and-verifying-services)
-7. [Troubleshooting](#7-troubleshooting)
-8. [Updating](#8-updating)
-9. [Log Viewing](#9-log-viewing)
+## Table of contents
 
----
-
-## 1. Prerequisites
-
-The following must be installed and running on the VPS before proceeding.
-
-### Node.js 22
-
-Still required: the agent daemon runs on Node (node-pty needs it), even though
-everything else is bun.
-
-```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs
-node --version   # should print v22.x.x
-```
-
-### Bun 1.3+
-
-Package manager for both components and the runtime for the frontend.
-
-```bash
-curl -fsSL https://bun.sh/install | bash
-bun --version    # should print 1.3.x or newer
-```
-
-### Docker
-
-```bash
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo systemctl enable --now docker
-```
-
-### fail2ban
-
-```bash
-sudo apt-get install -y fail2ban
-sudo systemctl enable --now fail2ban
-```
-
-### ufw
-
-```bash
-sudo apt-get install -y ufw
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow ssh
-sudo ufw allow in on docker0 to any port 4000 proto tcp   # Control Room frontend
-sudo ufw allow in on docker0 to any port 4001 proto tcp   # Control Room terminal gateway
-sudo ufw enable
-```
+1. [Runtime inventory](#1-runtime-inventory)
+2. [Canonical paths and services](#2-canonical-paths-and-services)
+3. [Security invariants](#3-security-invariants)
+4. [Deploy and update](#4-deploy-and-update)
+5. [Routine verification](#5-routine-verification)
+6. [Terminal incident triage](#6-terminal-incident-triage)
+7. [Frontend incident triage](#7-frontend-incident-triage)
+8. [Agent incident triage](#8-agent-incident-triage)
+9. [Device approval](#9-device-approval)
+10. [Rollback](#10-rollback)
+11. [Timers and cleanup](#11-timers-and-cleanup)
+12. [Logs](#12-logs)
+13. [Backup and disaster recovery](#13-backup-and-disaster-recovery)
 
 ---
 
-## 2. Installation
+## 1. Runtime inventory
 
-### Clone the repository
+Control Room has two application trust tiers:
 
-```bash
-git clone <repository-url> <your-repo-path>
-cd <your-repo-path>
+```text
+browser / PWA
+    │ HTTPS
+    ▼
+reverse proxy
+    │
+    ▼
+SvelteKit adapter-node frontend :4000
+    │ authenticated local HTTP + server-side WS
+    ▼
+Node 22 PTY agent 127.0.0.1:4001
+    │
+    ▼
+node-pty → shell / SSH / CLI
 ```
 
-### Set up environment
+### Toolchain/runtime
 
-Copy the example file and fill in every value marked `replace_me`:
+- **Node.js 22**: production frontend and privileged PTY agent.
+- **Bun 1.3+**: dependency install, tests, builds, repository tooling.
+- **SvelteKit 2 + Svelte 5**: frontend.
+- **node-pty**: persistent interactive terminal processes.
 
-```bash
-cp .env.example .env.local
-nano .env.local
+The agent itself has **no Docker runtime dependency**. The currently tracked
+production deployment proxy path is Dokploy/Traefik-specific, but that is a
+proxy/deployment concern rather than an agent feature dependency.
+
+---
+
+## 2. Canonical paths and services
+
+### Runtime/state
+
+```text
+/srv/control-room/frontend/releases/    immutable frontend releases
+/srv/control-room/frontend/current      active frontend symlink
+/srv/control-room/agent/releases/       immutable agent releases
+/srv/control-room/agent/current         active agent symlink
+/var/lib/control-room/frontend/         device/auth mutable state
+/var/lib/control-room/agent/            agent JSON state and log data
+/etc/control-room/control-room.env      root-owned runtime environment
 ```
 
-Key values to set:
+### Services/timers
 
-| Variable | Description |
-|---|---|
-| `CONTROL_ROOM_SECRET` | Random secret used for login |
-| `CONTROL_ROOM_SESSION_SECRET` | Separate random secret for signing session cookies |
-| `AGENT_GATEWAY_SECRET` | Optional: dedicated frontend→agent gateway secret; falls back to `CONTROL_ROOM_SECRET` if unset |
-
-Generate secure secrets with:
-
-```bash
-openssl rand -hex 32
+```text
+vps-control-room-frontend.service
+vps-control-room-agent.service
+vps-control-room-cleanup.service
+vps-control-room-cleanup.timer
+vps-control-room-healthcheck.service
+vps-control-room-healthcheck.timer
 ```
 
-### Install dependencies
+The systemd installer writes these units from the repository. The frontend runs
+as `control-room-web` with a restricted filesystem/network sandbox. The agent
+runs as the configured host operator because it owns PTYs and bounded host/file
+operations required by terminal UX.
 
-```bash
-bun install --cwd frontend
-bun install --cwd agent
-```
+### Deployment state
 
-### Build
-
-```bash
-bun run --cwd frontend build
-bun run --cwd agent    build
+```text
+~/.local/state/control-room-deploy/
+├── agent.commit
+├── deploy-events.jsonl
+└── backups/
 ```
 
 ---
 
-## 3. systemd Service Installation
+## 3. Security invariants
 
-Run the provided installer script (requires sudo):
+These are operational invariants, not optional style choices:
+
+- only the frontend is publicly/proxy reachable;
+- agent port 4001 binds `127.0.0.1` by default;
+- frontend→agent requests use the machine gateway secret;
+- frontend service user has no sudo/Docker privileges;
+- `/etc/control-room/control-room.env` is root-owned mode `0600`;
+- interactive PTYs do not inherit Control Room's master auth secrets;
+- a new production browser must be device-approved after presenting the login
+  secret;
+- a private network such as Tailscale is recommended defense in depth, not a
+  required runtime component.
+
+Quick checks:
 
 ```bash
-sudo bash <your-repo-path>/scripts/install-systemd.sh
+sudo stat -c '%U %G %a %n' /etc/control-room/control-room.env
+ss -ltnp | grep ':4001'
+id control-room-web
 ```
 
-The script will:
+Expected for port 4001: loopback address only, never `0.0.0.0` / `[::]`.
 
-- Write unit files to `/etc/systemd/system/`
-- Run `systemctl daemon-reload`
-- Enable both services so they start on boot
-
-To inspect the installed unit files:
-
-```bash
-cat /etc/systemd/system/vps-control-room-frontend.service
-cat /etc/systemd/system/vps-control-room-agent.service
-```
+The scheduled healthcheck also fails if 4001 becomes wildcard-bound.
 
 ---
 
-## 4. Docker Socket Permissions
+## 4. Deploy and update
 
-The agent reads from the Docker socket. Add the service user to the `docker` group so it can access `/var/run/docker.sock` without root:
-
-```bash
-sudo usermod -aG docker <your-user>
-```
-
-The change takes effect on the next login. To apply it immediately to a running shell:
+### Standard remote-branch deploy
 
 ```bash
-newgrp docker
+cd <repo>
+git status --short --branch
+bash scripts/deploy.sh main
 ```
 
-Confirm membership:
+The script refuses a normal remote deploy when tracked changes are present. It
+then fetches and fast-forwards the requested branch before building.
+
+### Explicit local-worktree deploy
+
+Use this only when the user intentionally wants the current local tree deployed
+without touching GitHub state:
 
 ```bash
-groups <your-user>
-# output should include: <your-user> ... docker ...
+DEPLOY_FROM_WORKTREE=1 bash scripts/deploy.sh main
 ```
+
+### Preconditions
+
+```bash
+node -v      # v22.x
+bun -v       # 1.3+
+sudo -n true
+ test -f .env.local
+```
+
+The tracked deploy path also expects the Dokploy/Traefik dynamic directory used
+by `scripts/deploy.sh` and `ops/traefik/vps-control-room.yml`.
+
+### What `scripts/deploy.sh` actually does
+
+1. serializes deploys with `/tmp/vps-control-room-deploy.lock`;
+2. selects/locks the intended Git snapshot;
+3. stages canonical state/runtime env locations;
+4. verifies frontend check/lint/coverage/audit/Playwright/build/bundle budget;
+5. builds/tests/audits the agent only when agent source changed or no valid
+   deployed agent exists;
+6. stages immutable releases;
+7. records the previous release pair;
+8. refreshes the canonical systemd units;
+9. switches/verifies the agent when necessary;
+10. switches/verifies the frontend;
+11. publishes/verifies the frontend-only Traefik route;
+12. automatically restores the previous runtime pair on verification failure;
+13. records success and prunes stale inactive releases.
+
+Do not replace this with a sequence of manual `git pull + build + restart`
+commands for routine deploys; that bypasses pair rollback and verification.
+
+### Fresh host note
+
+`scripts/install-systemd.sh` is **not** the first command on a blank host. It
+requires staged `frontend/current` and `agent/current` release symlinks.
+`scripts/deploy.sh` prepares them and invokes the installer in the correct order.
 
 ---
 
-## 5. sudoers Setup
+## 5. Routine verification
 
-The frontend and agent need to run a small set of privileged commands (systemctl status/restart for managed services, and fail2ban-client for ban/unban actions). Grant these without a full root password prompt by adding a sudoers drop-in.
-
-```bash
-sudo visudo -f /etc/sudoers.d/vps-control-room
-```
-
-Paste the following, then save and exit:
-
-```
-# VPS Control Room — restricted privilege escalation
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/systemctl status vps-control-room-frontend
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/systemctl status vps-control-room-agent
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart vps-control-room-frontend
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart vps-control-room-agent
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/systemctl start vps-control-room-frontend
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/systemctl start vps-control-room-agent
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop vps-control-room-frontend
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop vps-control-room-agent
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/fail2ban-client status
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/fail2ban-client status *
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/fail2ban-client set * banip *
-<your-user> ALL=(ALL) NOPASSWD: /usr/bin/fail2ban-client set * unbanip *
-```
-
-Validate the file is syntactically correct:
+### Application services
 
 ```bash
-sudo visudo -c -f /etc/sudoers.d/vps-control-room
+systemctl is-active vps-control-room-agent
+systemctl is-active vps-control-room-frontend
 ```
+
+### Local liveness
+
+```bash
+curl -fsS http://127.0.0.1:4001/health
+curl -fsS http://127.0.0.1:4000/api/health
+curl -I http://127.0.0.1:4000/login
+```
+
+The unauthenticated agent health response is intentionally minimal. Detailed
+agent/terminal information is available only to an authenticated gateway caller.
+
+### Health timer
+
+```bash
+systemctl status vps-control-room-healthcheck.timer --no-pager
+journalctl -u vps-control-room-healthcheck.service -n 30 --no-pager
+```
+
+The tracked healthcheck verifies:
+
+- agent loopback health;
+- frontend local health;
+- port 4001 is not wildcard-bound;
+- public HTTPS health when `CONTROL_ROOM_DOMAIN` is available to the timer.
+
+### Browser terminal smoke
+
+After an approved login:
+
+1. **+ New shell**;
+2. `whoami` / `pwd`;
+3. duplicate or create another pane;
+4. input and resize;
+5. switch workspace/view mode;
+6. reload/reopen browser and confirm the PTY reattaches;
+7. close a terminal and confirm the process tree is not orphaned.
+
+For mobile changes, test a real iOS and Android browser/PWA when practical.
 
 ---
 
-## 6. Starting and Verifying Services
+## 6. Terminal incident triage
 
-### Start services
+### Symptom: pane stays “connecting” / reconnecting
 
-```bash
-sudo systemctl start vps-control-room-frontend
-sudo systemctl start vps-control-room-agent
+Trace the actual stream path in order:
+
+```text
+browser EventSource (SSE)
+→ SvelteKit /api/terminals/<id>/stream
+→ server-side WebSocket client
+→ agent WebSocket
+→ TerminalManager
+→ node-pty
 ```
 
-### Check status
+Checks:
 
 ```bash
-sudo systemctl status vps-control-room-frontend
-sudo systemctl status vps-control-room-agent
-```
-
-Both should show `Active: active (running)`.
-
-### Verify the frontend is listening
-
-```bash
-curl -s http://127.0.0.1:4000/api/health
-```
-
-Expected response: `{"status":"ok"}` (or similar).
-
-### Verify the agent health endpoint
-
-```bash
-curl -s http://127.0.0.1:4001/health
-```
-
-Expected response: `{"status":"ok"}`.
-
----
-
-## 7. Troubleshooting
-
-### Frontend not starting
-
-**Symptom:** `systemctl status vps-control-room-frontend` shows `failed` or the service exits immediately.
-
-1. Check the journal for the exact error:
-   ```bash
-   journalctl -u vps-control-room-frontend -n 50 --no-pager
-   ```
-2. Confirm the build output exists:
-   ```bash
-   ls <your-repo-path>/frontend/build/index.js
-   ```
-   If missing, rebuild: `bun run --cwd frontend build`
-3. Confirm `.env.local` is present and readable by the app user:
-   ```bash
-   ls -la <your-repo-path>/.env.local
-   ```
-4. Check `CONTROL_ROOM_PORT` is not already in use:
-   ```bash
-   sudo ss -tlnp | grep 4000
-   ```
-
-### Agent not starting
-
-**Symptom:** `systemctl status vps-control-room-agent` shows `failed`, or the agent health endpoint does not respond.
-
-1. Inspect agent logs:
-   ```bash
-   journalctl -u vps-control-room-agent -n 50 --no-pager
-   ```
-2. Confirm the agent build output exists:
-   ```bash
-   ls <your-repo-path>/agent/dist/index.js
-   ```
-   If missing, rebuild: `bun run --cwd agent build`
-3. Check `AGENT_HEALTH_PORT` is not already in use:
-   ```bash
-   sudo ss -tlnp | grep 4001
-   ```
-
-### Docker socket permission denied
-
-**Symptom:** Agent logs contain `permission denied` for `/var/run/docker.sock`.
-
-1. Confirm your app user is in the `docker` group:
-   ```bash
-   groups <your-user>
-   ```
-2. If not, add the user and restart the service:
-   ```bash
-   sudo usermod -aG docker <your-user>
-   sudo systemctl restart vps-control-room-agent
-   ```
-3. If the group was just added, you may need to fully restart the service so it picks up the new group membership (a simple `restart` is usually sufficient since systemd re-forks the process):
-   ```bash
-   sudo systemctl restart vps-control-room-agent
-   ```
-4. Verify socket permissions:
-   ```bash
-   ls -la /var/run/docker.sock
-   # should show: srw-rw---- ... root docker ...
-   ```
-
----
-
-## 8. Updating
-
-Use the deploy script for all updates:
-
-```bash
-bash <your-repo-path>/scripts/deploy.sh
-```
-
-The script performs these steps in order:
-
-1. `git pull origin main` — fetch latest code
-2. Reinstall frontend dependencies and rebuild
-3. Reinstall agent dependencies and rebuild
-4. Restart both systemd services
-
-If a step fails the script exits immediately (`set -e`) so no partial state is applied. The agent persists its state to JSON under `~/.openclaw/` on the host — there is no separate database to migrate.
-
-To update only a single component, run the relevant steps manually:
-
-```bash
-# Frontend only
-cd <your-repo-path>
-bun install --cwd frontend && bun run --cwd frontend build
-sudo systemctl restart vps-control-room-frontend
-
-# Agent only
-cd <your-repo-path>
-bun install --cwd agent && bun run --cwd agent build
-sudo systemctl restart vps-control-room-agent
-```
-
-### GitHub Actions deploy (manual)
-
-Repository ini menyediakan workflow GitHub Actions di `.github/workflows/deploy.yml`. Workflow ini `workflow_dispatch` only — TIDAK auto-deploy saat push ke `main`. Jalankan secara manual lewat tab Actions (atau pakai `scripts/deploy.sh` langsung di host).
-
-Penting:
-
-- Workflow ini didesain untuk `self-hosted runner` yang berjalan langsung di VPS target.
-- GitHub-hosted runner biasa tidak cocok untuk setup ini karena panel dan host mengandalkan akses lokal VPS dan environment file yang tersimpan di host.
-- Runner harus punya akses ke:
-  - `<your-repo-path>`
-  - `sudo -n systemctl restart ...`
-  - `.env.local`
-
-Saat workflow di-trigger manual lewat tab Actions, runner akan menjalankan:
-
-1. `git fetch` dan `git pull --ff-only origin main`
-2. build frontend
-3. build agent
-4. restart service frontend dan agent
-5. verifikasi service aktif
-
-Jika runner belum diinstall, workflow akan muncul di GitHub tetapi tidak akan berjalan.
-
----
-
-## 9. Log Viewing
-
-### Follow live logs
-
-```bash
-# Frontend
-journalctl -u vps-control-room-frontend -f
-
-# Agent
-journalctl -u vps-control-room-agent -f
-
-# Both simultaneously
-journalctl -u vps-control-room-frontend -u vps-control-room-agent -f
-```
-
-### View recent logs
-
-```bash
-# Last 100 lines, frontend
+curl -fsS http://127.0.0.1:4001/health
 journalctl -u vps-control-room-frontend -n 100 --no-pager
-
-# Last 100 lines, agent
 journalctl -u vps-control-room-agent -n 100 --no-pager
 ```
 
-### Filter by time
+Do not expose the agent WebSocket directly to the browser to “fix” a bridge
+problem; that would cross the security boundary and expose machine credentials.
+
+### Symptom: terminal opens then exits
+
+Check the selected profile/cwd and whether the requested CLI exists:
 
 ```bash
-# Logs since midnight today
-journalctl -u vps-control-room-frontend --since today
-
-# Logs in a specific window
-journalctl -u vps-control-room-agent --since "2026-03-20 08:00:00" --until "2026-03-20 09:00:00"
+command -v bash
+command -v claude || true
+command -v codex || true
+command -v gemini || true
+command -v openclaw || true
 ```
 
-### View previous boot logs (after a crash or reboot)
+Built-in AI CLI profiles intentionally fall back to a shell when an expected
+binary is missing where supported. Named runtime profiles are just launch
+metadata; they are not managed applications.
+
+### Symptom: terminal session limit reached
+
+The agent caps live terminal records at **16**. When creating another session it
+prefers evicting an already-exited record; otherwise it evicts the most idle
+session. Close unused terminals rather than increasing this limit casually—the
+cap bounds host/browser resource use.
+
+### Symptom: input ordering issue
+
+The frontend has an ordered per-terminal input queue. Reproduce with one terminal
+first; do not globally serialize unrelated terminal sessions.
+
+### Symptom: first row / xterm fit issue
+
+Check resize triggers (initial mount, active pane, font, fullscreen, keyboard,
+ResizeObserver, `visualViewport`, orientation, fonts ready). Avoid remounting the
+terminal as a generic layout fix because that can destroy live terminal state.
+
+---
+
+## 7. Frontend incident triage
+
+### Service failed
+
+```bash
+systemctl status vps-control-room-frontend --no-pager
+journalctl -u vps-control-room-frontend -n 100 --no-pager
+readlink -f /srv/control-room/frontend/current
+ls -l /srv/control-room/frontend/current/build/index.js
+```
+
+Production entrypoint:
+
+```text
+node build/index.js
+```
+
+### White/old UI after deploy
+
+Confirm the active release and current `/_app/immutable/` asset URLs. The service
+worker does not cache HTML or `/api/*`; content-hashed build assets are safe to
+cache. If a browser retained an old worker state, reload/update once rather than
+adding compatibility copies of old chunks.
+
+### Authentication/device issue
+
+```bash
+control-room-device --list
+```
+
+If a correct login secret produced a pending device, approve only the intended
+browser and sign in again.
+
+---
+
+## 8. Agent incident triage
+
+### Service failed
+
+```bash
+systemctl status vps-control-room-agent --no-pager
+journalctl -u vps-control-room-agent -n 100 --no-pager
+readlink -f /srv/control-room/agent/current
+ls -l /srv/control-room/agent/current/agent/dist/index.js
+```
+
+Check port/binding:
+
+```bash
+ss -ltnp | grep ':4001'
+```
+
+### Secret/config failure
+
+The agent refuses to start when its machine gateway secret is missing or shorter
+than the minimum. Review the canonical root-owned env without printing secrets to
+chat/logs:
+
+```bash
+sudo stat /etc/control-room/control-room.env
+```
+
+Use a safe local command to check key presence/length if needed; never dump the
+whole environment.
+
+### Host telemetry failure
+
+Telemetry readers fail independently. A missing platform-specific source should
+produce neutral/partial values, not terminate the agent. Inspect the agent log for
+`Host telemetry sample failed` or the relevant collector failure before changing
+the terminal runtime.
+
+---
+
+## 9. Device approval
+
+Canonical helper after systemd installation:
+
+```bash
+control-room-device --list
+control-room-device <device-id> "label"
+control-room-device --revoke <device-id>
+```
+
+Checkout-level fallback:
+
+```bash
+node scripts/approve-device.js --list
+node scripts/approve-device.js <device-id> "label"
+node scripts/approve-device.js --revoke <device-id>
+```
+
+Production store:
+
+```text
+/var/lib/control-room/frontend/auth-devices.json
+```
+
+Do not manually edit the JSON while the frontend is handling authentication
+unless recovery requires it and you have a backup.
+
+---
+
+## 10. Rollback
+
+Automatic rollback is part of `scripts/deploy.sh` when the candidate fails agent,
+frontend, or public-route verification.
+
+Deployment backup records live under:
+
+```text
+~/.local/state/control-room-deploy/backups/<timestamp>-<sha>/
+```
+
+Typical files include:
+
+```text
+previous-frontend.txt
+previous-agent.txt
+traefik.yml        # when a prior live proxy config existed
+```
+
+For manual recovery:
+
+1. read the recorded previous release targets;
+2. repoint `/srv/control-room/frontend/current` and/or
+   `/srv/control-room/agent/current` with `ln -sfn`;
+3. restore prior Traefik config when the route itself was the failing change;
+4. restart only the tier(s) you changed;
+5. rerun local health and browser terminal smoke.
+
+Keep at least one known-good inactive release until the candidate is proven.
+
+---
+
+## 11. Timers and cleanup
+
+### Runtime cleanup
+
+```bash
+systemctl status vps-control-room-cleanup.timer --no-pager
+journalctl -u vps-control-room-cleanup.service -n 50 --no-pager
+```
+
+`cleanup-terminal-runtime.sh` currently:
+
+- retains a bounded number of inactive frontend releases;
+- retains a bounded number of inactive agent releases;
+- removes stale terminal upload artifacts under `~/.os/uploads`.
+
+It is **runtime housekeeping**, not a product scheduler.
+
+### Healthcheck
+
+```bash
+systemctl status vps-control-room-healthcheck.timer --no-pager
+```
+
+Runs every five minutes after boot and records failures in journald.
+
+---
+
+## 12. Logs
+
+### Follow
+
+```bash
+journalctl -u vps-control-room-frontend -f
+journalctl -u vps-control-room-agent -f
+journalctl -u vps-control-room-frontend -u vps-control-room-agent -f
+```
+
+### Recent
+
+```bash
+journalctl -u vps-control-room-frontend -n 100 --no-pager
+journalctl -u vps-control-room-agent -n 100 --no-pager
+journalctl -u vps-control-room-healthcheck.service -n 50 --no-pager
+journalctl -u vps-control-room-cleanup.service -n 50 --no-pager
+```
+
+### Time window
+
+```bash
+journalctl -u vps-control-room-agent --since "30 minutes ago"
+journalctl -u vps-control-room-frontend --since today
+```
+
+### Previous boot
 
 ```bash
 journalctl -u vps-control-room-frontend -b -1 --no-pager
 journalctl -u vps-control-room-agent -b -1 --no-pager
 ```
 
-### Disk usage of journal
+### Journal disk usage
 
 ```bash
 journalctl --disk-usage
 ```
 
-## Disaster recovery snapshot
+Never paste unreviewed environment dumps, auth headers, cookies, or secrets into
+an issue/chat when sharing logs.
 
-Create a local recovery package without copying runtime secrets by default:
+---
+
+## 13. Backup and disaster recovery
+
+Create a recovery package:
 
 ```bash
 bash scripts/backup-control-room.sh
 ```
 
-It creates a verified Git bundle (including unpublished local commits), a
-restricted archive of `/var/lib/control-room`, and checksums under
-`~/.local/state/control-room-backups/<timestamp>/`. Copy that directory to an
-approved encrypted **off-host** destination. `--include-env` also includes the
-root-owned runtime env and therefore requires stronger secret handling.
+Default output:
+
+```text
+~/.local/state/control-room-backups/<timestamp>/
+├── repository.bundle
+├── state.tar.gz      # when state exists
+└── SHA256SUMS
+```
+
+The Git bundle includes unpublished local commits. The state archive captures
+`/var/lib/control-room` when present. The runtime environment is **not** copied by
+default.
+
+If you explicitly need a secret-bearing disaster-recovery package:
+
+```bash
+bash scripts/backup-control-room.sh --include-env
+```
+
+That additionally copies `/etc/control-room/control-room.env`; handle the output
+as a secret and move it only to an approved encrypted off-host destination.
+
+Verify a repository bundle before recovery:
+
+```bash
+git bundle verify repository.bundle
+```
+
+For installation context see [INSTALL.md](./INSTALL.md) and
+[ONBOARDING.md](./ONBOARDING.md). Security policy lives in
+[../SECURITY.md](../SECURITY.md).

@@ -1,446 +1,412 @@
-# Install Roadmap — VPS Control Room
+# Install Roadmap — Control Room v2.0.0
 
-Step-by-step end-to-end roadmap: from a blank VPS to a live PWA dashboard.
-Pick one of three install paths up front, then walk the prereq phases —
-they're the same regardless of which install path you take.
+Control Room v2 is a **terminal-first browser/PWA multiplexer**: persistent PTYs,
+terminal panes, workspaces, reconnect, mobile controls, history/templates, and a
+small set of terminal-adjacent helpers.
 
----
+This document covers the two supported installation modes:
 
-## Step 0 — Detect your OS first
+| Mode | Use it when | Entry point |
+|---|---|---|
+| **Local** | Run Control Room on your own Windows/macOS/Linux machine | [INSTALL-LOCAL.md](./INSTALL-LOCAL.md) |
+| **Production VPS** | Run the frontend + privileged PTY agent as systemd services | This document / [ONBOARDING.md](./ONBOARDING.md) |
 
-**AI agents: before running anything, detect the operating system and pick
-the matching commands.** The terminal agent, shell defaults, and secret
-generation differ per OS.
-
-```bash
-# bash / zsh (Linux, macOS)
-uname -s        # Linux | Darwin
-```
-```powershell
-# PowerShell (Windows)
-$PSVersionTable.OS   # contains "Windows"
-```
-
-| OS | Detected by | Shell the dashboard spawns | Secret generation |
-|----|-------------|----------------------------|-------------------|
-| **Linux** | `uname -s` = `Linux` | `/bin/bash -li` | `openssl rand -hex 32` |
-| **macOS** | `uname -s` = `Darwin` | `$SHELL` (zsh) login | `openssl rand -hex 32` |
-| **Windows** | `process.platform` = `win32` | PowerShell `-NoLogo` (or `$env:SHELL`) | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-
-The agent reads `process.platform` at runtime and branches automatically
-(see `agent/src/terminal/profiles.ts`). On Windows/macOS you can override the
-spawned shell + start dir with the `SHELL` and `TERMINAL_DEFAULT_CWD` env vars.
-
-> **Windows tooling caveats**
-> - `openssl` is usually absent → use the `node -e` one-liner above.
-> - PowerShell `Invoke-WebRequest` strips the `Cookie` header on redirects, so
->   it's useless for testing the auth flow. Use `curl.exe -b`/`-c` or a small
->   `node fetch` script instead.
+The repository does **not** ship a `rahman-cr` npm/bunx installer. Local one-line
+installers are the tracked `install.sh` / `install.ps1`; production deploys use
+`scripts/deploy.sh`.
 
 ---
 
-## Pick an install path
+## 1. Runtime requirements
 
-| Path | Command | Time | Best for |
-|------|---------|------|----------|
-| 🤖 AI-assisted | `bunx rahman-cr ai claude` | ~20 min | First-timers, want guidance, paste into Claude/Codex/Gemini |
-| ⚡ One-line | `bunx rahman-cr install --vps ... --domain ...` | ~10 min | Have all values ready, want minimum prompts |
-| 🛠️ Manual | follow [ONBOARDING.md](./ONBOARDING.md) | ~30 min | Want to understand each step |
-| 💻 Local / dev | [Phase L below](#phase-l--local--dev-install-any-os-no-vps) | ~5 min | Run on your own laptop (any OS), no VPS/Tailscale/DNS |
+### Production Linux host
 
-The first three end at the same place: dashboard live on a HTTPS
-domain. The roadmap below is identical for them — the AI just walks it with
-you, the one-liner walks it for you. The **Local / dev** path skips the VPS,
-SSH, Tailscale, DNS, and systemd entirely — jump to [Phase L](#phase-l--local--dev-install-any-os-no-vps).
+- Ubuntu 22.04+; Ubuntu 24.04 LTS is the primary target.
+- Node.js **22**.
+- Bun **1.3+** for install, tests, and builds.
+- Git.
+- `sudo` with non-interactive permission for the trusted deploy operator
+  (`scripts/deploy.sh` fails closed if `sudo -n true` fails).
+- HTTPS reverse proxy.
 
----
+Recommended starting resources:
 
-## Phase 0 — Local prereqs (your laptop)
+| Resource | Minimum | Recommended |
+|---|---:|---:|
+| CPU | 1 vCPU | 2+ vCPU |
+| RAM | 1 GB | 2+ GB |
+| Free disk | 5 GB | 10+ GB |
 
-Run on **your laptop**, not the VPS.
+The production frontend is a SvelteKit adapter-node build and runs on **Node 22**.
+The privileged agent also runs on **Node 22** because `node-pty` terminal/job-control
+semantics are critical. Bun remains the package/test/build toolchain.
 
-```bash
-bunx rahman-cr doctor
-```
+### Local Windows/macOS/Linux
 
-Confirms:
-
-- [ ] Bun 1.3+ (for `bunx`) — `curl -fsSL https://bun.sh/install | bash`
-- [ ] Node 22 (the agent daemon runs on Node)
-- [ ] `ssh` client
-- [ ] `git`
-- [ ] `openssl` (for secret generation)
-
-Also have ready:
-
-- [ ] An SSH key (`ls ~/.ssh/id_ed25519.pub`). If missing:
-      `ssh-keygen -t ed25519 -C "your-email"`.
-- [ ] A GitHub account (only required if you plan to fork).
-- [ ] A password manager (1Password / Bitwarden / KeePassXC). You will
-      need to store two 32-char secrets at the end.
+Use [INSTALL-LOCAL.md](./INSTALL-LOCAL.md). The same Node 22 + Bun 1.3+
+requirements apply.
 
 ---
 
-## Phase 1 — VPS provisioning
+## 2. Network model
 
-Bring your own VPS. Minimum specs:
+The privileged agent defaults to:
 
-| | Min | Recommended |
-|---|-----|-------------|
-| OS | Ubuntu 22.04 | Ubuntu 24.04 LTS |
-| RAM | 1 GB | 2 GB+ |
-| Disk | 5 GB free | 10 GB+ |
-| CPU | 1 vCPU | 2 vCPU+ |
+```text
+127.0.0.1:4001
+```
 
-Tested providers: Hostinger VPS, DigitalOcean, Vultr, Hetzner.
-Any cloud or bare-metal Linux works as long as you have root or
-passwordless sudo.
+Only the frontend should be routed to users:
 
-After provisioning:
+```text
+browser / PWA
+    │ HTTPS
+    ▼
+reverse proxy
+    │
+    ▼
+frontend :4000
+    │ authenticated machine secret
+    ▼
+agent 127.0.0.1:4001
+    │
+    ▼
+node-pty terminal processes
+```
 
-- [ ] You have the **public IPv4** of the VPS
-- [ ] You can `ssh root@<ip>` (or `ssh ubuntu@<ip>`) with a password
+A private network such as Tailscale is **recommended defense in depth**, but it
+is not a runtime dependency. If you expose the frontend through a public HTTPS
+domain, use strong independent secrets, device approval, the shipped security
+headers/rate limiting, and keep port 4001 loopback-only. See
+[../SECURITY.md](../SECURITY.md).
+
+### Bundled production proxy path
+
+The current `scripts/deploy.sh` publishes the tracked Traefik template to:
+
+```text
+/etc/dokploy/traefik/dynamic/vps-control-room.yml
+```
+
+and the template sends traffic to the host frontend at `172.17.0.1:4000`.
+Therefore the **bundled production deploy path assumes the existing
+Dokploy/Traefik layout**. If your host uses another reverse proxy, keep the same
+security boundary but adapt the proxy/deploy step instead of copying the Dokploy
+path blindly.
 
 ---
 
-## Phase 2 — SSH key push
-
-Get rid of password auth before doing anything else.
+## 3. Clone and install dependencies
 
 ```bash
-# from your laptop
-ssh-copy-id user@<vps-ip>
-ssh user@<vps-ip> 'echo ok'   # should print: ok (no password prompt)
-```
-
-If `ssh-copy-id` isn't available, manually paste `~/.ssh/id_ed25519.pub`
-into `~/.ssh/authorized_keys` on the VPS.
-
-(Optional but recommended) Disable password auth in
-`/etc/ssh/sshd_config`:
-
-```
-PasswordAuthentication no
-PubkeyAuthentication yes
-```
-Then `sudo systemctl restart sshd`.
-
----
-
-## Phase 3 — Tailscale (on the VPS)
-
-The dashboard is designed for **HTTPS** access. The reverse
-proxy routes only to the unprivileged frontend; the privileged agent is never exposed directly.
-
-### 3.1 Generate a Tailscale auth key
-
-Visit https://login.tailscale.com/admin/settings/keys → **Generate auth key**:
-
-- Reusable: **No**
-- Ephemeral: **No**
-- Pre-authorized: **Yes**
-- Tags: `tag:server`
-
-Copy the `tskey-auth-…` string.
-
-### 3.2 Install Tailscale on the VPS
-
-```bash
-ssh user@<vps-ip>
-curl -fsSL https://tailscale.com/install.sh | sh
-sudo tailscale up --authkey=tskey-auth-XXXX --hostname=control-room
-tailscale ip -4    # → 100.x.y.z
-exit
-```
-
-### 3.3 Note your tailnet hostname
-
-Your dashboard URL will be:
-
-```
-control-room.<tailnet>.ts.net
-```
-
-Find your tailnet name at https://login.tailscale.com/admin/dns.
-
----
-
-## Phase 4 — DNS (optional, only for custom domain)
-
-Skip this phase if you're happy using `.ts.net`. Otherwise:
-
-### 4.1 Get your Tailscale 100.x IP
-
-```bash
-tailscale ip -4    # on the VPS
-```
-
-### 4.2 Create an A record
-
-At your DNS provider (Hostinger / Cloudflare / route53 / …):
-
-| Type | Name | Value | TTL |
-|------|------|-------|-----|
-| A | `control` | `100.x.y.z` (Tailscale IP) | 300 |
-
-### 4.3 Verify
-
-```bash
-dig +short control.yourdomain.com    # → 100.x.y.z
-```
-
-⚠️ **Do NOT set the A record to your public IP.** That defeats the
-threat model — Traefik will bind to HTTPS by default; Tailscale optional, so a public record
-just leaks the IP.
-
----
-
-## Phase 5 — Generate secrets
-
-Either run this locally (one-line install will pass them over SSH):
-
-```bash
-openssl rand -hex 32     # → CONTROL_ROOM_SECRET
-openssl rand -hex 32     # → CONTROL_ROOM_SESSION_SECRET (different!)
-```
-
-Or let the AI / one-liner generate them for you. Either way:
-
-**📋 Save both values in your password manager immediately.**
-
-Losing them locks you out of the dashboard. Rotating them invalidates
-all active sessions, so saving them is critical.
-
----
-
-## Phase 6 — Install + deploy
-
-Three flavors. Pick the one matching your install path.
-
-### 6a. AI-assisted
-
-```bash
-bunx rahman-cr ai claude    # or codex / gemini
-```
-
-The CLI prints a structured prompt to stdout + clipboard. Paste it into
-your AI. The AI will:
-
-1. Ask for each value as it reaches the relevant phase.
-2. Run every command in front of you.
-3. Verify each phase before moving to the next.
-
-### 6b. One-line
-
-```bash
-# already on tailnet
-bunx rahman-cr install --vps user@<ip> --domain control-room.<tailnet>.ts.net
-
-# fresh VPS not on tailnet
-bunx rahman-cr install \
-  --vps user@<ip> \
-  --domain control-room.<tailnet>.ts.net \
-  --tailscale-key tskey-auth-XXXX
-```
-
-The CLI SSHs in and runs everything. First build takes 3–5 minutes.
-
-### 6c. Manual
-
-Follow [ONBOARDING.md](./ONBOARDING.md) Phase 3 onward. Same end state.
-
----
-
-## Phase 6.5 — Approve your device (first login always lands in "pending")
-
-The login route is device-gated. Typing the correct `CONTROL_ROOM_SECRET` on a
-**new** browser does **not** log you in — it drops that device into a `pending`
-list and writes an alert to the journal. You must approve the device id once,
-from the host (or wherever the agent runs):
-
-```bash
-# list approved + pending devices (copy the pending id)
-node scripts/approve-device.js --list
-
-# approve it (label is optional)
-node scripts/approve-device.js <deviceId> "my phone"
-```
-
-Reload the login page and sign in again — now it succeeds. Production stores approvals at `/var/lib/control-room/frontend/auth-devices.json`. After systemd installation use the stable helper `control-room-device --list`, `control-room-device <deviceId> "my phone"`, or `control-room-device --revoke <deviceId>`; it executes the store mutation as the unprivileged frontend user.
-
-> First login looking "stuck" or "wrong password" is almost always an
-> unapproved device, not a bad secret. Check `--list` first.
-
----
-
-## Phase L — Local / dev install (any OS, no VPS)
-
-Run the whole dashboard on your own laptop — Linux, macOS, or Windows. No SSH,
-Tailscale, DNS, or systemd. Good for development and for driving your
-**local** machine's shell from a browser/phone on the same LAN.
-
-### L.1 Clone + install
-
-```bash
-git clone git@github.com:rahmanef63/control-room.git
+mkdir -p ~/projects
+cd ~/projects
+git clone https://github.com/rahmanef63/control-room.git
 cd control-room
+
 bun install --cwd frontend
-bun install --cwd agent         # node-pty ships prebuilt binaries — no Visual Studio build tools needed
+bun install --cwd agent
 ```
 
-> Needs **Bun 1.3+** and **Node 22**: bun installs and runs the frontend; the
-> agent daemon runs on Node (node-pty streams no data under Bun).
-
-
-### L.2 Secrets + env
-
-Generate two **different** 32-char secrets:
+For reproducible CI/release verification, use `--frozen-lockfile` once the
+checkout already has its lockfiles:
 
 ```bash
-# Linux / macOS
-openssl rand -hex 32
-openssl rand -hex 32
-```
-```powershell
-# Windows (openssl usually absent)
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+bun install --cwd frontend --frozen-lockfile
+bun install --cwd agent --frozen-lockfile
 ```
 
-Copy `.env.example` and fill them in. **Two locations matter:**
+---
 
-- The **agent** and deploy tooling read the **root** `.env.local`.
-- SvelteKit/Vite local development reads `frontend/.env.local`.
+## 4. Configure environment
 
-The local CLI keeps both files synchronized. If configuring manually, copy the root env into `frontend/.env.local`:
+Create the private root environment file:
 
 ```bash
-# Linux / macOS — root copy for the agent, plus a frontend dev copy
-cp .env.example .env.local            # then edit secrets
-cp .env.local   frontend/.env.local
-```
-```powershell
-# Windows
-Copy-Item .env.example .env.local     # then edit secrets
-Copy-Item .env.local   frontend\.env.local
+cp .env.example .env.local
+$EDITOR .env.local
 ```
 
-For local use bind both processes to loopback and pick local ports:
+Generate three independent high-entropy values:
 
+```bash
+openssl rand -hex 32   # CONTROL_ROOM_SECRET
+openssl rand -hex 32   # CONTROL_ROOM_SESSION_SECRET
+openssl rand -hex 32   # AGENT_GATEWAY_SECRET
 ```
-CONTROL_ROOM_PORT=4000
-CONTROL_ROOM_HOST=127.0.0.1
-AGENT_HEALTH_PORT=4001
+
+Required/recommended values:
+
+```dotenv
+CONTROL_ROOM_SECRET=<login-secret>
+CONTROL_ROOM_SESSION_SECRET=<different-session-signing-secret>
+AGENT_GATEWAY_SECRET=<different-frontend-to-agent-secret>
+CONTROL_ROOM_DOMAIN=control.example.com
+ORIGIN=https://control.example.com
 AGENT_HEALTH_HOST=127.0.0.1
 ```
 
-(Optional, Windows/macOS) override the spawned terminal shell + start dir:
+`AGENT_GATEWAY_SECRET` technically falls back to `CONTROL_ROOM_SECRET` for
+compatibility, but a separate value is the recommended production configuration.
 
-```
-SHELL=powershell.exe
-TERMINAL_DEFAULT_CWD=C:\Users\<you>\projects
+Do not commit `.env.local`.
+
+### Optional terminal defaults
+
+```dotenv
+SHELL=/bin/bash
+TERMINAL_DEFAULT_CWD=/home/<your-user>
 ```
 
-### L.3 Run both processes
+The tracked `config/control-room.runtime.json` is deliberately generic. It may be
+customized with terminal environments or named CLI profiles, but those entries
+must remain terminal launch metadata—not project-specific control-plane logic.
+An empty environment `cwd` means “use `TERMINAL_DEFAULT_CWD` / host default.”
+
+---
+
+## 5. Optional private-network setup
+
+Tailscale is useful when you want the frontend reachable only from your tailnet.
+It is optional.
 
 ```bash
-bun run --cwd agent dev           # pty gateway + telemetry on :4001 (runs on Node via tsx)
-bun run --cwd frontend dev        # dashboard on :4000
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+tailscale ip -4
 ```
 
-Open `http://localhost:4000`, paste `CONTROL_ROOM_SECRET`, then approve the
-device per [Phase 6.5](#phase-65--approve-your-device-first-login-always-lands-in-pending).
-
-> **Dev "new version" toast won't go away?** Pin `PUBLIC_BUILD_ID=dev-local` before starting the frontend so local restarts keep a stable development build id.
+You can then either use your tailnet hostname or point an appropriate private DNS
+record at the Tailscale address. Do not change `AGENT_HEALTH_HOST` to expose port
+4001; the frontend and agent can communicate over loopback on the same host.
 
 ---
 
-## Phase 7 — Verify
+## 6. Verify the checkout before production deploy
 
-### 7.1 Services up
+The repository-level quality gate is:
 
 ```bash
-ssh user@<vps-ip> 'systemctl is-active vps-control-room-agent vps-control-room-frontend'
-# expect: active
-#         active
+bun run verify
 ```
 
-### 7.2 Health endpoint
+It covers:
+
+- Svelte diagnostics and ESLint;
+- repository engineering/docs/evidence checks;
+- agent + frontend coverage gates;
+- dependency audits;
+- production frontend + agent builds;
+- bundle budget;
+- Playwright responsive/accessibility/security/terminal lifecycle tests.
+
+A successful build alone is not the release gate.
+
+---
+
+## 7. Deploy to the VPS
+
+From a trusted checkout whose `.env.local` is configured:
 
 ```bash
-ssh user@<vps-ip> 'curl -s http://127.0.0.1:4001/health'
-# expect: {"ok":true,...}
+bash scripts/deploy.sh main
 ```
 
-### 7.3 Browser login (from your laptop / phone)
+By default the deploy script may fetch/fast-forward the requested remote branch.
+For an explicitly selected **local worktree** without changing GitHub state:
 
-1. Open `https://control-room.<tailnet>.ts.net` (or your custom domain).
-2. Paste `CONTROL_ROOM_SECRET` from your password manager.
-3. Spawn a terminal, type `whoami`, expect your VPS user.
+```bash
+DEPLOY_FROM_WORKTREE=1 bash scripts/deploy.sh main
+```
 
-### 7.4 Install as a PWA
+The deployment pipeline:
 
-On iOS Safari → Share → **Add to Home Screen**.
-On Android Chrome → ⋮ → **Install app**.
+1. takes a deployment lock;
+2. prepares canonical runtime/state directories;
+3. writes the root-owned production environment;
+4. verifies frontend tests/coverage/audit/E2E/build/bundle budget;
+5. verifies/builds the agent when its source changed or no deployed agent exists;
+6. stages immutable frontend and agent releases under `/srv/control-room/`;
+7. installs/refreshes canonical systemd units;
+8. switches the agent only when required, then verifies it;
+9. switches the frontend and verifies local health/login;
+10. publishes the frontend-only Traefik route and verifies public HTTPS when a
+    domain is configured;
+11. restores the previous frontend+agent pair if the switch fails;
+12. records the successful release and prunes stale inactive releases.
 
-You now have a fullscreen control panel for your VPS that lives on your
-home screen. 🎉
-
----
-
-## API endpoints reference (for AI / automation)
-
-The AI prompt embeds this catalog, but here it is for direct reference:
-
-### Tailscale
-- Docs: https://tailscale.com/api
-- Auth: `Bearer ${TAILSCALE_API_KEY}`
-- Create auth key: `POST https://api.tailscale.com/api/v2/tailnet/-/keys`
-- List devices: `GET https://api.tailscale.com/api/v2/tailnet/-/devices`
-
-### Hostinger
-- Docs: https://developers.hostinger.com/
-- Auth: `Bearer ${HOSTINGER_API_TOKEN}`
-- List VPS: `GET /api/vps/v1/virtual-machines`
-- Create DNS record: `POST /api/dns/v1/zones/{domain}/records`
-
-### Dokploy (if you're using Dokploy in front)
-- Auth: `x-api-key: ${DOKPLOY_API_KEY}`
-- App create: `POST ${DOKPLOY_API_URL}/api/application.create`
-- App deploy: `POST ${DOKPLOY_API_URL}/api/application.deploy`
-- Domain create: `POST ${DOKPLOY_API_URL}/api/domain.create`
-
-### GitHub
-- Docs: https://docs.github.com/rest
-- Auth: `Bearer ${GITHUB_TOKEN}`
-- Create repo: `POST https://api.github.com/user/repos`
-- Create deploy key: `POST https://api.github.com/repos/{owner}/{repo}/keys`
+Do **not** run `scripts/install-systemd.sh` as a fresh-install replacement for
+`deploy.sh`: the installer intentionally expects already-staged `current`
+release symlinks. `deploy.sh` prepares those and invokes the systemd installer in
+the correct order.
 
 ---
 
+## 8. Production layout
+
+Canonical paths:
+
+```text
+/srv/control-room/frontend/releases/    immutable frontend releases
+/srv/control-room/frontend/current      active frontend symlink
+/srv/control-room/agent/releases/       immutable agent releases
+/srv/control-room/agent/current         active agent symlink
+/var/lib/control-room/frontend/         frontend mutable state/device approvals
+/var/lib/control-room/agent/            agent JSON state/logs
+/etc/control-room/control-room.env      root-owned runtime environment
+```
+
+Canonical services/timers:
+
+```text
+vps-control-room-frontend.service
+vps-control-room-agent.service
+vps-control-room-cleanup.timer
+vps-control-room-healthcheck.timer
+```
+
+The frontend service runs as the unprivileged `control-room-web` user. The agent
+runs as the configured host operator because it owns PTYs and bounded host/file
+operations required by terminal UX.
 
 ---
 
-## Troubleshooting
+## 9. First login and device approval
 
-| Symptom | Likely cause | Fix |
-|---------|--------------|-----|
-| `ssh: connection refused` | VPS firewall blocking port 22 | Open port 22 in provider firewall |
-| `tailscale up` hangs | Auth key expired | Regenerate at admin.tailscale.com |
-| `dig` returns nothing | DNS not propagated | Wait 5 min, try `+trace` |
-| Login page returns "invalid" | Secret mismatch | Re-check `.env.local` on the VPS |
-| Right password still won't log in | Device not approved (lands in `pending`) | `node scripts/approve-device.js --list` then approve — [Phase 6.5](#phase-65--approve-your-device-first-login-always-lands-in-pending) |
-| Frontend local dev cannot see expected env values | env only at root, not `frontend/.env.local` | Copy/sync env into `frontend/.env.local` too ([Phase L.2](#l2-secrets--env)) |
-| Terminal pane won't open on Windows/macOS | Shell defaults assume Linux | Set `SHELL` + `TERMINAL_DEFAULT_CWD` env vars |
-| White dashboard after deploy | Build failed silently | `journalctl -u vps-control-room-frontend` |
-| `systemctl` shows `failed` | Wrong WorkingDirectory | Re-run `scripts/install-systemd.sh` |
+Production login is intentionally two-step for a new browser:
 
-More in [runbook.md](./runbook.md) and [ONBOARDING.md](./ONBOARDING.md).
+1. enter the correct `CONTROL_ROOM_SECRET`;
+2. the new device is placed in `pending`;
+3. approve it once from the host;
+4. sign in again.
+
+After systemd installation, use the stable helper:
+
+```bash
+control-room-device --list
+control-room-device <device-id> "my phone"
+control-room-device --revoke <device-id>
+```
+
+The underlying script is also available from a checkout:
+
+```bash
+node scripts/approve-device.js --list
+node scripts/approve-device.js <device-id> "my phone"
+node scripts/approve-device.js --revoke <device-id>
+```
+
+Production approvals live at:
+
+```text
+/var/lib/control-room/frontend/auth-devices.json
+```
+
+Local installs normally set `CONTROL_ROOM_LOCAL_TRUST=1`, so localhost use does
+not require this manual approval step. Never enable local trust on a
+network-reachable production deployment.
 
 ---
 
-## Next steps
+## 10. Post-deploy verification
 
-- Read [../SECURITY.md](../SECURITY.md) to understand the threat model.
-- Read [../CONTRIBUTING.md](../CONTRIBUTING.md) if you want to send PRs.
-- Read [runbook.md](./runbook.md) for incident playbooks.
+On the host:
+
+```bash
+systemctl is-active vps-control-room-agent
+systemctl is-active vps-control-room-frontend
+curl -fsS http://127.0.0.1:4001/health
+curl -fsS http://127.0.0.1:4000/api/health
+```
+
+Confirm the privileged port is not wildcard-bound:
+
+```bash
+ss -ltnp | grep ':4001'
+```
+
+Then from an approved browser/PWA:
+
+1. sign in;
+2. click **+ New shell**;
+3. run `whoami`;
+4. open a second pane or duplicate the first;
+5. resize/switch workspace and confirm the terminal remains usable;
+6. close/reopen the browser and confirm live PTYs can be reattached;
+7. on mobile, check portrait/landscape, safe areas, fullscreen, and soft keys.
+
+For a deployment touching the terminal bridge/agent, also verify input, resize,
+buffer bootstrap, SSE reconnect, and close/process teardown.
+
+---
+
+## 11. Install as a PWA
+
+- iOS Safari: **Share → Add to Home Screen**.
+- Android Chrome: **Install app** / **Add to Home screen**.
+
+The product remains a web UI; installation only changes how it is launched.
+
+---
+
+## 12. Local install
+
+Use the dedicated guide rather than mixing local and VPS assumptions:
+
+- [INSTALL-LOCAL.md](./INSTALL-LOCAL.md) — human local guide.
+- [AI-ONBOARDING.md](./AI-ONBOARDING.md) — local-install playbook for an AI assistant.
+- [NATIVE-WINDOWS.md](./NATIVE-WINDOWS.md) — lightweight Windows launch modes.
+
+Quick local one-liners:
+
+**Windows PowerShell**
+
+```powershell
+irm https://raw.githubusercontent.com/rahmanef63/control-room/main/install.ps1 | iex
+```
+
+**macOS / Linux**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rahmanef63/control-room/main/install.sh | bash
+```
+
+---
+
+## 13. Troubleshooting
+
+| Symptom | Likely cause | Check/fix |
+|---|---|---|
+| Correct password still does not enter app | Device pending | `control-room-device --list`, approve it, sign in again |
+| Login says invalid | Login secret mismatch | Verify the canonical env and restart/redeploy the frontend |
+| Frontend is down | Failed build/unit or port conflict | `journalctl -u vps-control-room-frontend -n 100 --no-pager` |
+| Agent is down | Node/PTY/config/start failure | `journalctl -u vps-control-room-agent -n 100 --no-pager` |
+| Terminal cannot connect | Agent unavailable or bridge failure | Check `:4001/health`, frontend logs, then terminal SSE/WS bridge |
+| Old UI/chunk after deploy | stale browser service worker/cache | reload once; current service worker never caches HTML/API responses |
+| Mobile terminal is clipped | viewport/safe-area regression | check real-device portrait/landscape + keyboard/fullscreen |
+| Deploy refuses immediately | tracked changes or passworded sudo | use a clean checkout, or explicit `DEPLOY_FROM_WORKTREE=1`; ensure `sudo -n true` works |
+
+More operational detail: [runbook.md](./runbook.md).
+
+---
+
+## 14. Backup and recovery
+
+Create a recovery snapshot without copying the runtime env by default:
+
+```bash
+bash scripts/backup-control-room.sh
+```
+
+It creates a Git bundle, mutable-state archive, and checksums under
+`~/.local/state/control-room-backups/<timestamp>/`. Copy that directory to an
+approved encrypted off-host destination.
+
+`--include-env` also includes the root-owned production environment and therefore
+requires stronger secret handling:
+
+```bash
+bash scripts/backup-control-room.sh --include-env
+```
+
+See [runbook.md](./runbook.md) for rollback and incident commands.

@@ -52,8 +52,5 @@ if [ -n "${MIGRATE_AGENT_STATE_DIR:-}" ] && [ -d "${MIGRATE_AGENT_STATE_DIR}" ];
   fi
 fi
 
-if [ ! -f "${STATE_ROOT}/agent/crons.json" ] && [ -n "${MIGRATE_CRON_STORE:-}" ] && [ -f "${MIGRATE_CRON_STORE}" ]; then
-  install -o "${APP_USER}" -g "${APP_USER}" -m 0600 "${MIGRATE_CRON_STORE}" "${STATE_ROOT}/agent/crons.json"
-fi
 
 printf 'runtime_root=%s\nstate_root=%s\nweb_user=%s\n' "${RUNTIME_ROOT}" "${STATE_ROOT}" "${WEB_USER}"

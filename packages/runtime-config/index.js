@@ -8,24 +8,13 @@ export const DEFAULT_RUNTIME_CONFIG = {
     {
       id: "host-default",
       label: "Host Default",
-      description: "Main host workspace for the control room and general VPS operations.",
-      cwd: "/opt/vps-control-room",
-      envText:
-        "CONTROL_ROOM_ACCESS_MODE=tailscale-only\nWORKSPACE_ROOT=/opt",
-      tags: ["host", "default", "ops"],
+      description: "Default shell environment on this machine.",
+      cwd: "",
+      envText: "",
+      tags: ["host", "default"],
     },
   ],
-  agentProfiles: [
-    {
-      id: "codex-ops",
-      label: "Codex Ops",
-      description: "Codex terminal tuned for VPS operations and end-to-end fixes.",
-      terminalProfile: "codex",
-      model: "codex",
-      environmentId: "host-default",
-      skills: ["skill-coder", "system-check", "dokploy-deploy"],
-    },
-  ],
+  agentProfiles: [],
 };
 
 const VALID_TERMINAL_PROFILES = new Set(TERMINAL_PROFILE_VALUES);

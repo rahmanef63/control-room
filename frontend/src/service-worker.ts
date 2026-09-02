@@ -13,7 +13,7 @@ const OFFLINE_URL = '/offline.html';
 const BUILD_ASSETS = new Set(build);
 const STATIC_FILES = new Set(files);
 
-const NO_CACHE_PATTERNS = [/^\/api\//, /\/_convex\//, /\/convex\//];
+const NO_CACHE_PATTERNS = [/^\/api\//];
 
 async function addIndependently(cacheName: string, urls: string[]): Promise<void> {
   const cache = await caches.open(cacheName);

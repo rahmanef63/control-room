@@ -17,7 +17,6 @@ export interface Config {
   AGENT_HEALTH_PORT: number;
   AGENT_HEALTH_HOST: string;
   HOST_TELEMETRY_INTERVAL_MS: number;
-  DOCKER_SOCKET_PATH: string;
 }
 
 /** Minimum length for the privileged gateway secret. */
@@ -35,7 +34,6 @@ export const config: Config = {
   // 0.0.0.0 only for a genuine cross-host deployment (and use a real authn layer).
   AGENT_HEALTH_HOST: getEnv("AGENT_HEALTH_HOST", "127.0.0.1"),
   HOST_TELEMETRY_INTERVAL_MS: getEnvNum("HOST_TELEMETRY_INTERVAL_MS", 15000),
-  DOCKER_SOCKET_PATH: getEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock"),
 };
 
 /**

@@ -10,8 +10,8 @@ Read root `CLAUDE.md` first. It is the architecture and execution SSOT.
 ## Project layout
 
 ```text
-frontend/   SvelteKit 2 + Svelte 5 runes + Tailwind 4; adapter-node on Bun
-agent/      TypeScript/Node 22 host agent; node-pty + host APIs
+frontend/   SvelteKit 2 + Svelte 5 runes + Tailwind 4; adapter-node; Node 22 in production, Bun tooling
+agent/      TypeScript/Node 22 host agent; node-pty + bounded terminal-support host APIs
 packages/   shared contracts/runtime configuration
 scripts/    Svelte-native deploy, systemd, local tooling
 ```
@@ -20,6 +20,7 @@ scripts/    Svelte-native deploy, systemd, local tooling
 ## Gates
 
 ```bash
+bun run docs:check
 bun run --cwd frontend check
 bun run --cwd frontend test
 bun run --cwd frontend build

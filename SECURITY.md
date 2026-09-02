@@ -1,5 +1,7 @@
 # Security Policy
 
+**Current baseline: v2.0.0 terminal-first runtime.**
+
 ## Threat model
 
 Control Room is a **single-owner administrative terminal surface**. The browser-facing SvelteKit application may be reachable over HTTPS, while the privileged Node agent must stay on loopback.

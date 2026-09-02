@@ -65,6 +65,16 @@ test('CLI profiles remain thin terminal launch wrappers', () => {
   assert.match(openclaw.args.join(' '), /openclaw/);
 });
 
+
+test('tracked host-default environment stays generic and falls back to the host cwd', () => {
+  const launch = resolveTerminalLaunch({ profile: 'shell', environmentId: 'host-default' });
+  assert.equal(launch.environment?.id, 'host-default');
+  assert.ok(launch.cwd);
+  assert.equal(launch.env.CONTROL_ROOM_ACCESS_MODE, undefined);
+  assert.equal(launch.env.DOCKER_HOST, undefined);
+  assert.equal(launch.agentProfile, undefined);
+});
+
 test('unknown runtime configuration ids fail closed', () => {
   assert.throws(
     () => resolveTerminalLaunch({ profile: 'shell', environmentId: '__missing_environment__' }),

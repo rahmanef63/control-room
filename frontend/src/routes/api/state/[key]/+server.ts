@@ -18,7 +18,7 @@ export const PUT: RequestHandler = async (event) => {
 	if (denied) return denied;
 
 	// SvelteKit's Web Request body remains readable after async auth checks, so
-	// the Next 15.5 body-before-await workaround is deliberately not carried over.
+	// Read the body once and forward it unchanged to the agent state endpoint.
 	const body = await event.request.text();
 	const response = await terminalGatewayFetch(`/state/${encodeURIComponent(event.params.key!)}`, {
 		method: 'PUT',

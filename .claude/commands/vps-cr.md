@@ -21,11 +21,11 @@ CLI ini cross-platform. Pilih sesuai OS:
   ```
   Jika fungsi `vps-cr` belum termuat di sesi ini, panggil brain-nya langsung:
   ```powershell
-  node "$HOME\projects\vps-control-room\scripts\local\control.mjs" $ARGUMENTS
+  node "scripts\local\control.mjs" $ARGUMENTS
   ```
 - **macOS / Linux:**
   ```bash
-  vps-cr $ARGUMENTS    # atau: node ~/vps-control-room/scripts/local/control.mjs $ARGUMENTS
+  vps-cr $ARGUMENTS    # dari repo: node scripts/local/control.mjs $ARGUMENTS
   ```
 
 Normalisasi: buang `--` di depan verb pertama bila ada (`--acc 123` → `acc 123`).
@@ -34,9 +34,9 @@ Normalisasi: buang `--` di depan verb pertama bila ada (`--acc 123` → `acc 123
 
 | Yang diketik user | Yang dijalankan | Efek |
 | --- | --- | --- |
-| `/vps-cr app` | `vps-cr app` | buka **dashboard penuh di window app NATIVE** (WebView2/Edge app-mode — semua fitur, ringan, bukan di browser berat) |
-| `/vps-cr term [n]` | `vps-cr term [n]` | buka **n pane terminal NATIVE** (Windows Terminal, no browser — tercepat/teringan untuk sekadar shell) |
-| `/vps-cr ssh [target]` | `vps-cr ssh [target]` | buka **pane SSH native** ke VPS (default `vpsku`) |
+| `/vps-cr app` | `vps-cr app` | buka **terminal dashboard penuh di window app-mode khusus** (Edge/Chrome, bukan tab browser harian) |
+| `/vps-cr term [n]` | `vps-cr term [n]` | **Windows only:** buka n pane Windows Terminal tanpa web UI |
+| `/vps-cr ssh [target]` | `vps-cr ssh [target]` | **Windows only:** buka pane SSH native (default target `vpsku`) |
 | `/vps-cr build` | `vps-cr build` | build server PROD enteng (atasi UI freeze saat banyak pane) |
 | `/vps-cr` atau `/vps-cr open` | `vps-cr` | start frontend+agent **lalu buka browser** |
 | `/vps-cr start` | `vps-cr start` | start services **tanpa browser** (hemat RAM) |
@@ -55,7 +55,7 @@ Normalisasi: buang `--` di depan verb pertama bila ada (`--acc 123` → `acc 123
 ## Aturan
 
 - **JANGAN** menjalankan perintah VPS/produksi (`scripts/deploy.sh`,
-  `install-systemd.sh`, `bump-version.sh`) — ini jalur LOKAL saja.
+  `scripts/install-systemd.sh`) — ini jalur LOKAL saja.
 - **JANGAN** menampilkan isi `.env.local` atau secret/password ke chat. Kalau
   perlu password, suruh user jalankan `vps-cr config` sendiri.
 - Kalau `vps-cr` "not recognized": fungsinya belum termuat di sesi PowerShell —

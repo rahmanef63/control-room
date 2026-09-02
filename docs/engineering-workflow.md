@@ -40,7 +40,7 @@ bun run evidence:create -- \
   --check "frontend-check=passed" \
   --check "playwright=passed" \
   --browser passed \
-  --artifact .agent/evidence/artifacts/provider-store-after-mobile.png
+  --artifact .agent/evidence/artifacts/terminal-workspace-after-mobile.png
 ```
 
 For UI work, the reusable pipeline is:
@@ -144,7 +144,7 @@ classify risk
 → mark known-good commit/release
 ```
 
-CI remains intentionally small. The existing root `bun run verify` is the repository quality gate; engineering-memory tests and artifact secret checks are part of it.
+CI remains intentionally small. The root `bun run verify` is the repository quality gate; engineering-memory tests, documentation consistency checks, and artifact secret checks are part of it.
 
 ## Versi sederhana
 

@@ -1,8 +1,5 @@
-// Mirrors packages/contracts/index.d.ts (the shared TS contract between
-// agent, old Next proxy routes, and now this app) for the terminal slice
-// only. Import the full contracts package instead once it's published for
-// consumption outside the monorepo's `frontend/` — for now this is a
-// hand-copied subset kept intentionally small.
+// Browser-side mirror of the small shared terminal/runtime contract.
+// Keep this subset terminal-focused; host-only implementation types stay in the agent.
 
 export type TerminalProfile = 'shell' | 'codex' | 'claude' | 'gemini' | 'openclaw';
 

@@ -26,7 +26,7 @@ export default defineConfig({
       timeout: 30_000
     },
     {
-      command: 'bun run build && bun build/index.js',
+      command: 'bun run build && node build/index.js',
       url: 'http://127.0.0.1:44173/login',
       reuseExistingServer: false,
       timeout: 120_000,

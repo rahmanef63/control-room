@@ -1,6 +1,6 @@
 # VPS Control Room — Svelte Page Pattern
 
-Use this pattern for new frontend pages or substantial page refactors. Root `CLAUDE.md` remains the SSOT.
+Use this pattern for a terminal-scoped frontend page or substantial page refactor. Root `CLAUDE.md` remains the SSOT. Do not add a new page for provider management, browser automation, scheduling, managed apps, or other non-terminal product scope.
 
 ## Location
 

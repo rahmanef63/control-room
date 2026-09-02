@@ -19,16 +19,18 @@ labels: enhancement
 
 ## Scope check
 
-This project is a **single-user, self-hosted, Tailscale-only**
-dashboard. Confirm your proposal fits:
+Control Room v2 is a **single-owner, self-hosted terminal multiplexer**. Confirm
+the proposal fits the product boundary:
 
+- [ ] Directly improves creating, organizing, reconnecting to, or interacting with terminal sessions
 - [ ] Works for one operator (not multi-user / multi-tenant)
-- [ ] Doesn't require exposing the dashboard to the public internet
-- [ ] Doesn't add a runtime dependency (or you'll justify why)
-- [ ] Doesn't send telemetry to a third party
+- [ ] Does not make Control Room own another tool's credentials, browser automation, scheduler, or deployment lifecycle
+- [ ] Does not add project-specific runtime coupling
+- [ ] Does not send telemetry to a third party
+- [ ] Documents any new authentication/network/host-privilege impact
 
-If any box is unchecked, this likely belongs in a fork — but open the
-discussion anyway, we might still want it.
+If the feature belongs inside a CLI/tool running in a terminal, prefer keeping it
+there rather than expanding Control Room core.
 
 ## Willing to contribute?
 
