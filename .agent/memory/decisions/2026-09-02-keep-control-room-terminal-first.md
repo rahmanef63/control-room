@@ -3,11 +3,11 @@ type: "decision"
 status: "confirmed"
 confidence: "high"
 created_at: "2026-09-02T18:11:15.414Z"
-updated_at: "2026-09-02T18:11:15.414Z"
-last_verified: null
+updated_at: "2026-09-02T18:16:09.280Z"
+last_verified: "2026-09-02T18:16:09.280Z"
 scope: "product-architecture"
 tags: ["terminal", "tmux", "scope", "standalone"]
-commit: "5915cdb797b844aaa2975e1ed390af8592025bd1"
+commit: "bdad906040aa6c4ebca2b605a89fd71201502634"
 supersedes: null
 superseded_by: null
 source: "agent"
@@ -33,4 +33,4 @@ Keep PTY sessions, workspaces, mobile terminal UX, terminal history/templates, c
 
 ## Verification / review trigger
 
-Review this boundary only if the product definition is explicitly changed. Commit `5915cdb797b844aaa2975e1ed390af8592025bd1` passed the full repository verification and stale-scope/dead-path scans.
+Review this boundary only if the product definition is explicitly changed. Commit `bdad906040aa6c4ebca2b605a89fd71201502634` passed the full repository verification and stale-scope/dead-path scans.

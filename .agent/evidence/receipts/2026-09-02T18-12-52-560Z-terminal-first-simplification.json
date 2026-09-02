@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "generated_at": "2026-09-02T18:12:52.560Z",
-  "repo": "control-room-wt-engineering",
-  "commit": "5915cdb797b844aaa2975e1ed390af8592025bd1",
-  "dirty": true,
+  "repo": "control-room",
+  "commit": "bdad906040aa6c4ebca2b605a89fd71201502634",
+  "dirty": false,
   "environment": "development",
   "target": "terminal-first simplification",
   "assertions": [
@@ -43,5 +43,6 @@
     ".agent/evidence/artifacts/terminal-workspace-after-desktop.png",
     ".agent/evidence/artifacts/terminal-workspace-after-mobile.png"
   ],
-  "notes": "Full root verification passed on terminal-first commit 5915cdb. Playwright terminal lifecycle passed 5/5; active-surface scope and dead-path scans passed. Screenshots remain private/local and gitignored."
+  "notes": "Full root verification passed again on main commit bdad906. Playwright terminal lifecycle passed 5/5; active-surface scope and dead-path scans passed. Desktop/mobile screenshots remain private/local and gitignored.",
+  "main_verified_at": "2026-09-02T18:16:09.280Z"
 }
