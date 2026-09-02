@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-02T19:46:05.797Z",
+  "repo": "control-room-wt-layout-v2",
+  "commit": "915b0e186478d9aa09423c77470a6e85074d5b16",
+  "dirty": false,
+  "environment": "development",
+  "target": "responsive terminal app chrome",
+  "assertions": [
+    {
+      "claim": "desktop chrome split into app menu workspace rail session command bar",
+      "status": "passed"
+    },
+    {
+      "claim": "mobile keeps context workspace session rails and primary quick actions",
+      "status": "passed"
+    },
+    {
+      "claim": "secondary mobile controls remain available in action sheet",
+      "status": "passed"
+    },
+    {
+      "claim": "no document overflow across nine viewport matrix",
+      "status": "passed"
+    },
+    {
+      "claim": "accessibility critical serious violations zero",
+      "status": "passed"
+    },
+    {
+      "claim": "terminal create duplicate lifecycle preserved",
+      "status": "passed"
+    }
+  ],
+  "checks": {
+    "root-verify": "passed",
+    "svelte-check": "passed",
+    "docs-check": "passed",
+    "agent-tests-35": "passed",
+    "frontend-tests-66": "passed",
+    "agent-coverage-48.93-lines-52.62-functions": "passed",
+    "frontend-coverage-93.84-lines-92.36-functions": "passed",
+    "dependency-audit": "passed",
+    "production-build": "passed",
+    "bundle-budget": "passed",
+    "playwright-5-of-5": "passed"
+  },
+  "browser": {
+    "result": "passed",
+    "console_errors": 0,
+    "network_errors": 0
+  },
+  "deployment_state": "not-deployed",
+  "artifacts": [
+    ".agent/evidence/artifacts/layout-before-desktop.png",
+    ".agent/evidence/artifacts/layout-after-desktop.png",
+    ".agent/evidence/artifacts/layout-before-mobile.png",
+    ".agent/evidence/artifacts/layout-after-mobile-compact.png",
+    ".agent/evidence/artifacts/layout-after-mobile.png"
+  ],
+  "notes": "Progressive density: full labels on wide desktop, icon-dense medium widths, compact mobile quick actions plus secondary control sheet. Full root verification passed on commit 915b0e1. Production and remote Git were not modified."
+}
