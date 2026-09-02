@@ -345,17 +345,12 @@ The frontend does not require a public client-side origin secret/config pair. De
 
 ## Customization
 
-- **Soft keyboard keys** — `frontend/src/features/terminals/lib/utils.ts`,
-  `SOFT_KEYBOARD_KEYS`. Toggle per-key visibility in Settings.
+- **Soft keyboard keys** — `frontend/src/lib/features/terminals/types.ts` defines the key catalog and `soft-keyboard.ts` defines supported actions. Toggle per-key visibility in Settings.
 - **Agent profiles** — `packages/runtime-config/index.js` lists each agent
   (id, launchCommand, terminalProfile, model).
-- **Activity heuristics** — `frontend/src/features/terminals/lib/utils.ts`
-  (`detectIdleActivity`) classifies recent output. Tweak there if your
-  agent's "asking for confirmation" prompt doesn't match.
-- **Grid row height** — adjust `--terminal-tops-h` in
-  `frontend/app/styles/terminals/pane-stack.css` if you add or remove a top bar.
-- **Heartbeat glow** — `frontend/app/styles/terminals/heartbeat.css`, the
-  `pane-heartbeat-glow` keyframes.
+- **Activity heuristics** — `frontend/src/lib/features/terminals/telemetry.ts` (`detectIdleActivity`) classifies recent output. Tweak there if your agent's "asking for confirmation" prompt doesn't match.
+- **Terminal grid/layout** — `frontend/src/routes/control-room-page.css` owns responsive grid columns, shell spacing, and pane framing.
+- **Heartbeat glow** — `frontend/src/routes/control-room-page.css`, keyed by `data-heartbeat` on each pane frame.
 
 ---
 
@@ -381,9 +376,7 @@ bump the constant and redeploy for a higher cap.
 ### After deploy the browser shows the old build
 - The service worker auto-purges its cache when `GET /api/version`
   reports a different build id. Ctrl-Shift-R forces an immediate refresh.
-- Check `frontend/public/sw.js` first two lines — they should show the
-  current commit prefix. If not, `bash scripts/bump-version.sh $(git rev-parse HEAD | cut -c1-12)`
-  manually and redeploy.
+- Check `GET /api/version` against the active release and inspect `frontend/src/service-worker.ts` if cache invalidation behavior changes. The build id is injected during the normal deploy; there is no separate version-bump script.
 
 ### Cross-browser workspace state is stale
 - The agent JSON at `/var/lib/control-room/agent/workspaces.json` is last-write-wins. If two

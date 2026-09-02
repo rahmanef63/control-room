@@ -94,12 +94,8 @@ export function getStreamUrl(sessionId: string): string {
 	return `/api/terminals/${encodeURIComponent(sessionId)}/stream`;
 }
 
-// Added for ported feature slices. The rest of the original
-// lib/utils.ts storage-key constants (SESSION_STORAGE_KEY, WORKSPACE_*,
-// TEMPLATES_*, ALFA_WATCHERS_*) and its
-// ActivityState/detectIdleActivity() are intentionally not copied here yet —
-// they get ported alongside the feature that actually reads/writes them, to
-// avoid dumping a pile of unused constants into this file.
+// App-settings storage stays here because the terminal settings contract owns it.
+// Other storage keys and telemetry heuristics remain colocated with their feature slices.
 export const APP_SETTINGS_STORAGE_KEY = 'vps-control-room.app-settings';
 
 export const SOFT_KEYBOARD_KEYS = [
