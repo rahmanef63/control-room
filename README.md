@@ -1,5 +1,7 @@
 # VPS Control Room — v2.0
 
+[![Verify](https://github.com/rahmanef63/control-room/actions/workflows/verify.yml/badge.svg)](https://github.com/rahmanef63/control-room/actions/workflows/verify.yml)
+[![Security](https://github.com/rahmanef63/control-room/actions/workflows/security.yml/badge.svg)](https://github.com/rahmanef63/control-room/actions/workflows/security.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
 &nbsp;![PWA installable](https://img.shields.io/badge/PWA-installable-38bdf8)
 &nbsp;![SvelteKit 2](https://img.shields.io/badge/SvelteKit-2-ff3e00)
@@ -17,19 +19,25 @@ and a loopback-only privileged agent.
   <img src="./docs/media/dashboard-mobile.png" alt="VPS Control Room authenticated terminal dashboard on a phone-width viewport, rendered locally" width="280" />
 </p>
 
-<p align="center"><sub>Real authenticated captures of the running app, taken from the SvelteKit frontend with a local agent gateway and real terminal panes.</sub></p>
+<p align="center"><sub>Real authenticated dashboard captures from the SvelteKit frontend. Provider Store media below uses the deterministic local integration fixture, so documentation can show account/credential states without exposing real provider secrets.</sub></p>
 
-> **What's new in v2.0**: single-kebab pane header, per-terminal skills
-> (project + global), Move-to-workspace, 4-step zoom, heartbeat
-> outer-glow with a Test-heartbeat button, cross-browser workspace
-> sync via agent-side JSON, exact 2-row desktop grid, two-row mobile
-> soft keyboard with prominent Tab, plus local laptop install via `vps-cr`.
+### SI-Coder Provider Store
+
+![Control Room SI-Coder Provider Store — user, provider and named-connection navigation](./docs/media/provider-store-demo.gif)
+
+<p align="center"><sub>Control Room is a UI/control-plane for SI-Coder's provider store: User → Provider → named Connection → credential status. Direct secret values never pass through browser JSON.</sub></p>
+
+> **What's new in v2.0**: SI-Coder Provider Store integration, cwd-aware user
+> resolution, named provider connections and secure credential handoff; plus
+> single-kebab pane actions, per-terminal skills, Move-to-workspace, 4-step zoom,
+> heartbeat state, cross-browser workspace sync, mobile soft keyboard and local
+> laptop install via `vps-cr`.
 
 ## Capabilities at a glance
 
-| Terminals | AI agents | Host ops | Mobile |
-|:---:|:---:|:---:|:---:|
-| 16 ptys, reconnect buffers, broadcast input | Claude / Codex / Gemini / OpenClaw launchers with regular or bypass modes | Agent-owned systemd, Docker, journal, telemetry and file APIs | PWA layout, soft keyboard with Tab, one-column portrait mode |
+| Terminals | AI agents | Provider store | Host ops | Mobile |
+|:---:|:---:|:---:|:---:|:---:|
+| 16 ptys, reconnect buffers, broadcast input | Claude / Codex / Gemini / OpenClaw launchers with regular or bypass modes | SI-Coder users, providers, named connections, verification and secret-safe setup handoff | Agent-owned systemd, Docker, journal, telemetry and file APIs | PWA layout, soft keyboard with Tab, one-column portrait mode |
 
 This is intentionally not a public SaaS or remote-desktop replacement. It is a
 single-owner control surface: the browser sees a safe web UI, while the local
@@ -80,23 +88,29 @@ from zero? **[docs/AI-ONBOARDING.md](docs/AI-ONBOARDING.md)**.
 
 ## Architecture
 
-Three tiers, one direction-of-trust:
+Three tiers, one direction of trust. The browser can request provider metadata
+and safe actions, but only the privileged loopback agent can execute SI-Coder's
+allowlisted machine surface.
 
-```
-browser ──HTTPS/SSE──► Traefik ──► frontend (Node 22 adapter-node, unprivileged web user)
-                                      │
-                                      │ machine-authenticated HTTP/WS
-                                      ▼
-                                 127.0.0.1:4001
-                                 agent (Node 22, privileged host boundary)
-                                      │
-                                      ├─► pty / host / Docker / systemd
-                                      ├─► SI-Coder safe tool adapter ─► ~/.config/si-coder/
-                                      └─► /var/lib/control-room/agent/*.json
+```mermaid
+flowchart TD
+    Browser["Browser / PWA"] -->|HTTPS + SSE| Traefik["Traefik public perimeter"]
+    Traefik -->|:4000| Frontend["SvelteKit 2 + Svelte 5<br/>control-room-web<br/>no sudo / no Docker"]
+    Frontend -->|machine-authenticated HTTP + WS| Agent["Node 22 privileged agent<br/>127.0.0.1:4001<br/>AGENT_GATEWAY_SECRET"]
 
-runtime releases: /srv/control-room/{frontend,agent}/releases
-runtime env:      /etc/control-room/control-room.env
+    Agent --> PTY["PTY / host / systemd / Docker / filesystem"]
+    Agent --> State["/var/lib/control-room/agent/*.json"]
+    Agent --> Bridge["SI-Coder safe tool bridge"]
+    Bridge --> Manifest[".mso/functions.json<br/>function-schema SSOT"]
+    Manifest --> Adapter["scripts/sc-agent.js<br/>secret-safe adapter"]
+    Adapter --> Store["~/.config/si-coder/<br/>User → Provider → Connection"]
+
+    Browser -. "credential status, labels, scopes only" .-> Frontend
+    Store -. "raw credential values never serialized" .-> Adapter
 ```
+
+Runtime code is released immutably under `/srv/control-room/{frontend,agent}/releases`;
+production environment is `/etc/control-room/control-room.env`.
 
 **Rules of trust**
 
@@ -115,6 +129,34 @@ runtime env:      /etc/control-room/control-room.env
 ---
 
 ## Features
+
+### SI-Coder Provider Store
+
+Control Room uses **SI-Coder as the provider/credential SSOT** instead of
+maintaining a second secret store. The Provider Store drawer mirrors the same
+hierarchy used by the SC CLI and its MCP/MSO tool surface:
+
+```text
+User
+└─ Provider
+   └─ Named connection
+      └─ Credential fields (status only in the browser)
+```
+
+- The active terminal `cwd` is resolved with `sc.user.which`; if no project
+  mapping exists, the SI-Coder default/current user is used.
+- The drawer can inspect readiness, auth method/scope, named connections, set a
+  default connection, create/delete connection metadata and run provider verify.
+- Direct API keys/tokens are never entered into a web form. **Set securely**
+  creates a `Provider setup` terminal and injects only the non-secret
+  `sc user credential-set …` command; SI-Coder collects the value through its
+  hidden terminal prompt.
+- OAuth/external connections keep provider tokens in the external connected
+  account. Control Room/SI-Coder retain only safe alias, scope and status metadata.
+
+<p align="center">
+  <img src="./docs/media/provider-store-mobile.png" alt="SI-Coder Provider Store in Control Room on a mobile viewport" width="300" />
+</p>
 
 ### Terminal workspace
 
@@ -431,6 +473,7 @@ bump the constant and redeploy for a higher cap.
 │   │   ├── cron/                      # scheduler + HTTP triggers
 │   │   ├── fs/                        # explorer + skill listing
 │   │   ├── state/                     # JSON state store + log.json
+│   │   ├── si-coder/                  # allowlisted SI-Coder tool bridge + HTTP
 │   │   └── terminal/                  # pty manager + ws/http gateways
 │   └── dist/
 ├── frontend/
@@ -440,8 +483,10 @@ bump the constant and redeploy for a higher cap.
 │   │   ├── api/state/[key]/           # agent JSON state proxy
 │   │   ├── api/log/                   # agent log.json proxy
 │   │   ├── api/skills/                # global + project skills (cwd-aware)
+│   │   ├── api/si-coder/              # authenticated provider-tool proxy
 │   │   └── browser/                    # optional browser CRUD console
 │   └── src/lib/                       # vertical slices, shared UI/state/server helpers
+│       ├── features/providers/        # SI-Coder Provider Store UI + typed client
 │       ├── features/terminals/        # terminal workspace + Svelte rune state
 │       ├── components/                # drawers + UI primitives
 │       └── server/                    # authenticated agent gateway helpers

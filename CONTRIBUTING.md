@@ -77,8 +77,8 @@ The repository-level SSOT is:
 bun run verify
 ```
 
-It runs Svelte check, ESLint, frontend + agent coverage gates, production builds,
-and the isolated Playwright suite. The browser suite covers 320×568, 360×800,
+It runs Svelte check, ESLint, frontend + agent coverage gates, dependency audits,
+production builds, and the isolated Playwright suite. The browser suite covers 320×568, 360×800,
 390×844, 430×932, 768×1024, 1366×768, and 844×390 landscape, plus Axe
 WCAG A/AA critical/serious checks and the login visual baseline.
 
@@ -97,6 +97,11 @@ the isolated suite: create, input, resize, buffer, SSE reconnect, and close.
 Deploy/install changes must additionally verify both immutable release targets,
 agent loopback binding, the frontend-only Traefik route, runtime state/env
 permissions, and automatic pair rollback material.
+
+GitHub also runs `.github/workflows/security.yml`: Gitleaks scans full Git history
+on every supported trigger, while CodeQL and Dependency Review run when GitHub
+Code Security is available. Dependabot tracks both Bun workspaces and pinned
+GitHub Actions. Do not weaken or remove these gates merely to make a PR green.
 
 ## Security rules
 

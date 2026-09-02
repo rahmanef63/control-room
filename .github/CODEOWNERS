@@ -1,0 +1,7 @@
+# Single-owner administrative shell: sensitive runtime/security changes require the owner.
+* @rahmanef63
+
+/agent/ @rahmanef63
+/frontend/src/routes/api/ @rahmanef63
+/.github/workflows/ @rahmanef63
+/SECURITY.md @rahmanef63

@@ -67,6 +67,28 @@ The integration must preserve these invariants:
 - Do not trust arbitrary command metadata from disk: the bridge allowlists the
   canonical `node scripts/sc-agent.js <action>` function shape before execution.
 
+## GitHub security automation
+
+Repository security is fail-closed in CI where the platform supports it:
+
+- `.github/workflows/verify.yml` runs the same check/lint/coverage/audit/build/
+  Playwright gate used locally.
+- `.github/workflows/security.yml` always runs a verified Gitleaks full-history
+  scan. CodeQL `security-extended` and Dependency Review run when the repository
+  is public or GitHub Code Security is explicitly enabled with the repository
+  variable `GH_CODE_SECURITY_ENABLED=1`.
+- `.github/dependabot.yml` watches the frontend and agent Bun lockfiles plus
+  GitHub Actions; minor/patch dependency updates are grouped while majors remain
+  reviewable separately.
+- Third-party GitHub Actions are pinned to immutable commit SHAs. The Gitleaks
+  binary is also checksum-verified before execution.
+- `.github/CODEOWNERS` routes privileged agent, API, workflow and security-policy
+  changes to the repository owner.
+
+These repository controls complement rather than replace the runtime trust
+boundary below. A green dependency/code scan does not make authenticated shell
+execution safe for untrusted users.
+
 ## Production invariants
 
 - Public reverse proxy routes **only** to frontend port 4000.
