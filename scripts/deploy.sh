@@ -114,7 +114,9 @@ git diff --check
 STAMP="$(date -u '+%Y%m%dT%H%M%SZ')"
 FRONTEND_RELEASE="${FRONTEND_RELEASES}/svelte-${STAMP}-${CURRENT_COMMIT:0:7}"
 mkdir -p "${FRONTEND_RELEASE}"
-cp -a frontend/build "${FRONTEND_RELEASE}/build"
+# adapter-node externalizes a small runtime dependency set; stage the frozen node_modules tree
+# with the build so /srv releases do not depend on the Git checkout's node_modules.
+cp -a frontend/build frontend/node_modules frontend/package.json frontend/bun.lock "${FRONTEND_RELEASE}/"
 
 if [ "${AGENT_RESTART_REQUIRED}" -eq 1 ]; then
   log "Agent tree changed or has no deployment stamp; verifying and staging immutable agent release"
@@ -138,8 +140,9 @@ stage_legacy_frontend_rollback() {
   mkdir -p "${target}"
   if [ -n "${LEGACY_FRONTEND_CWD}" ] && [ -d "${LEGACY_FRONTEND_CWD}/build" ]; then
     cp -a "${LEGACY_FRONTEND_CWD}/build" "${target}/build"
+    cp -a frontend/node_modules frontend/package.json frontend/bun.lock "${target}/"
   else
-    cp -a frontend/build "${target}/build"
+    cp -a frontend/build frontend/node_modules frontend/package.json frontend/bun.lock "${target}/"
   fi
   printf '%s\n' "${target}"
 }

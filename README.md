@@ -36,7 +36,7 @@ single-owner control surface: the browser sees a safe web UI, while the local
 agent owns host access behind an authenticated, loopback-bound gateway.
 
 ```
-┌─ frontend/  SvelteKit 2 + Svelte 5 runes + Tailwind 4, adapter-node on Bun
+┌─ frontend/  SvelteKit 2 + Svelte 5 runes + Tailwind 4, adapter-node on Node 22
 ├─ agent/     Node 22 host agent — pty gateway, host telemetry, log.json
 └─ scripts/   Svelte-native deploy + systemd installer + local tooling
 ```
@@ -83,7 +83,7 @@ from zero? **[docs/AI-ONBOARDING.md](docs/AI-ONBOARDING.md)**.
 Three tiers, one direction-of-trust:
 
 ```
-browser ──HTTPS/SSE──► Traefik ──► frontend (Bun, unprivileged web user)
+browser ──HTTPS/SSE──► Traefik ──► frontend (Node 22 adapter-node, unprivileged web user)
                                       │
                                       │ machine-authenticated HTTP/WS
                                       ▼

@@ -180,7 +180,7 @@ sudo bash scripts/install-systemd.sh
 
 This installs:
 - `vps-control-room-agent` — Node 22 host agent
-- `vps-control-room-frontend` — SvelteKit adapter-node production server on Bun
+- `vps-control-room-frontend` — SvelteKit adapter-node production server on Node 22
 - `vps-control-room-cleanup` service + timer — daily terminal-runtime sweep
 
 The installer stages stable production paths: `/srv/control-room/.../current` for runtime code, `/var/lib/control-room/` for mutable state, and `/etc/control-room/control-room.env` for the root-owned runtime environment. The frontend runs as `control-room-web`; the agent remains the privileged host boundary.

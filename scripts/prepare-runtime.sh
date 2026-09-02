@@ -11,8 +11,6 @@ WEB_USER="${CONTROL_ROOM_WEB_USER:-control-room-web}"
 RUNTIME_ROOT="${CONTROL_ROOM_RUNTIME_ROOT:-/srv/control-room}"
 STATE_ROOT="${CONTROL_ROOM_STATE_ROOT:-/var/lib/control-room}"
 CONFIG_ROOT="${CONTROL_ROOM_CONFIG_ROOT:-/etc/control-room}"
-BUN_SOURCE="${BUN_BIN:-}"
-RUNTIME_BUN="${CONTROL_ROOM_BUN_BIN:-/usr/local/bin/control-room-bun}"
 
 if ! id "${APP_USER}" >/dev/null 2>&1; then
   echo "Error: app user does not exist: ${APP_USER}" >&2
@@ -32,16 +30,6 @@ install -d -o "${APP_USER}" -g "${APP_USER}" -m 0755 "${RUNTIME_ROOT}" \
 install -d -o "${WEB_USER}" -g "${WEB_USER}" -m 0700 "${STATE_ROOT}/frontend"
 install -d -o "${APP_USER}" -g "${APP_USER}" -m 0700 "${STATE_ROOT}/agent"
 install -d -o root -g root -m 0755 "${CONFIG_ROOT}"
-
-if [ -n "${BUN_SOURCE}" ] && [ -x "${BUN_SOURCE}" ]; then
-  if [ ! -x "${RUNTIME_BUN}" ] || ! cmp -s "${BUN_SOURCE}" "${RUNTIME_BUN}"; then
-    install -o root -g root -m 0755 "${BUN_SOURCE}" "${RUNTIME_BUN}"
-  fi
-fi
-if [ ! -x "${RUNTIME_BUN}" ]; then
-  echo "Error: runtime Bun missing at ${RUNTIME_BUN}; pass BUN_BIN=/path/to/bun" >&2
-  exit 1
-fi
 
 AUTH_STORE="${STATE_ROOT}/frontend/auth-devices.json"
 if [ ! -f "${AUTH_STORE}" ]; then

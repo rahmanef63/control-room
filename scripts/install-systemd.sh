@@ -12,7 +12,6 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNTIME_ROOT="${CONTROL_ROOM_RUNTIME_ROOT:-/srv/control-room}"
 STATE_ROOT="${CONTROL_ROOM_STATE_ROOT:-/var/lib/control-room}"
 RUNTIME_ENV="${CONTROL_ROOM_ENV_FILE:-/etc/control-room/control-room.env}"
-RUNTIME_BUN="${CONTROL_ROOM_BUN_BIN:-/usr/local/bin/control-room-bun}"
 BUN_BIN="${BUN_BIN:-}"
 
 APP_USER_HOME="$(getent passwd "${APP_USER}" | cut -d: -f6)"
@@ -59,7 +58,7 @@ Environment=SHUTDOWN_TIMEOUT=5
 Environment=PROTOCOL_HEADER=x-forwarded-proto
 Environment=HOST_HEADER=x-forwarded-host
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-ExecStart=${RUNTIME_BUN} build/index.js
+ExecStart=/usr/bin/node build/index.js
 Restart=always
 RestartSec=1
 KillSignal=SIGTERM

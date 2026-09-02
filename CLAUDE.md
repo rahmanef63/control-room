@@ -4,7 +4,7 @@
 
 - Repo: `git@github.com:rahmanef63/control-room.git`
 - Production domain: `vps.rahmanef.com`
-- Host target: Ubuntu 24.04, Bun frontend runtime, Node.js 22 agent runtime
+- Host target: Ubuntu 24.04, Bun build/package tooling, Node.js 22 agent runtime
 - Package manager: Bun
 - Frontend SSOT: `frontend/`
 - Agent SSOT: `agent/`
@@ -14,7 +14,7 @@
 
 ```text
 browser
-  -> SvelteKit 2 / Svelte 5 frontend (:4000, adapter-node on Bun)
+  -> SvelteKit 2 / Svelte 5 frontend (:4000, adapter-node on Node 22 in production)
        -> ordinary agent APIs over authenticated HTTP
        -> terminal browser stream over SSE
        -> frontend server bridges SSE to the agent terminal WebSocket
@@ -92,7 +92,7 @@ git diff --check
 The production frontend is the adapter-node output started with:
 
 ```bash
-bun build/index.js
+node build/index.js
 ```
 
 The production agent is started with:
