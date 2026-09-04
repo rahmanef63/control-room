@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-04T01:54:02.850Z",
+  "repo": "control-room-wt-landing",
+  "commit": "855f3db52cfcfe196205e10fa706518e23094fe1",
+  "dirty": false,
+  "environment": "development",
+  "target": "public portfolio landing",
+  "assertions": [
+    {
+      "claim": "landing route public without terminal session",
+      "status": "passed"
+    },
+    {
+      "claim": "landing prerendered with csr disabled",
+      "status": "passed"
+    },
+    {
+      "claim": "canonical open graph twitter jsonld robots sitemap",
+      "status": "passed"
+    },
+    {
+      "claim": "no external runtime resources",
+      "status": "passed"
+    },
+    {
+      "claim": "zero executable landing scripts",
+      "status": "passed"
+    },
+    {
+      "claim": "landing accessibility critical serious zero",
+      "status": "passed"
+    },
+    {
+      "claim": "reduced motion respected",
+      "status": "passed"
+    },
+    {
+      "claim": "existing terminal app regression preserved",
+      "status": "passed"
+    }
+  ],
+  "checks": {
+    "root-verify": "passed",
+    "docs-check": "passed",
+    "agent-tests-35": "passed",
+    "frontend-tests-66": "passed",
+    "dependency-audit": "passed-zero-vulnerabilities",
+    "production-build": "passed",
+    "landing-html-16637B": "passed",
+    "landing-gzip-4823B": "passed",
+    "landing-css-38828B": "passed",
+    "playwright-7-of-7": "passed"
+  },
+  "browser": {
+    "result": "passed",
+    "console_errors": 0,
+    "network_errors": 0
+  },
+  "deployment_state": "not-deployed",
+  "artifacts": [
+    ".agent/evidence/artifacts/landing-desktop-1440x900.png",
+    ".agent/evidence/artifacts/landing-mobile-390x844.png"
+  ],
+  "notes": "Public portfolio landing is static/prerendered and zero-CSR. CSS-only hover/micro-animations respect reduced motion. Existing terminal UI and mobile sheet/sidebar were not modified. Full canonical bun run verify passed after npm advisory endpoint recovered."
+}
