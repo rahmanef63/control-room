@@ -1,4 +1,5 @@
-import { readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
+import { gzipSync } from 'node:zlib';
 import path from 'node:path';
 
 const root = path.resolve('.svelte-kit/output/client/_app/immutable');
@@ -6,6 +7,11 @@ const limits = new Map([
   ['.js', 512 * 1024],
   ['.css', 128 * 1024]
 ]);
+const landingLimits = {
+  html: 32 * 1024,
+  gzip: 8 * 1024,
+  css: 64 * 1024
+};
 
 async function walk(dir) {
   const out = [];
@@ -35,4 +41,40 @@ for (const [ext, limit] of limits) {
     console.error(`bundle budget exceeded: ${entry.file} ${entry.size}B > ${limit}B`);
   }
 }
+
+const landingPath = path.resolve('build/prerendered/landing.html');
+const landingHtml = await readFile(landingPath, 'utf8');
+const landingHtmlBytes = Buffer.byteLength(landingHtml);
+const landingGzipBytes = gzipSync(landingHtml).byteLength;
+const landingStyleHrefs = [...landingHtml.matchAll(/<link href="\.\/(_app\/immutable\/assets\/[^"]+\.css)" rel="stylesheet">/g)]
+  .map((match) => match[1]);
+let landingCssBytes = 0;
+for (const href of landingStyleHrefs) {
+  landingCssBytes += (await stat(path.resolve('build/client', href))).size;
+}
+const landingExecutableScripts = (
+  landingHtml.match(/<script(?=[^>]*(?:type="module"|src=))[^>]*>/g) ?? []
+).length;
+
+console.log(
+  `landing html=${landingHtmlBytes}B/${landingLimits.html}B gzip=${landingGzipBytes}B/${landingLimits.gzip}B css=${landingCssBytes}B/${landingLimits.css}B executable-scripts=${landingExecutableScripts}`
+);
+
+if (landingHtmlBytes > landingLimits.html) {
+  failed = true;
+  console.error(`landing HTML budget exceeded: ${landingHtmlBytes}B > ${landingLimits.html}B`);
+}
+if (landingGzipBytes > landingLimits.gzip) {
+  failed = true;
+  console.error(`landing gzip budget exceeded: ${landingGzipBytes}B > ${landingLimits.gzip}B`);
+}
+if (landingCssBytes > landingLimits.css) {
+  failed = true;
+  console.error(`landing CSS budget exceeded: ${landingCssBytes}B > ${landingLimits.css}B`);
+}
+if (landingExecutableScripts > 0) {
+  failed = true;
+  console.error(`landing must remain zero-CSR: found ${landingExecutableScripts} executable script tag(s)`);
+}
+
 if (failed) process.exit(1);

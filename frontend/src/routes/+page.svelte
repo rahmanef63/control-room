@@ -395,6 +395,8 @@
 
 <svelte:head>
 	<title>Terminals · VPS Control Room</title>
+	<meta name="description" content="Authenticated Control Room terminal workspace." />
+	<meta name="robots" content="noindex,nofollow,noarchive" />
 </svelte:head>
 
 <div class="terminal-shell" data-fullscreen={fullscreen.isFullscreen || undefined}>

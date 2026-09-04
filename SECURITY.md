@@ -46,6 +46,8 @@ Interactive terminal shells must not inherit Control Room's own master auth secr
 
 Developer memory/evidence under `.agent/` may contain operational context, so canonical memory/recipe/receipt files are scanned for secret-like material by `bun run evidence:check`.
 
+The public `/landing` route is presentation-only and must remain unable to read authenticated terminal state or call the privileged agent. It is prerendered with CSR disabled. Search metadata routes (`/robots.txt`, `/sitemap.xml`) are public; terminal APIs remain protected except the explicitly minimal auth/health/version endpoints.
+
 ## Production invariants
 
 - Public reverse proxy routes only to frontend port 4000.

@@ -145,6 +145,10 @@ Mobile hierarchy:
 
 Global bars must never cause document-level horizontal overflow. Fullscreen terminal mode hides global chrome while retaining safe-area spacing.
 
+### 8.1 Public portfolio surface
+
+A public `/landing` route may explain the product for portfolio/sharing purposes, provided it stays isolated from the authenticated terminal runtime. It must not expose host state or gateway credentials. Prefer prerendered, zero-CSR output, no external runtime resources, semantic HTML, route-specific SEO metadata, structured data, and reduced-motion-safe CSS interactions. The authenticated terminal workspace and login page remain non-indexable.
+
 ## 9. Pane UX
 
 Each pane should expose terminal-relevant actions only:

@@ -6,6 +6,9 @@ import { isApproved } from '$lib/server/device-store';
 import { signSession, verifySession, type SessionPayload } from '$lib/server/session';
 
 const PUBLIC_PATHS = [
+  '/landing',
+  '/robots.txt',
+  '/sitemap.xml',
   '/login',
   '/api/auth/',
   '/api/health',

@@ -1,8 +1,8 @@
 # Control Room QA Baseline — v2.0.0 Terminal Runtime
 
-**Audit date:** 3 September 2026
+**Audit date:** 4 September 2026
 **Target:** SvelteKit 2 / Svelte 5 terminal-first v2.0.0
-**Status:** Automated baseline active; production not modified by this documentation audit
+**Status:** Automated baseline active; public landing regression coverage added
 
 ## Automated acceptance matrix
 
@@ -15,8 +15,9 @@ without touching the production PTY agent.
 | Documentation consistency | 38 tracked Markdown files; relative links; package-version sync; stale terminal-first residue markers | PASS |
 | Responsive overflow | 320×568, 360×800, 390×844, 430×932, 768×1024, 1366×768, 1440×900, 1920×1080, 844×390 landscape | PASS |
 | App-chrome density | desktop menu ≤32px, workspace ≤34px, command bar ≤40px, terminal stage >620px at 1366×768; mobile bars bounded independently | PASS |
-| Accessibility | Axe WCAG 2 A/AA + 2.1 AA; zero critical/serious violations on login and authenticated app shell | PASS |
-| Visual regression | 390×844 login baseline + terminal workspace evidence | PASS |
+| Landing performance | prerendered `/landing`; HTML ≤32 KiB, gzip ≤8 KiB, route CSS ≤64 KiB, zero executable scripts/external runtime resources | PASS |
+| Accessibility | Axe WCAG 2 A/AA + 2.1 AA; zero critical/serious violations on login, authenticated app shell, and `/landing` mobile/desktop | PASS |
+| Visual regression | 390×844 login baseline + terminal workspace evidence + `/landing` desktop/mobile evidence | PASS |
 | Svelte diagnostics | `svelte-check` | 0 errors / 0 warnings |
 | Frontend unit coverage | overall lines ≥90%, functions ≥85% | 93.84% / 92.36% |
 | Agent unit coverage | overall lines ≥45%, functions ≥40% | 48.93% / 52.62% |
@@ -30,7 +31,8 @@ using Bun as the application server.
 
 Browser console/page errors, genuine request failures, and HTTP 5xx responses fail
 the suite. Intentional navigation aborts remain diagnostics rather than false
-outages.
+outages. The suite contains **7 Playwright tests**: the existing terminal/auth/responsive
+checks plus public landing SEO/zero-CSR and landing responsive/accessibility/motion checks.
 
 ## Production-only smoke
 

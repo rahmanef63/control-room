@@ -202,6 +202,7 @@ systemctl is-active vps-control-room-frontend
 curl -fsS http://127.0.0.1:4001/health
 curl -fsS http://127.0.0.1:4000/api/health
 curl -I http://127.0.0.1:4000/login
+curl -I http://127.0.0.1:4000/landing
 ```
 
 The unauthenticated agent health response is intentionally minimal. Detailed

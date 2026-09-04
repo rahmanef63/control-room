@@ -73,6 +73,12 @@ The following do **not** belong in Control Room core:
 
 If a CLI needs credentials, OAuth, browser automation, deployment logic, or its own agents, that CLI owns those concerns. Control Room only gives it a terminal.
 
+## Public portfolio landing
+
+`/landing` is the intentionally public marketing/portfolio surface. It is prerendered with client-side rendering disabled, uses no external runtime resources, and carries its own canonical/robots/Open Graph/Twitter/JSON-LD metadata. The private terminal workspace and sign-in surface remain `noindex`. `robots.txt` and `sitemap.xml` advertise only the portfolio route.
+
+The landing page must stay presentation-only: it does not read host state, call the privileged agent, or own a second application architecture.
+
 ## Architecture
 
 ```mermaid

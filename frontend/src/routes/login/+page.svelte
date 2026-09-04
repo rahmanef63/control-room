@@ -110,6 +110,8 @@
 
 <svelte:head>
 	<title>Sign in — Control Room</title>
+	<meta name="description" content="Sign in to the private Control Room terminal workspace." />
+	<meta name="robots" content="noindex,nofollow,noarchive" />
 </svelte:head>
 
 <div class="login-shell">

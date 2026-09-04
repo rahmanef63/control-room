@@ -8,18 +8,11 @@
 
 <svelte:head>
 	<title>VPS Terminals</title>
-	<meta
-		name="description"
-		content="Mobile-first PWA to drive your VPS from anywhere — multi-pane terminals + AI-agent launchers, behind device-aware sessions with a loopback-only host agent."
-	/>
 	<meta name="theme-color" content="#111821" />
 	<meta name="color-scheme" content="dark" />
 	<meta name="apple-mobile-web-app-capable" content="yes" />
 	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 	<meta name="mobile-web-app-capable" content="yes" />
-	<meta property="og:type" content="website" />
-	<meta property="og:title" content="VPS Control Room" />
-	<meta property="og:image" content="/og-card.png" />
 </svelte:head>
 
 {@render children?.()}

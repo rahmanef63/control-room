@@ -65,6 +65,7 @@ Optional third-party CLI programs may be launched as normal terminal processes. 
 - Route APIs: `frontend/src/routes/api/**/+server.ts`.
 - Preserve safe-area, mobile keyboard, fullscreen, viewport and xterm-fit behavior.
 - Preserve the app-chrome hierarchy: compact app/status bar → workspace rail → session/command bar → terminal stage; collapse labels/secondary utilities before allowing toolbar wrapping.
+- Keep `/landing` presentation-only and public: prerendered, `csr = false`, no host/gateway reads, no external runtime resources, route-specific SEO/structured data, and `prefers-reduced-motion` support.
 - Delete obsolete implementations; do not keep compatibility placeholder files.
 
 ## Agent rules
