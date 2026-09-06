@@ -140,13 +140,12 @@ export async function listSkills(cwd?: string): Promise<SkillSummary[]> {
     projectList = projectLists.flat();
   }
 
-  // Project roots win over global roots. Within one scope, root order above is
-  // precedence; duplicate names from another registry are intentionally hidden.
+  // Project roots are concatenated first, so deduping by canonical slash name
+  // makes a project skill override a same-named global skill deterministically.
   const seen = new Set<string>();
   const all = [...projectList, ...globalLists.flat()].filter((skill) => {
-    const key = `${skill.scope}:${skill.name}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
+    if (seen.has(skill.name)) return false;
+    seen.add(skill.name);
     return true;
   });
 
