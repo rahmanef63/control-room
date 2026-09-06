@@ -13,8 +13,9 @@ export interface SkillSummary {
   source: string;
 }
 
-// Keep this aligned with the Agent Skills roots used by MSO/SI-Coder so a skill
-// installed once is immediately available to Control Room's /<skill> picker.
+// Keep this aligned with the shared Agent Skills roots used by MSO and local
+// runtimes so a skill installed once is immediately available to Control Room's
+// /<skill> picker.
 const GLOBAL_ROOTS = [
   path.join(os.homedir(), ".mso", "skills"),
   path.join(os.homedir(), ".agents", "skills"),
