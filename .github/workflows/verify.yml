@@ -31,8 +31,8 @@ jobs:
       - name: Install agent
         run: bun install --cwd agent --frozen-lockfile
 
-      - name: Install Playwright Chromium
-        run: bunx playwright install --with-deps chromium
+      - name: Install Playwright Chromium from locked frontend toolchain
+        run: frontend/node_modules/.bin/playwright install --with-deps chromium
 
       - name: Verify
         env:

@@ -13,18 +13,29 @@ export interface SkillSummary {
   source: string;
 }
 
+// Keep this aligned with the shared Agent Skills roots used by MSO and local
+// runtimes so a skill installed once is immediately available to Control Room's
+// /<skill> picker.
 const GLOBAL_ROOTS = [
+  path.join(os.homedir(), ".mso", "skills"),
   path.join(os.homedir(), ".agents", "skills"),
   path.join(os.homedir(), ".claude", "skills"),
+  path.join(os.homedir(), ".hermes", "skills"),
+  path.join(os.homedir(), ".codex", "skills"),
+  path.join(os.homedir(), ".openclaw", "workspace", "skills"),
 ];
 
 const PROJECT_SUBDIRS = [
   "skills",
+  path.join(".mso", "skills"),
   path.join(".claude", "skills"),
   path.join(".agents", "skills"),
+  path.join(".hermes", "skills"),
+  path.join(".codex", "skills"),
 ];
 
 const PROJECT_MARKERS = [".git", "package.json", "deno.json", "pyproject.toml", "Cargo.toml", "go.mod"];
+const SAFE_SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 function parseFrontmatter(raw: string): Record<string, string> {
   if (!raw.startsWith("---")) return {};
@@ -36,7 +47,11 @@ function parseFrontmatter(raw: string): Record<string, string> {
     const match = line.match(/^([a-zA-Z0-9_-]+)\s*:\s*(.*)$/);
     if (!match) continue;
     let value = match[2].trim();
-    if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
+    if (value.startsWith('"') && value.endsWith('"')) {
+      try { value = JSON.parse(value) as string; } catch { value = value.slice(1, -1); }
+    } else if (value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1).replace(/''/g, "'");
+    }
     result[match[1]] = value;
   }
   return result;
@@ -75,7 +90,7 @@ async function readSkillsFromDir(
   let entries: string[];
   try {
     const dirents = await fs.readdir(root, { withFileTypes: true });
-    entries = dirents.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    entries = dirents.filter((entry) => entry.isDirectory() || entry.isSymbolicLink()).map((entry) => entry.name);
   } catch {
     return [];
   }
@@ -87,11 +102,12 @@ async function readSkillsFromDir(
       try {
         const raw = await fs.readFile(skillFile, "utf8");
         const meta = parseFrontmatter(raw);
+        const name = SAFE_SKILL_NAME.test(meta.name || "") ? meta.name : id;
         results.push({
           id,
-          name: meta.name || id,
+          name,
           description: meta.description || "",
-          invocation: `/${id}`,
+          invocation: `/${name}`,
           scope,
           source: sourceLabel,
         });
@@ -124,11 +140,12 @@ export async function listSkills(cwd?: string): Promise<SkillSummary[]> {
     projectList = projectLists.flat();
   }
 
+  // Project roots are concatenated first, so deduping by canonical slash name
+  // makes a project skill override a same-named global skill deterministically.
   const seen = new Set<string>();
   const all = [...projectList, ...globalLists.flat()].filter((skill) => {
-    const key = `${skill.scope}:${skill.id}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
+    if (seen.has(skill.name)) return false;
+    seen.add(skill.name);
     return true;
   });
 
