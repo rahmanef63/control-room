@@ -79,3 +79,6 @@ frontend/playwright-report/
 # Local/private evidence artifacts (receipts stay tracked)
 .agent/evidence/artifacts/*
 !.agent/evidence/artifacts/.gitkeep
+
+# Local MSO runtime state — never commit
+.mso/
