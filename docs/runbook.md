@@ -536,6 +536,30 @@ bash scripts/backup-control-room.sh --include-env
 That additionally copies `/etc/control-room/control-room.env`; handle the output
 as a secret and move it only to an approved encrypted off-host destination.
 
+### CLI-owned credential portability
+
+Control Room backups do not include credentials owned by tools launched inside a
+terminal. Keep that boundary explicit: each CLI must use its own backup/restore
+contract, and Control Room must not capture or proxy transfer passphrases.
+
+For the SC CLI, portable credential backup is intentionally interactive:
+
+```bash
+# metadata only; safe for automation, contains no credential values
+sc data export --user USER --out backup.integration-bundle.json
+
+# encrypted direct credentials; enter the transfer passphrase in the terminal
+sc data export --user USER --include-secrets --out backup.integration-bundle.enc.json
+
+# restore is preview first, then apply the returned planId
+sc data import --file backup.integration-bundle.enc.json --prefix restored-
+sc data import --file backup.integration-bundle.enc.json --prefix restored- --apply --confirm PREVIEW_ID
+```
+
+Do not move the passphrase through Control Room API payloads, logs, clipboard
+automation, or agent tool arguments. External OAuth/provider connections may still
+require fresh authorization on the destination machine.
+
 Verify a repository bundle before recovery:
 
 ```bash
