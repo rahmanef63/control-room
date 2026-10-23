@@ -6,6 +6,8 @@ frontend/build/
 frontend/.svelte-kit/
 frontend/package/
 frontend/releases/
+frontend/.next/
+frontend/next-env.d.ts
 agent/dist/
 cli/dist/
 

@@ -118,6 +118,15 @@ MemoryMax=18G
 MemorySwapMax=512M
 CPUWeight=800
 UMask=0077
+# Delegation lets the agent give every pane its OWN memory-capped child cgroup
+# (agent/src/terminal/cgroup.ts). Without it all panes share the cgroup above,
+# so one runaway drags every other pane past MemoryHigh with it: on 2026-08-18 a
+# single 13.5 GB ugrep (86% of MemoryHigh) held 9 unrelated tasks at
+# memory.pressure full=90 for an hour while itself using 0.08 core. The limits
+# above stay as the aggregate backstop; the per-pane caps make the blast radius
+# one pane instead of all of them, and give closeSession() a cgroup.kill that
+# reaches double-fork+setsid escapees the process-group kill cannot.
+Delegate=memory pids
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=vps-cr-agent

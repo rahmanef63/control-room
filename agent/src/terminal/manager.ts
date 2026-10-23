@@ -6,6 +6,13 @@ import * as pty from "node-pty";
 import type { IPty } from "node-pty";
 
 import { ScrollbackBuffer } from "./buffer.js";
+import {
+  attachPaneToCgroup,
+  initPaneCgroups,
+  killPaneCgroup,
+  reapStalePaneCgroups,
+  removePaneCgroup,
+} from "./cgroup.js";
 import { resolveTerminalLaunch } from "./profiles.js";
 import { appendLog } from "../state/log.js";
 import type {
@@ -60,6 +67,12 @@ function readLiveCwd(pid: number): string | undefined {
 
 class TerminalManager {
   private readonly sessions = new Map<string, ManagedSession>();
+
+  constructor() {
+    // Must run before the first pty: the "no internal processes" rule means the
+    // agent has to vacate its own cgroup before children can carry controllers.
+    if (initPaneCgroups()) reapStalePaneCgroups();
+  }
 
   listSessions(): TerminalSessionRecord[] {
     return Array.from(this.sessions.values())
@@ -119,6 +132,11 @@ class TerminalManager {
         CONTROL_ROOM_SESSION_ID: id,
       },
     });
+
+    // Immediately after spawn, before the shell can fork anything worth
+    // capping: descendants inherit the cgroup, so the only unprotected window
+    // is between forkpty() and this call.
+    attachPaneToCgroup(id, terminal.pid);
 
     const session: TerminalSessionRecord = {
       id,
@@ -311,6 +329,11 @@ class TerminalManager {
     if (managed.session.status === "running") {
       this.killSessionTree(managed);
     }
+    // Runs even for an already-exited session: the shell can exit while a
+    // detached grandchild keeps running, which is precisely the leak the
+    // process-group kill cannot reach.
+    killPaneCgroup(id);
+    removePaneCgroup(id);
 
     appendLog({
       level: "info",
@@ -327,9 +350,12 @@ class TerminalManager {
   // process-group id; SIGKILL to the negative pid reaps the entire group in
   // one syscall instead of orphaning detached descendants like terminal.kill()
   // (single-PID SIGHUP) did. We also call terminal.kill() so node-pty cleans
-  // its own state. ponytail: children that double-fork+setsid into their OWN
-  // session escape this group kill — the operator's cgroup MemorySwapMax cap is
-  // the backstop for those (no recursive /proc walker on purpose).
+  // its own state. Children that double-fork+setsid into their OWN session
+  // escape this group kill; closeSession() follows up with killPaneCgroup(),
+  // which reaches them because a process cannot leave its cgroup the way it can
+  // leave a process group. Where delegation is unavailable the old backstop
+  // still applies: the cgroup MemorySwapMax cap (no recursive /proc walker on
+  // purpose).
   private killSessionTree(managed: ManagedSession): void {
     const pid = managed.session.pid; // == pgid (forkpty setsid)
     if (process.platform === "win32") {
