@@ -71,6 +71,7 @@ Optional third-party CLI programs may be launched as normal terminal processes. 
 ## Agent rules
 
 - Keep the privileged daemon on Node.js 22 unless PTY behavior is proven equivalent elsewhere.
+- Cap every terminal pane in its own cgroup (memory + pids). Do not return to a single shared agent cgroup for pane processes; runaway panes must not drag siblings past MemoryHigh. Per-pane default is `memory.max=8G`; on pane close use cgroup.kill so double-fork children are reaped (`agent/src/terminal/cgroup.ts`).
 - Every privileged endpoint requires the machine gateway secret.
 - Agent binds loopback by default.
 - PTY data, resize, Ctrl-C, process-group teardown and reconnect semantics are critical.
